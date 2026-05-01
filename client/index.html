@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sobrevivência 3D — Online</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --poderoso-color: #ff00ff; }
+        body { margin:0; overflow:hidden; background:#000; color:#fff; font-family:'Orbitron',sans-serif; user-select:none; }
+        canvas { display:block; }
+        .disoriented-screen { filter:invert(1) hue-rotate(180deg); transition:filter .2s; }
+        .blind-screen-effect { position:absolute; top:0; left:0; width:100%; height:100%; background:radial-gradient(circle,transparent 30%,black 80%); pointer-events:none; z-index:500; opacity:0; transition:opacity .3s; }
+        .blind-screen-effect.active { opacity:1; }
+        .overlay-screen { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.85); display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; z-index:100; backdrop-filter:blur(5px); }
+        .overlay-screen h1 { font-size:3rem; margin-bottom:20px; text-shadow:0 0 10px #fff,0 0 20px #0ff; }
+        .overlay-screen h2 { font-size:2rem; margin-bottom:30px; }
+        .overlay-screen p { font-size:1.2rem; max-width:500px; margin-bottom:20px; }
+        .overlay-button { padding:15px 30px; font-size:1.2rem; font-family:'Orbitron',sans-serif; background:#1a1a1a; color:#fff; border:2px solid #0ff; border-radius:8px; cursor:pointer; transition:all .3s; margin:10px; text-transform:uppercase; }
+        .overlay-button:hover:not(:disabled) { background:#0ff; color:#000; box-shadow:0 0 15px #0ff; }
+        .overlay-button:disabled { border-color:#555; color:#777; cursor:not-allowed; }
+        #player-name-input { padding:15px; font-size:1.2rem; font-family:'Orbitron',sans-serif; background:#111; color:#fff; border:2px solid #555; border-radius:8px; text-align:center; margin-bottom:20px; width:300px; }
+        #player-name-input:focus { outline:none; border-color:#0ff; }
+        /* Queue status */
+        #queue-status { display:none; font-size:1.4rem; margin-top:20px; color:#0ff; }
+        #queue-status .spinner { display:inline-block; width:20px; height:20px; border:3px solid #0ff; border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite; margin-right:10px; vertical-align:middle; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        /* Leaderboard */
+        .leaderboard-container { margin-top:30px; padding:20px; background:rgba(0,0,0,.4); border:1px solid #333; border-radius:10px; width:80%; max-width:450px; }
+        .leaderboard-container h2 { font-size:1.8rem; margin-bottom:15px; color:#0ff; }
+        .leaderboard-container ol { list-style:none; padding:0; margin:0; }
+        .leaderboard-container li { font-size:1.1rem; padding:8px 0; border-bottom:1px solid #222; }
+        .leaderboard-container li:last-child { border-bottom:none; }
+        /* Player HUD */
+        #player-hud { position:absolute; top:20px; left:20px; width:300px; background:rgba(0,0,0,.5); padding:10px; border-radius:8px; border:1px solid #444; z-index:10; display:none; }
+        .hud-item { margin-bottom:8px; }
+        .hud-item-label { font-size:.9rem; margin-bottom:4px; }
+        .progress-bar-container { width:100%; height:22px; background:#333; border-radius:5px; border:1px solid #555; position:relative; overflow:hidden; }
+        .progress-bar { height:100%; border-radius:4px; transition:width .3s; position:relative; }
+        .progress-bar-text { position:absolute; width:100%; text-align:center; line-height:22px; font-size:.8rem; font-weight:bold; color:#fff; text-shadow:1px 1px 2px #000; }
+        #hp-bar { background:linear-gradient(90deg,#d32f2f,#f44336); }
+        #hp-bar.low { animation:pulse-red 1s infinite; }
+        #xp-bar { background:linear-gradient(90deg,#673ab7,#9575cd); }
+        #shield-bar { background:linear-gradient(90deg,#fbc02d,#fdd835); }
+        @keyframes pulse-red { 0%{box-shadow:0 0 3px #f44336} 50%{box-shadow:0 0 10px #f11} 100%{box-shadow:0 0 3px #f44336} }
+        .stats-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:10px; text-align:center; }
+        .stat-box h3 { font-size:1rem; margin:0 0 5px; color:#aaa; }
+        .stat-box p { font-size:1.2rem; margin:0; }
+        #buff-display { position:absolute; top:20px; right:20px; display:none; background:rgba(0,0,0,.5); padding:10px; border-radius:8px; z-index:10; text-align:right; }
+        .boss-hud-container { position:absolute; top:30px; left:50%; transform:translateX(-50%); width:60%; max-width:700px; display:none; flex-direction:column; align-items:center; gap:10px; z-index:10; }
+        .boss-hud-item { width:100%; background:rgba(0,0,0,.7); padding:10px; border-radius:8px; border:1px solid #555; text-align:center; }
+        #boss-hp-bar { background:linear-gradient(90deg,#c62828,#e53935); }
+        #poderoso-hp-bar { background:linear-gradient(90deg,#6a1b9a,var(--poderoso-color)); }
+        #poderoso-power-bar { background:linear-gradient(90deg,#f9a825,#fdd835); }
+        #skills-hud { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); display:none; gap:15px; background:rgba(0,0,0,.5); padding:10px; border-radius:10px; z-index:10; }
+        .skill-slot { width:60px; height:60px; border:2px solid #555; border-radius:8px; background:#222; position:relative; display:flex; justify-content:center; align-items:center; font-size:1.5rem; font-weight:bold; }
+        .skill-cooldown { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.8); color:#fff; display:flex; justify-content:center; align-items:center; font-size:1.8rem; border-radius:6px; }
+        #mobile-controls { display:none; position:absolute; bottom:0; left:0; width:100%; height:100%; pointer-events:none; z-index:20; }
+        #joystick-container { position:absolute; bottom:40px; left:40px; width:150px; height:150px; background:rgba(255,255,255,.1); border-radius:50%; pointer-events:auto; }
+        #joystick-thumb { position:absolute; top:50%; left:50%; width:60px; height:60px; background:rgba(255,255,255,.4); border-radius:50%; transform:translate(-50%,-50%); pointer-events:none; }
+        #mobile-action-buttons { position:absolute; bottom:40px; right:40px; display:grid; grid-template-areas:". e ." "w attack q" ". r ."; gap:15px; pointer-events:auto; }
+        .mobile-button { width:70px; height:70px; border-radius:50%; border:2px solid #aaa; background:rgba(0,0,0,.6); color:#fff; font-size:1.5rem; display:flex; justify-content:center; align-items:center; }
+        #attack-button { grid-area:attack; width:90px; height:90px; background:rgba(200,50,50,.7); }
+        #q-button { grid-area:q; } #w-button { grid-area:w; } #e-button { grid-area:e; } #r-button { grid-area:r; }
+        #event-message { position:absolute; top:20%; left:50%; transform:translateX(-50%); background:rgba(255,165,0,.9); color:#000; padding:15px 30px; border-radius:10px; font-size:1.5rem; font-weight:bold; z-index:200; opacity:0; transition:opacity .5s; pointer-events:none; }
+        #event-message.show { opacity:1; }
+        #upgrade-panel { display:none; }
+        #upgrade-panel .panel-content { background:rgba(20,20,20,.9); padding:40px; border-radius:15px; border:1px solid #555; box-shadow:0 0 20px rgba(0,0,0,.5); }
+        /* Multiplayer scoreboard */
+        #multiplayer-scoreboard { position:absolute; top:20px; right:20px; width:220px; background:rgba(0,0,0,.6); border:1px solid #444; border-radius:8px; padding:8px; z-index:10; display:none; }
+        .sb-row { display:flex; align-items:center; gap:6px; padding:4px 6px; border-radius:4px; font-size:.75rem; }
+        .sb-row.me { background:rgba(0,255,255,.15); border:1px solid rgba(0,255,255,.3); }
+        .sb-row.dead { opacity:.4; }
+        .sb-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .sb-score { color:#0ff; min-width:40px; text-align:right; }
+        .sb-level { color:#aaa; min-width:35px; }
+        .sb-hp-mini { width:40px; height:6px; background:#333; border-radius:3px; overflow:hidden; }
+        .sb-hp-fill { height:100%; background:#e53935; border-radius:3px; transition:width .3s; }
+        /* Latency */
+        #latency-display { position:absolute; bottom:5px; left:10px; font-size:.7rem; color:#666; z-index:10; }
+        /* Match found overlay */
+        #match-found-overlay { display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.9); z-index:150; flex-direction:column; justify-content:center; align-items:center; }
+        #match-found-overlay h2 { color:#0ff; font-size:2rem; margin-bottom:20px; }
+        #match-players-list { list-style:none; padding:0; }
+        #match-players-list li { font-size:1.2rem; padding:8px; }
+    </style>
+    <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js" } }
+    </script>
+</head>
+<body>
+    <div id="blind-overlay" class="blind-screen-effect"></div>
+    <!-- START SCREEN / LOBBY -->
+    <div id="start-screen" class="overlay-screen">
+        <h1>SOBREVIVÊNCIA 3D</h1>
+        <p>🌐 MULTIPLAYER ONLINE</p>
+        <input type="text" id="player-name-input" placeholder="Seu nome aqui..." maxlength="15">
+        <p>Escolha sua plataforma para entrar na fila</p>
+        <div>
+            <button id="pc-button" class="overlay-button" disabled>PC</button>
+            <button id="mobile-button" class="overlay-button" disabled>Mobile</button>
+        </div>
+        <div id="queue-status"><span class="spinner"></span><span id="queue-text">Procurando partida...</span></div>
+        <div class="leaderboard-container">
+            <h2>🏆 Ranking — Top 10 🏆</h2>
+            <ol id="leaderboard-list-start"><li>Carregando ranking...</li></ol>
+        </div>
+    </div>
+    <!-- MATCH FOUND -->
+    <div id="match-found-overlay">
+        <h2>⚔️ PARTIDA ENCONTRADA!</h2>
+        <ul id="match-players-list"></ul>
+        <p id="match-countdown">Iniciando em...</p>
+    </div>
+    <!-- GAME OVER -->
+    <div id="game-over-screen" class="overlay-screen" style="display:none">
+        <h1>FIM DE JOGO</h1>
+        <div id="final-scores-list" style="margin-bottom:20px"></div>
+        <div class="stats-grid" style="grid-template-columns:1fr;gap:20px;margin-bottom:20px">
+            <p>Sua Pontuação: <span id="final-score-value">0</span></p>
+            <p>Tempo Sobrevivido: <span id="final-time-value">00:00</span></p>
+            <p>Nível de Colapso: <span id="final-collapse-level">0</span></p>
+        </div>
+        <button id="restart-button" class="overlay-button">JOGAR NOVAMENTE</button>
+        <div class="leaderboard-container">
+            <h2>🏆 Ranking — Top 10 🏆</h2>
+            <ol id="leaderboard-list-gameover"><li>Atualizando...</li></ol>
+        </div>
+    </div>
+    <!-- UPGRADE PANEL -->
+    <div id="upgrade-panel" class="overlay-screen">
+        <div class="panel-content">
+            <h2 id="upgrade-title">Evoluir Habilidade</h2>
+            <p id="upgrade-description">Descrição da evolução.</p>
+            <div>
+                <button id="upgrade-confirm-button" class="overlay-button">Confirmar</button>
+                <button id="upgrade-skip-button" class="overlay-button">Pular</button>
+            </div>
+        </div>
+    </div>
+    <div id="event-message"></div>
+    <!-- PLAYER HUD -->
+    <div id="player-hud">
+        <div class="hud-item"><div class="hud-item-label">HP</div><div class="progress-bar-container"><div id="hp-bar" class="progress-bar"></div></div></div>
+        <div id="shield-hud-item" class="hud-item" style="display:none"><div class="hud-item-label">Escudo</div><div class="progress-bar-container"><div id="shield-bar" class="progress-bar"></div></div></div>
+        <div class="hud-item"><div class="hud-item-label">XP</div><div class="progress-bar-container"><div id="xp-bar" class="progress-bar"></div></div></div>
+        <div class="stats-grid">
+            <div class="stat-box"><h3>Nível</h3><p><span id="level-value">1</span></p></div>
+            <div class="stat-box"><h3>Passiva</h3><p>Nv. <span id="passive-level-value">1</span></p></div>
+            <div class="stat-box"><h3>Multiplicador</h3><p><span id="collapse-value">1</span>x</p></div>
+        </div>
+        <div class="stats-grid"><div class="stat-box" style="grid-column:1/-1"><h3>Pontuação</h3><p id="score-value">0</p></div></div>
+        <div class="stats-grid"><div class="stat-box" style="grid-column:1/-1"><h3>Tempo</h3><p id="time-value">00:00</p></div></div>
+    </div>
+    <!-- BOSS HUD -->
+    <div id="boss-hud" class="boss-hud-container">
+        <div class="boss-hud-item"><div id="boss-name-label" class="hud-item-label">Boss</div><div class="progress-bar-container"><div id="boss-hp-bar" class="progress-bar"></div></div></div>
+    </div>
+    <div id="poderoso-hud" class="boss-hud-container">
+        <div class="boss-hud-item"><div class="hud-item-label" style="color:var(--poderoso-color)">O PODEROSO</div><div class="progress-bar-container"><div id="poderoso-hp-bar" class="progress-bar"><div id="poderoso-hp-text" class="progress-bar-text"></div></div></div></div>
+        <div class="boss-hud-item"><div class="progress-bar-container"><div id="poderoso-power-bar" class="progress-bar"><div id="poderoso-power-text" class="progress-bar-text"></div></div></div></div>
+    </div>
+    <div id="buff-display"><h3 id="buff-name">Buff</h3><p id="buff-timer"></p></div>
+    <div id="skills-hud">
+        <div id="skill-q" class="skill-slot">Q</div>
+        <div id="skill-w" class="skill-slot">W</div>
+        <div id="skill-e" class="skill-slot">E</div>
+        <div id="skill-r" class="skill-slot">R</div>
+    </div>
+    <div id="mobile-controls">
+        <div id="joystick-container"><div id="joystick-thumb"></div></div>
+        <div id="mobile-action-buttons">
+            <div id="attack-button" class="mobile-button">ATK</div>
+            <div id="q-button" class="mobile-button">Q</div>
+            <div id="w-button" class="mobile-button">W</div>
+            <div id="e-button" class="mobile-button">E</div>
+            <div id="r-button" class="mobile-button">R</div>
+        </div>
+    </div>
+    <!-- MULTIPLAYER SCOREBOARD -->
+    <div id="multiplayer-scoreboard"></div>
+    <div id="latency-display">Ping: <span id="latency-value">--</span></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { NetworkClient } from './js/NetworkClient.js';
+        import { SnapshotRenderer } from './js/SnapshotRenderer.js';
+        import { InputManager } from './js/InputManager.js';
+        import { HUDManager } from './js/HUDManager.js';
+
+        // --- State ---
+        let scene, camera, renderer, clock;
+        let net, snapshotRenderer, inputManager, hudManager;
+        let animationFrameId;
+        const TICK_MS = 50; // 20Hz
+
+        // --- DOM refs ---
+        const nameInput = document.getElementById('player-name-input');
+        const pcBtn = document.getElementById('pc-button');
+        const mobileBtn = document.getElementById('mobile-button');
+        const queueStatus = document.getElementById('queue-status');
+        const queueText = document.getElementById('queue-text');
+
+        // Enable buttons when name typed
+        nameInput.addEventListener('input', () => {
+            const ok = nameInput.value.trim().length > 0;
+            pcBtn.disabled = !ok; mobileBtn.disabled = !ok;
+        });
+
+        pcBtn.addEventListener('click', () => startFlow('pc'));
+        mobileBtn.addEventListener('click', () => startFlow('mobile'));
+        document.getElementById('restart-button').addEventListener('click', () => location.reload());
+
+        // --- Connect & Queue ---
+        async function startFlow(platform) {
+            const name = nameInput.value.trim();
+            if (!name) return alert('Digite seu nome!');
+
+            pcBtn.disabled = true; mobileBtn.disabled = true;
+            queueStatus.style.display = 'block';
+            queueText.textContent = 'Conectando ao servidor...';
+
+            net = new NetworkClient();
+            const wsUrl = `ws://${location.hostname}:${location.port || 3000}/ws`;
+
+            try { await net.connect(wsUrl); } catch(e) {
+                queueText.textContent = 'Erro ao conectar! Tente novamente.';
+                pcBtn.disabled = false; mobileBtn.disabled = false;
+                return;
+            }
+
+            net.on('welcome', () => {
+                queueText.textContent = 'Procurando partida...';
+                net.joinQueue(name);
+            });
+
+            net.on('queueStatus', (data) => {
+                const wait = Math.ceil(data.estimatedWaitMs / 1000);
+                queueText.textContent = `Na fila (${data.playersInQueue} jogadores) — ~${wait}s`;
+            });
+
+            net.on('matchFound', (data) => {
+                document.getElementById('start-screen').style.display = 'none';
+                const overlay = document.getElementById('match-found-overlay');
+                overlay.style.display = 'flex';
+                const list = document.getElementById('match-players-list');
+                list.innerHTML = data.players.map(p => `<li>⚔️ ${p.name}</li>`).join('');
+            });
+
+            net.on('gameStart', (data) => {
+                document.getElementById('match-found-overlay').style.display = 'none';
+                initGame(data.yourPlayerId, platform, data.obstacles);
+            });
+
+            net.on('gameState', (snapshot) => {
+                if (snapshotRenderer) snapshotRenderer.pushSnapshot(snapshot);
+                if (hudManager) hudManager.update(snapshot);
+            });
+
+            net.on('gameEvent', (ev) => {
+                if (ev.event === 'MESSAGE' && hudManager) hudManager.showEvent(ev.data);
+            });
+
+            net.on('playerDied', (data) => {
+                if (data.playerId === net.playerId && hudManager) {
+                    hudManager.showEvent('Você foi abatido! Espectando jogadores vivos...');
+                } else if (hudManager) {
+                    hudManager.showEvent(`${data.playerName} foi abatido!`);
+                }
+            });
+
+            net.on('gameOver', (data) => {
+                cancelAnimationFrame(animationFrameId);
+                document.getElementById('player-hud').style.display = 'none';
+                document.getElementById('multiplayer-scoreboard').style.display = 'none';
+                const goScreen = document.getElementById('game-over-screen');
+                goScreen.style.display = 'flex';
+                const me = data.scores.find(s => s.playerId === net.playerId);
+                document.getElementById('final-score-value').textContent = me?.score || 0;
+                document.getElementById('final-time-value').textContent = formatTime(data.time);
+                document.getElementById('final-collapse-level').textContent = data.collapseLevel;
+                // Show all players scores
+                const list = document.getElementById('final-scores-list');
+                list.innerHTML = '<h2 style="color:#0ff;margin-bottom:10px">Placar Final</h2>' +
+                    data.scores.map((s,i) => {
+                        const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`;
+                        return `<p>${medal} ${s.playerName} — ${s.score} pts</p>`;
+                    }).join('');
+                fetchRanking(document.getElementById('leaderboard-list-gameover'));
+            });
+
+            net.on('latencyUpdate', (ms) => { if (hudManager) hudManager.updateLatency(ms); });
+            net.on('disconnected', () => { queueText.textContent = 'Desconectado. Reconectando...'; });
+        }
+
+        // --- Init 3D Scene & Game Loop ---
+        function initGame(playerId, platform, obstacles) {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x100018);
+            scene.fog = new THREE.Fog(0x100018, 50, 100);
+            camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            clock = new THREE.Clock();
+            renderer.setSize(innerWidth, innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            // Lights
+            scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+            const dir = new THREE.DirectionalLight(0xffffff, 0.6);
+            dir.position.set(15, 25, 10); dir.castShadow = true;
+            dir.shadow.camera.top = 40; dir.shadow.camera.bottom = -40;
+            dir.shadow.camera.left = -40; dir.shadow.camera.right = 40;
+            scene.add(dir);
+
+            // Ground
+            const ground = new THREE.Mesh(
+                new THREE.PlaneGeometry(100, 100),
+                new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 })
+            );
+            ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
+            scene.add(ground);
+
+            // Healing tower visual
+            const tGeo = new THREE.CylinderGeometry(0.5, 0.7, 3, 16);
+            const tMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x00ffff, emissiveIntensity: 0.5 });
+            const tower = new THREE.Mesh(tGeo, tMat); tower.position.set(0, 1.5, 0);
+            scene.add(tower);
+            const aGeo = new THREE.CircleGeometry(4, 32);
+            const aMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.2 });
+            const aura = new THREE.Mesh(aGeo, aMat); aura.rotation.x = -Math.PI/2; aura.position.y = 0.01;
+            scene.add(aura);
+
+            // Obstacles
+            if (obstacles) {
+                const obsGeo = new THREE.BoxGeometry(1, 4, 1); // 1x1x1 base, scale it
+                const obsMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9 });
+                for (const obs of obstacles) {
+                    const mesh = new THREE.Mesh(obsGeo, obsMat);
+                    mesh.scale.set(obs.width, 1, obs.depth);
+                    mesh.position.set(obs.x, 2, obs.z);
+                    mesh.castShadow = true;
+                    mesh.receiveShadow = true;
+                    scene.add(mesh);
+                }
+            }
+
+            // Init systems
+            snapshotRenderer = new SnapshotRenderer(scene);
+            inputManager = new InputManager(net);
+            inputManager.setup(platform, camera, scene);
+            hudManager = new HUDManager(playerId);
+
+            // Show HUDs
+            document.getElementById('player-hud').style.display = 'block';
+            document.getElementById('multiplayer-scoreboard').style.display = 'block';
+
+            window.addEventListener('resize', () => {
+                camera.aspect = innerWidth / innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(innerWidth, innerHeight);
+            });
+
+            animate();
+        }
+
+        function animate() {
+            animationFrameId = requestAnimationFrame(animate);
+            const dt = clock.getDelta();
+
+            if (snapshotRenderer) {
+                snapshotRenderer.update(dt, TICK_MS);
+                if (inputManager) inputManager.update(dt);
+                // Camera follows local player or spectates alive players
+                const mesh = snapshotRenderer.getSpectatorTarget(net?.playerId);
+                if (mesh) {
+                    const target = mesh.position.clone().add(new THREE.Vector3(0, 20, 12));
+                    camera.position.lerp(target, 0.05);
+                    camera.lookAt(mesh.position);
+                }
+            }
+            if (renderer && scene && camera) renderer.render(scene, camera);
+        }
+
+        // --- Ranking (from server API) ---
+        async function fetchRanking(listEl) {
+            if (!listEl) return;
+            listEl.innerHTML = '<li>Carregando...</li>';
+            try {
+                const res = await fetch('/api/ranking');
+                const data = await res.json();
+                if (!data.length) { listEl.innerHTML = '<li>Ninguém no ranking ainda!</li>'; return; }
+                listEl.innerHTML = data.slice(0, 10).map((p, i) => {
+                    const medal = i===0?'🥇 ':i===1?'🥈 ':i===2?'🥉 ':`${i+1}. `;
+                    return `<li>${medal}${p.player_name} — ${p.score} pts</li>`;
+                }).join('');
+            } catch(e) { listEl.innerHTML = '<li>Erro ao carregar ranking.</li>'; }
+        }
+
+        function formatTime(s) {
+            return Math.floor(s/60).toString().padStart(2,'0') + ':' + Math.floor(s%60).toString().padStart(2,'0');
+        }
+
+        // Load initial ranking
+        fetchRanking(document.getElementById('leaderboard-list-start'));
+    </script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: survival-db
+    environment:
+      POSTGRES_DB: survival_game
+      POSTGRES_USER: survival
+      POSTGRES_PASSWORD: survival_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./server/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U survival -d survival_game"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: survival-server
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgresql://survival:survival_secret@postgres:5432/survival_game
+      WS_PORT: 3000
+      MAX_PLAYERS_PER_ROOM: 5
+      MATCHMAKING_TIMEOUT_MS: 30000
+      MIN_PLAYERS_TO_START: 1
+      TICK_RATE: 20
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./server/src:/app/src
+      - ./client:/app/public
+    command: npm run dev
+
+volumes:
+  postgres_data:

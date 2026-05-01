@@ -1,0 +1,37 @@
+# render.yaml — Infraestrutura como código para Render.com
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  # ── Servidor de Jogo (Web Service) ─────────────────────────────────────────
+  - type: web
+    name: onlinerpg-server
+    runtime: docker
+    dockerfilePath: ./Dockerfile    # Dockerfile na raiz do repositório
+    dockerContext: .                # contexto = raiz (inclui client/ e server/)
+    plan: free                      # free tier do Render
+    region: oregon                  # ou frankfurt para menor latência BR
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: onlinerpg-db
+          property: connectionString
+      - key: MAX_PLAYERS_PER_ROOM
+        value: 5
+      - key: MIN_PLAYERS_TO_START
+        value: 1
+      - key: TICK_RATE
+        value: 20
+      - key: MATCHMAKING_TIMEOUT_MS
+        value: 30000
+    healthCheckPath: /
+
+  # ── Banco de Dados PostgreSQL ───────────────────────────────────────────────
+databases:
+  - name: onlinerpg-db
+    plan: free
+    databaseName: survival_game
+    user: survival
