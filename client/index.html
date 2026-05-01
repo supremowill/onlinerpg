@@ -223,7 +223,8 @@
             queueText.textContent = 'Conectando ao servidor...';
 
             net = new NetworkClient();
-            const wsUrl = `ws://${location.hostname}:${location.port || 3000}/ws`;
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${location.host}/ws`;
 
             try { await net.connect(wsUrl); } catch(e) {
                 queueText.textContent = 'Erro ao conectar! Tente novamente.';
