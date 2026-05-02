@@ -21,8 +21,8 @@ services:
 
   server:
     build:
-      context: ./server
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: server/Dockerfile
     container_name: survival-server
     ports:
       - "3000:3000"

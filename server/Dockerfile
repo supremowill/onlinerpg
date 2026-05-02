@@ -1,35 +1,22 @@
-# ─── Stage 1: Build ───────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
-
+# Build stage
+FROM node:18-alpine as builder
 WORKDIR /app
+COPY server/package*.json ./
+RUN npm ci --only=production
 
-# Install dependencies (including devDeps for tsc)
-COPY package*.json ./
-RUN npm ci
-
-# Copy source and compile TypeScript
-COPY tsconfig.json ./
-COPY src ./src
+COPY server/ ./
 RUN npm run build
 
-# ─── Stage 2: Production image ────────────────────────────────────────────────
-FROM node:20-alpine AS runner
-
+# Runtime stage
+FROM node:18-alpine
 WORKDIR /app
-
-ENV NODE_ENV=production
-
-# Install only production dependencies
-COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
-
-# Copy compiled server
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./
 
 # Copy client (static frontend served by Express)
 # This folder is expected at /app/public at runtime
-COPY ../client ./public
+COPY client ./public
 
 EXPOSE 3000
-
 CMD ["node", "dist/index.js"]
