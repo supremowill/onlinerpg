@@ -334,6 +334,7 @@ export class GameEngine {
                 }
                 break;
             case 'spawnSouls':
+                console.log(`[DEBUG] spawnSouls: count=${ab.count} ownerId=${ab.ownerId}`);
                 const ownerSouls = this.enemies.find(e => e.id === ab.ownerId);
                 if (ownerSouls) {
                     for (let i = 0; i < ab.count; i++) {
@@ -345,6 +346,7 @@ export class GameEngine {
                         if (!(ownerSouls as any).souls) (ownerSouls as any).souls = [];
                         (ownerSouls as any).souls.push(soul.id);
                     }
+                    console.log(`[DEBUG] Created ${ab.count} AlmaAmaldicoada, total enemies: ${this.enemies.length}`);
                 }
                 break;
             case 'spawnCaveiras':
@@ -357,8 +359,24 @@ export class GameEngine {
                 }
                 break;
             case 'spawnEspectro':
+                // Lookup base stats from originalType
+                const origType = ab.originalType || 'PurpleCube';
+                let origHp = 500, origDmg = 50, origSpd = 3;
+                // Find a live enemy of that type to get stats, or use defaults
+                const origEnemy = this.enemies.find(e => e.type === origType && !e.isDestroyed);
+                if (origEnemy) {
+                    origHp = origEnemy.maxHp;
+                    origDmg = origEnemy.damage;
+                    origSpd = origEnemy.originalSpeed;
+                } else {
+                    // Fallback: use CONFIG values
+                    const cfg = (CONFIG as any)[origType.toUpperCase()] || CONFIG.PURPLE_CUBE;
+                    origHp = cfg.BASE_HP || 500;
+                    origDmg = cfg.BASE_DAMAGE || 50;
+                    origSpd = cfg.SPEED || 3;
+                }
                 const espectro = new EspectroSombrioEnemy(
-                    new Vec3(ab.x, 0, ab.z), ab.originalHp || 500, ab.originalDmg || 50, ab.originalSpd || 3, this.spawnManager.globalMultiplier
+                    new Vec3(ab.x, 0, ab.z), origHp, origDmg, origSpd, this.spawnManager.globalMultiplier
                 );
                 espectro.xp = 0; espectro.score = 0;
                 this.enemies.push(espectro);
