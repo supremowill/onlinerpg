@@ -38,10 +38,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    volumes:
-      - ./server/src:/app/src
-      - ./client:/app/public
-    command: npm run dev
+    # Volumes only for development (comment out for production)
+    # volumes:
+    #   - ./server/src:/app/src
+    #   - ./client:/app/public
+    # command: npm run dev
+    # For production, use the image's built files
+    command: node dist/index.js
 
 volumes:
   postgres_data:
