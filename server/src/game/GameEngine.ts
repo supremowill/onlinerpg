@@ -10,6 +10,7 @@ import { PurpleCubeEnemy, RedConeEnemy, EnemyTowerEnemy, GuardianGuerreiroEnemy,
 import { BruxaDoGeloEnemy, MestraDaIlusaoEnemy, BombardeiroInsanoEnemy } from './enemies/Defenders';
 import { SuperBossEnemy, GangplankEnemy, RainhaDasTrevasEnemy } from './enemies/Bosses';
 import { FeiticeiroImortalEnemy, LichKingEnemy, PlantaCarnivoraEnemy, CaoDosInfernosEnemy, TheMightyOneEnemy } from './enemies/AdvancedBosses';
+import { AlmaAmaldicoadaEnemy, CaveiraExplosivaEnemy, EspectroSombrioEnemy, FilhoteCaoEnemy, BrotoCarnivoroEnemy } from './enemies/Minions';
 
 export interface Orb { id: string; type: 'xp' | 'healing' | 'buff'; position: Vec3; hitboxRadius: number; buffType?: string; buffEffects?: any; buffDuration?: number; }
 export interface DynamicZone { id: string; type: string; position: Vec3; radius: number; duration: number; timer: number; damagePerSec: number; lastTick: number; extras?: any; }
@@ -105,7 +106,27 @@ export class GameEngine {
         const spawnEvents = this.spawnManager.update(dt);
         for (const ev of spawnEvents) this.handleSpawnEvent(ev, alivePlayers);
         // Update enemies
-        for (const e of this.enemies) { if (!e.isDestroyed) e.update(dt, alivePlayers, this.gameTime); }
+        for (const e of this.enemies) {
+            if (!e.isDestroyed) {
+                e.update(dt, alivePlayers, this.gameTime);
+                // Update orbital positions for AlmaAmaldicoada
+                if (e.type === 'AlmaAmaldicoada' && (e as any).ownerId) {
+                    const owner = this.enemies.find(en => en.id === (e as any).ownerId);
+                    if (owner) (e as AlmaAmaldicoadaEnemy).updateOrbit(owner.position, this.gameTime);
+                }
+            }
+        }
+        // Process pending explosions from CaveiraExplosiva
+        for (const e of this.enemies) {
+            if ((e as any).pendingExplosion) {
+                this.zones.push({
+                    id: `zone_${this.zoneIdCounter++}`, type: 'caveiraExplosion',
+                    position: e.position.clone(), radius: (e as any).explosionRadius || 2,
+                    duration: 1000, timer: 1000, damagePerSec: e.damage, lastTick: 0, extras: {}
+                });
+                (e as any).pendingExplosion = false;
+            }
+        }
         // Process enemy pending actions
         this.processEnemyActions(alivePlayers);
         // Process player pending actions and R skill
@@ -283,6 +304,14 @@ export class GameEngine {
                     }
                 }
                 break;
+            case 'powderKeg':
+                this.zones.push({
+                    id: `zone_${this.zoneIdCounter++}`, type: 'powderKeg',
+                    position: new Vec3(ab.x, 0, ab.z), radius: ab.radius || 5,
+                    duration: 4000, timer: 4000, damagePerSec: 0, lastTick: 0,
+                    extras: { armorFracture: { duration: 4000, amount: 0.20 } }
+                });
+                break;
             case 'cannonSalvo':
                 // Delayed AoE - create zone with delay
                 this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'cannonSalvo', position: new Vec3(ab.x, 0, ab.z), radius: ab.areaSize, duration: ab.delayMs + ab.salvos * ab.salvoInterval + 1000, timer: ab.delayMs + ab.salvos * ab.salvoInterval + 1000, damagePerSec: ab.damage, lastTick: 0, extras: ab });
@@ -303,6 +332,53 @@ export class GameEngine {
                     const mz = ab.z + Math.sin(angle) * r;
                     this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'mineField', position: new Vec3(mx, 0, mz), radius: ab.mineRadius, duration: ab.duration, timer: ab.duration, damagePerSec: ab.mineDamage, lastTick: 0, extras: { burst: true } });
                 }
+                break;
+            case 'spawnSouls':
+                const ownerSouls = this.enemies.find(e => e.id === ab.ownerId);
+                if (ownerSouls) {
+                    for (let i = 0; i < ab.count; i++) {
+                        const angle = (i / ab.count) * Math.PI * 2;
+                        const sx = ab.x + Math.cos(angle) * 4;
+                        const sz = ab.z + Math.sin(angle) * 4;
+                        const soul = new AlmaAmaldicoadaEnemy(new Vec3(sx, 0, sz), ab.ownerId, this.spawnManager.globalMultiplier);
+                        this.enemies.push(soul);
+                        if (!(ownerSouls as any).souls) (ownerSouls as any).souls = [];
+                        (ownerSouls as any).souls.push(soul.id);
+                    }
+                }
+                break;
+            case 'spawnCaveiras':
+                for (let i = 0; i < ab.count; i++) {
+                    const angle = (i / ab.count) * Math.PI * 2;
+                    const sx = ab.x + Math.cos(angle) * 2;
+                    const sz = ab.z + Math.sin(angle) * 2;
+                    const skull = new CaveiraExplosivaEnemy(new Vec3(sx, 0, sz), ab.damage, this.spawnManager.globalMultiplier);
+                    this.enemies.push(skull);
+                }
+                break;
+            case 'spawnEspectro':
+                const espectro = new EspectroSombrioEnemy(
+                    new Vec3(ab.x, 0, ab.z), ab.originalHp || 500, ab.originalDmg || 50, ab.originalSpd || 3, this.spawnManager.globalMultiplier
+                );
+                espectro.xp = 0; espectro.score = 0;
+                this.enemies.push(espectro);
+                break;
+            case 'spawnBrotos':
+                for (let i = 0; i < ab.count; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const bx = ab.x + Math.cos(angle) * 3;
+                    const bz = ab.z + Math.sin(angle) * 3;
+                    const broto = new BrotoCarnivoroEnemy(new Vec3(bx, 0, bz), ab.playerLevel || 1, this.spawnManager.globalMultiplier);
+                    this.enemies.push(broto);
+                }
+                break;
+            case 'respawnFilhote':
+                const filhote = new FilhoteCaoEnemy(
+                    new Vec3(ab.x, 0, ab.z), ab.playerLevel || 1, ab.parentId, this.spawnManager.globalMultiplier
+                );
+                this.enemies.push(filhote);
+                const pai = this.enemies.find(e => e.id === ab.parentId);
+                if (pai && (pai as any).filhoteIds) (pai as any).filhoteIds.push(filhote.id);
                 break;
         }
     }

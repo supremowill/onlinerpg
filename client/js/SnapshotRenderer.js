@@ -46,6 +46,12 @@ export class SnapshotRenderer {
             PlantaCarnivora: { geo: new THREE.CylinderGeometry(2, 1.5, 1, 12), color: 0x588157 },
             CaoDosInfernos: { geo: new THREE.BoxGeometry(2.4, 1.2, 1.2), color: 0x6e1005 },
             TheMightyOne: { geo: new THREE.BoxGeometry(8, 8, 8), color: 0x0a0a0a },
+            AlmaAmaldicoada: { geo: new THREE.SphereGeometry(0.5, 16, 16), color: 0x1a1a1a },
+            CaveiraExplosiva: { geo: new THREE.BoxGeometry(0.5, 0.5, 0.5), color: 0xeeeeee },
+            EspectroSombrio: { geo: new THREE.SphereGeometry(0.6, 8, 6), color: 0x222222 },
+            FilhoteCao: { geo: new THREE.BoxGeometry(1.2, 0.6, 0.6), color: 0x8a3324 },
+            BrotoCarnivoro: { geo: new THREE.SphereGeometry(0.6, 8, 6), color: 0x4c956c },
+            PowderKeg: { geo: new THREE.CylinderGeometry(0.5, 0.5, 1, 12), color: 0x966F33 },
         };
     }
 
@@ -113,9 +119,10 @@ export class SnapshotRenderer {
                         emissive: visual.color,
                         emissiveIntensity: es.type === 'TheMightyOne' ? 1.0 : 0.2,
                         metalness: 0.4, roughness: 0.5,
-                        transparent: es.type === 'SuperBoss' || es.type === 'FeiticeiroImortal',
-                        opacity: es.type === 'SuperBoss' ? 0.8 : 1.0,
+                        transparent: es.type === 'SuperBoss' || es.type === 'FeiticeiroImortal' || es.type === 'EspectroSombrio',
+                        opacity: es.type === 'SuperBoss' ? 0.8 : es.type === 'EspectroSombrio' ? 0.5 : 1.0,
                     });
+                    if (es.type === 'EspectroSombrio') mat.emissive.set(0x00aaff);
                     const mesh = new THREE.Mesh(visual.geo.clone(), mat);
                     mesh.castShadow = true;
                     this.scene.add(mesh);
