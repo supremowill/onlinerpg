@@ -27,7 +27,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NODE_ENV: development
+      NODE_ENV: production
       PORT: 3000
       DATABASE_URL: postgresql://survival:survival_secret@postgres:5432/survival_game
       WS_PORT: 3000
