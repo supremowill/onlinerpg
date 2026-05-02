@@ -51,6 +51,7 @@ export class SnapshotRenderer {
             EspectroSombrio: { geo: new THREE.SphereGeometry(0.6, 8, 6), color: 0x222222 },
             FilhoteCao: { geo: new THREE.BoxGeometry(1.2, 0.6, 0.6), color: 0x8a3324 },
             BrotoCarnivoro: { geo: new THREE.SphereGeometry(0.6, 8, 6), color: 0x4c956c },
+            CloneIlusorio: { geo: new THREE.BoxGeometry(1.5, 1.5, 1.5), color: 0xd095e0 },
             PowderKeg: { geo: new THREE.CylinderGeometry(0.5, 0.5, 1, 12), color: 0x966F33 },
         };
     }

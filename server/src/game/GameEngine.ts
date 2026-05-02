@@ -7,7 +7,7 @@ import { Vec3 } from '../utils/Vector3';
 import { CONFIG } from '../config';
 import { WorldSnapshot } from '../network/Protocol';
 import { PurpleCubeEnemy, RedConeEnemy, EnemyTowerEnemy, GuardianGuerreiroEnemy, GuardianMagoEnemy, GuardianArqueiroEnemy } from './enemies/BasicEnemies';
-import { BruxaDoGeloEnemy, MestraDaIlusaoEnemy, BombardeiroInsanoEnemy } from './enemies/Defenders';
+import { BruxaDoGeloEnemy, MestraDaIlusaoEnemy, BombardeiroInsanoEnemy, CloneIlusorioEnemy } from './enemies/Defenders';
 import { SuperBossEnemy, GangplankEnemy, RainhaDasTrevasEnemy } from './enemies/Bosses';
 import { FeiticeiroImortalEnemy, LichKingEnemy, PlantaCarnivoraEnemy, CaoDosInfernosEnemy, TheMightyOneEnemy } from './enemies/AdvancedBosses';
 import { AlmaAmaldicoadaEnemy, CaveiraExplosivaEnemy, EspectroSombrioEnemy, FilhoteCaoEnemy, BrotoCarnivoroEnemy } from './enemies/Minions';
@@ -256,9 +256,14 @@ export class GameEngine {
     private handleAbility(ab: any, source: ServerEnemy, players: ServerPlayer[]): void {
         switch (ab.type) {
             case 'spawnClone':
-                const clone = new MestraDaIlusaoEnemy(new Vec3(ab.x, 0, ab.z), 1);
-                (clone as any).isClone = true;
-                clone.hp = clone.maxHp = 50;
+                // Limit to 1 clone per MestraDaIlusao
+                const ownerMestra = this.enemies.find(e => Math.abs(e.position.x - ab.x) < 5 && Math.abs(e.position.z - ab.z) < 5 && e.type === 'MestraDaIlusao');
+                if (ownerMestra) {
+                    const activeClones = this.enemies.filter(e => e.type === 'CloneIlusorio' && (e as any).ownerId === ownerMestra.id).length;
+                    if (activeClones >= 1) break; // only 1 clone at a time
+                }
+                const clone = new CloneIlusorioEnemy(new Vec3(ab.x, 0, ab.z), this.spawnManager.globalMultiplier);
+                if (ownerMestra) (clone as any).ownerId = ownerMestra.id;
                 clone.xp = 0;
                 clone.score = 0;
                 this.enemies.push(clone);

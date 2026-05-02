@@ -261,3 +261,40 @@ export class BombardeiroInsanoEnemy extends ServerEnemy {
         this.lookAt(target.position);
     }
 }
+
+// ============================================================
+// CloneIlusorio - illusion clone spawned by MestraDaIlusao
+// Matches index.html: 3s lifetime, 1 HP, applies disorientation on hit
+// ============================================================
+export class CloneIlusorioEnemy extends ServerEnemy {
+    public lifetime: number = 3000; // 3 seconds
+
+    constructor(pos: Vec3, globalMultiplier: number) {
+        super(pos);
+        this.type = 'CloneIlusorio';
+        this.name = 'Clone Ilusório';
+        this.maxHp = 1;
+        this.hp = 1;
+        this.xp = 0;
+        this.score = 0;
+        this.hitboxRadius = 0.8;
+        this.position.y = 1.0;
+    }
+
+    update(dt: number, players: ServerPlayer[], gameTime: number): void {
+        if (this.isDestroyed) return;
+        this.lifetime -= dt * 1000;
+        if (this.lifetime <= 0) {
+            this.isDestroyed = true;
+        }
+    }
+
+    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true): void {
+        // Only players can damage clones (and trigger disorientation)
+        if (instigator) {
+            instigator.applyDisorientation(1000);
+        }
+        this.isDestroyed = true;
+        // No XP/score for destroying clones
+    }
+}
