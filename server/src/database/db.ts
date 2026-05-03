@@ -119,17 +119,27 @@ export interface PlayerAccount {
 }
 
 export async function createPlayer(username: string, password: string): Promise<PlayerAccount> {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const result = await pool.query(
-        'INSERT INTO players (username, password_hash) VALUES ($1, $2) RETURNING id, username, created_at, last_login',
-        [username, hashedPassword]
-    );
-    return result.rows[0];
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const result = await pool.query(
+            'INSERT INTO players (username, password_hash) VALUES ($1, $2) RETURNING id, username, created_at, last_login',
+            [username, hashedPassword]
+        );
+        return result.rows[0];
+    } catch (err: any) {
+        console.error('[DB createPlayer] Error:', err.message, err.stack);
+        throw err;
+    }
 }
 
 export async function findPlayerByUsername(username: string): Promise<(PlayerAccount & { password_hash: string }) | null> {
-    const result = await pool.query('SELECT id, username, password_hash, created_at, last_login FROM players WHERE username = $1', [username]);
-    return result.rows[0] || null;
+    try {
+        const result = await pool.query('SELECT id, username, password_hash, created_at, last_login FROM players WHERE username = $1', [username]);
+        return result.rows[0] || null;
+    } catch (err: any) {
+        console.error('[DB findPlayerByUsername] Error:', err.message, err.stack);
+        throw err;
+    }
 }
 
 export async function validatePlayer(username: string, password: string): Promise<PlayerAccount | null> {

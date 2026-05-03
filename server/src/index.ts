@@ -73,7 +73,10 @@ app.post('/api/auth/register', express.json(), async (req, res) => {
         const player = await createPlayer(username, password);
         const token = generateJWT(player);
         res.json({ token, username: player.username });
-    } catch (e) { res.status(500).json({ error: 'Registration failed' }); }
+    } catch (e: any) {
+        console.error('[Register Error]', e.message, e.stack);
+        res.status(500).json({ error: 'Registration failed' });
+    }
 });
 
 app.post('/api/auth/login', express.json(), async (req, res) => {
@@ -86,7 +89,10 @@ app.post('/api/auth/login', express.json(), async (req, res) => {
 
         const token = generateJWT(player);
         res.json({ token, username: player.username });
-    } catch (e) { res.status(500).json({ error: 'Login failed' }); }
+    } catch (e: any) {
+        console.error('[Login Error]', e.message, e.stack);
+        res.status(500).json({ error: 'Login failed' });
+    }
 });
 
 app.get('/api/auth/me', async (req, res) => {
