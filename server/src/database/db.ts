@@ -56,17 +56,21 @@ export async function initDatabase(): Promise<Pool> {
     });
 
     // Auto-run schema immediately (not lazy) for Render deployments
-    let schemaInitialized = false;
 
     // Fallback SQL if init.sql is not found (for Render deployments)
+    // This MUST match server/init.sql exactly
     const FALLBACK_SQL = `
+        -- Players accounts table
         CREATE TABLE IF NOT EXISTS players (
             id SERIAL PRIMARY KEY,
             username VARCHAR(50) UNIQUE NOT NULL,
             password_hash VARCHAR(255) NOT NULL,
-            created_at TIMESTAMP DEFAULT NOW(),
-            last_login TIMESTAMP
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            last_login TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
+        CREATE INDEX IF NOT EXISTS idx_players_username ON players(username);
+
+        -- Ranking table (references players table)
         CREATE TABLE IF NOT EXISTS ranking (
             player_id INTEGER PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
             kills INTEGER DEFAULT 0,
@@ -74,8 +78,10 @@ export async function initDatabase(): Promise<Pool> {
             max_kills INTEGER DEFAULT 0,
             wins INTEGER DEFAULT 0,
             losses INTEGER DEFAULT 0,
-            updated_at TIMESTAMP DEFAULT NOW()
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
+
+        -- Match history for tracking player results
         CREATE TABLE IF NOT EXISTS match_history (
             id SERIAL PRIMARY KEY,
             player_id INTEGER REFERENCES players(id) ON DELETE CASCADE,
@@ -83,35 +89,52 @@ export async function initDatabase(): Promise<Pool> {
             kills INTEGER DEFAULT 0,
             deaths INTEGER DEFAULT 0,
             duration INTEGER,
-            played_at TIMESTAMP DEFAULT NOW()
+            played_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
+
+        CREATE INDEX IF NOT EXISTS idx_ranking_wins ON ranking(wins DESC);
+        CREATE INDEX IF NOT EXISTS idx_match_history_player ON match_history(player_id);
     `;
 
-    const initSchema = async () => {
-        if (schemaInitialized) return;
-        try {
-            let sql: string;
-            const sqlPaths = [
-                path.join(__dirname, '../../init.sql'),          // Docker: /app/init.sql
-                path.join(__dirname, '../../../server/init.sql'), // local dev fallback
-            ];
-            const sqlFile = sqlPaths.find(p => fs.existsSync(p));
-            if (sqlFile) {
-                sql = fs.readFileSync(sqlFile, 'utf8');
-                console.log('[DB] Using init.sql from file');
-            } else {
-                sql = FALLBACK_SQL;
-                console.log('[DB] Using fallback SQL (Render deployment)');
-            }
-            await pool.query(sql);
-            console.log('[DB] Schema initialized');
-            schemaInitialized = true;
-        } catch (err) {
-            console.warn('[DB] Schema init warning:', (err as Error).message);
-        }
-    };
     // Try to init schema immediately and wait
-    await initSchema();
+    try {
+        let sql: string;
+        const sqlPaths = [
+            path.join(__dirname, '../../init.sql'),          // Docker: /app/init.sql
+            path.join(__dirname, '../../../server/init.sql'), // local dev fallback
+        ];
+        const sqlFile = sqlPaths.find(p => fs.existsSync(p));
+        if (sqlFile) {
+            sql = fs.readFileSync(sqlFile, 'utf8');
+            console.log(`[DB] Using init.sql from: ${sqlFile}`);
+        } else {
+            sql = FALLBACK_SQL;
+            console.log('[DB] Using fallback SQL (Render deployment)');
+        }
+        // Execute each statement separately for reliability
+        const statements = sql.split(';').map(s => s.trim()).filter(s => s.length > 0);
+        console.log(`[DB] Executing ${statements.length} schema statements...`);
+        for (const stmt of statements) {
+            try {
+                await pool.query(stmt);
+            } catch (e: any) {
+                // Log but continue (e.g., "already exists" errors)
+                console.warn(`[DB] Schema statement failed: ${stmt.substring(0, 60)}... Error: ${e.message}`);
+            }
+        }
+        // Verify tables exist
+        const verifyResult = await pool.query(`
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name IN ('players', 'ranking', 'match_history')
+        `);
+        console.log(`[DB] Tables found after init: ${verifyResult.rows.map(r => r.table_name).join(', ')}`);
+        if (verifyResult.rows.length === 0) {
+            console.error('[DB] WARNING: No tables found! Schema initialization may have failed.');
+        }
+        console.log('[DB] Schema initialized');
+    } catch (err) {
+        console.warn('[DB] Schema init warning:', (err as Error).message);
+    }
 
     console.log('[DB] PostgreSQL pool initialized');
     return pool;
