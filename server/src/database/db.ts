@@ -27,20 +27,38 @@ export function initDatabase(): Pool {
     }
 
     console.log(`[DB] Initializing database connection to ${dbUrl.substring(0, 25)}...`);
-    pool = new Pool({
+
+    const poolConfig: any = {
         connectionString: dbUrl,
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
         connectionTimeoutMillis: 10000,
         idleTimeoutMillis: 30000,
-    });
+    };
+
+    // Only enable SSL if explicitly needed (Render sets sslmode=require in DATABASE_URL)
+    // For Docker/local, SSL should be disabled
+    // Also disable if sslmode=disable is present
+    const sslModeRequire = dbUrl.includes('sslmode=require');
+    const sslModeDisable = dbUrl.includes('sslmode=disable');
+
+    if (sslModeDisable) {
+        poolConfig.ssl = false;
+    } else if (sslModeRequire || (process.env.NODE_ENV === 'production' && !dbUrl.includes('localhost'))) {
+        poolConfig.ssl = { rejectUnauthorized: false };
+    } else {
+        poolConfig.ssl = false;
+    }
+
+    pool = new Pool(poolConfig);
+    console.log('[DB] SSL config:', poolConfig.ssl);
 
     pool.on('error', (err) => {
         console.error('[DB] Unexpected error on idle client', err);
     });
 
-    // Test connection and auto-run schema on startup
-    pool.connect().then(async (client) => {
-        console.log('[DB] Connected successfully!');
+    // Auto-run schema on first real query (lazy initialization)
+    let schemaInitialized = false;
+    const initSchema = async () => {
+        if (schemaInitialized) return;
         try {
             const sqlPaths = [
                 path.join(__dirname, '../../init.sql'),          // Docker: /app/init.sql
@@ -49,18 +67,16 @@ export function initDatabase(): Pool {
             const sqlFile = sqlPaths.find(p => fs.existsSync(p));
             if (sqlFile) {
                 const sql = fs.readFileSync(sqlFile, 'utf8');
-                await client.query(sql);
+                await pool.query(sql);
                 console.log('[DB] Schema initialized from init.sql');
+                schemaInitialized = true;
             }
         } catch (err) {
             console.warn('[DB] Schema init warning:', (err as Error).message);
-        } finally {
-            client.release();
         }
-    }).catch(err => {
-        console.error('[DB] Failed to connect to database on startup:', (err as Error).message);
-        console.error('[DB] Leaderboard will be unavailable until reconnected');
-    });
+    };
+    // Try to init schema immediately (fire and forget)
+    initSchema();
 
     console.log('[DB] PostgreSQL pool initialized');
     return pool;

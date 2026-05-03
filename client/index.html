@@ -85,7 +85,7 @@
         .auth-tab { background: #333; color: #ccc; border: 1px solid #555; padding: 8px 20px; cursor: pointer; }
         .auth-tab.active { background: #555; color: #0ff; border-color: #0ff; }
         .auth-form { display: flex; flex-direction: column; gap: 10px; margin: 15px 0; }
-        .auth-form input { padding: 10px; border: 1px solid #555; border-radius: 5px; background: #222; color: #fff; font-size: 1rem; width: 250px; margin: 0 auto; }
+        .auth-form input { padding: 10px; border: 1px solid #555; border-radius: 5px; background: #222; color: #fff; font-size: 1rem; width: 250px; margin: 0 auto; user-select: text; -webkit-user-select: text; }
         .auth-form input:focus { border-color: #0ff; outline: none; }
         .auth-error { color: #e53935; font-size: 0.9rem; margin: 5px 0; }
         #logged-in-container { margin: 15px 0; padding: 10px; }
@@ -109,7 +109,7 @@
         <p>🌐 MULTIPLAYER ONLINE</p>
 
         <!-- Login/Register Form (shown when not logged in) -->
-        <div id="auth-container">
+        <div id="auth-container" style="display:block">
             <div id="auth-tabs">
                 <button id="login-tab" class="auth-tab active">Login</button>
                 <button id="register-tab" class="auth-tab">Registrar</button>
@@ -226,6 +226,7 @@
         import { SnapshotRenderer } from './js/SnapshotRenderer.js';
         import { InputManager } from './js/InputManager.js';
         import { HUDManager } from './js/HUDManager.js';
+        import { AuthManager } from './js/auth.js';
 
         // --- State ---
         let scene, camera, renderer, clock;

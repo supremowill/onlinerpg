@@ -5,10 +5,13 @@ export class AuthManager {
     constructor() {
         this.TOKEN_KEY = 'survival_jwt_token';
         this.USERNAME_KEY = 'survival_username';
+        console.log('[Auth] AuthManager initialized');
     }
 
     getToken() {
-        return localStorage.getItem(this.TOKEN_KEY);
+        const token = localStorage.getItem(this.TOKEN_KEY);
+        console.log('[Auth] getToken:', token ? 'exists' : 'null');
+        return token;
     }
 
     getUsername() {
@@ -18,12 +21,12 @@ export class AuthManager {
     isLoggedIn() {
         const token = this.getToken();
         if (!token) return false;
-        // Basic JWT structure check (header.payload.signature)
         const parts = token.split('.');
         return parts.length === 3;
     }
 
     async register(username, password) {
+        console.log('[Auth] Registering:', username);
         const res = await fetch('/api/auth/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -36,6 +39,7 @@ export class AuthManager {
     }
 
     async login(username, password) {
+        console.log('[Auth] Logging in:', username);
         const res = await fetch('/api/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -51,6 +55,7 @@ export class AuthManager {
         const token = this.getToken();
         if (!token) return false;
         try {
+            console.log('[Auth] Verifying token...');
             const res = await fetch('/api/auth/me', {
                 headers: { 'Authorization': `Bearer ${token}` },
             });
@@ -58,17 +63,20 @@ export class AuthManager {
             const data = await res.json();
             localStorage.setItem(this.USERNAME_KEY, data.username);
             return true;
-        } catch {
+        } catch (e) {
+            console.error('[Auth] Token verification failed:', e);
             return false;
         }
     }
 
     saveSession(token, username) {
+        console.log('[Auth] Saving session for:', username);
         localStorage.setItem(this.TOKEN_KEY, token);
         localStorage.setItem(this.USERNAME_KEY, username);
     }
 
     logout() {
+        console.log('[Auth] Logging out');
         localStorage.removeItem(this.TOKEN_KEY);
         localStorage.removeItem(this.USERNAME_KEY);
     }
