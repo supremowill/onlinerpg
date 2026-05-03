@@ -22,12 +22,28 @@ const publicDir = process.env.NODE_ENV === 'production'
 app.use(express.static(publicDir));
 app.use(express.json());
 
-// Init DB
-import { initDatabase } from './database/db';
-initDatabase();
+// Init DB (will retry on failure, server starts even if DB is down)
+let dbInitialized = false;
+try {
+    initDatabase();
+    dbInitialized = true;
+} catch (err) {
+    console.error('[DB] Initial database init failed, will retry on first request:', (err as Error).message);
+}
 
 // REST API
-app.get('/api/health', (_, res) => res.json({ status: 'ok', uptime: process.uptime() }));
+app.get('/api/health', (_, res) => {
+    // Try to init DB on health check if not initialized
+    if (!dbInitialized) {
+        try {
+            initDatabase();
+            dbInitialized = true;
+        } catch (err) {
+            console.error('[DB] Retry failed:', (err as Error).message);
+        }
+    }
+    res.json({ status: 'ok', uptime: process.uptime(), db: dbInitialized ? 'connected' : 'disconnected' });
+});
 
 app.get('/api/ranking', async (_, res) => {
     try { res.json(await rankingService.getLeaderboard(50)); }

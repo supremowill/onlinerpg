@@ -8,20 +8,23 @@ let pool: Pool;
 export function initDatabase(): Pool {
     const dbUrl = CONFIG.DATABASE_URL;
 
-    // Only create pool if DATABASE_URL is provided
     if (!dbUrl) {
-        console.error('[DB] ERROR: DATABASE_URL is required but not provided!');
-        console.error('[DB] Please set DATABASE_URL in Render environment variables');
-        throw new Error('DATABASE_URL is required for this application to run');
+        console.warn('[DB] WARNING: DATABASE_URL not set - running without database (leaderboard disabled)');
+        console.warn('[DB] To enable leaderboard, create a PostgreSQL service in Render and link it');
+        // Return a dummy pool that logs warnings but doesn't crash
+        pool = {
+            on: () => {},
+            connect: () => Promise.resolve({
+                query: () => Promise.resolve({ rows: [] }),
+                release: () => {},
+            }),
+            query: () => Promise.resolve({ rows: [] }),
+            end: () => Promise.resolve(),
+        } as any;
+        return pool;
     }
 
-    // Validate URL format
-    if (!dbUrl.startsWith('postgres://') && !dbUrl.startsWith('postgresql://')) {
-        console.error(`[DB] Invalid DATABASE_URL format: ${dbUrl.substring(0, 20)}...`);
-        throw new Error('DATABASE_URL must start with postgres:// or postgresql://');
-    }
-
-    console.log(`[DB] Initializing database connection...`);
+    console.log(`[DB] Initializing database connection to ${dbUrl.substring(0, 25)}...`);
     pool = new Pool({
         connectionString: dbUrl,
         ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
@@ -33,8 +36,9 @@ export function initDatabase(): Pool {
         console.error('[DB] Unexpected error on idle client', err);
     });
 
-    // Auto-run schema SQL on startup (CREATE TABLE IF NOT EXISTS = safe to repeat)
+    // Test connection and auto-run schema on startup
     pool.connect().then(async (client) => {
+        console.log('[DB] Connected successfully!');
         try {
             const sqlPaths = [
                 path.join(__dirname, '../../init.sql'),          // Docker: /app/init.sql
@@ -47,11 +51,14 @@ export function initDatabase(): Pool {
                 console.log('[DB] Schema initialized from init.sql');
             }
         } catch (err) {
-            console.warn('[DB] Schema init warning (may already exist):', (err as Error).message);
+            console.warn('[DB] Schema init warning:', (err as Error).message);
         } finally {
             client.release();
         }
-    }).catch(err => console.warn('[DB] Could not connect on startup (non-fatal):', err));
+    }).catch(err => {
+        console.error('[DB] Failed to connect to database on startup:', (err as Error).message);
+        console.error('[DB] Leaderboard will be unavailable until reconnected');
+    });
 
     console.log('[DB] PostgreSQL pool initialized');
     return pool;
