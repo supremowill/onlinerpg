@@ -10,20 +10,23 @@ export function initDatabase(): Pool {
 
     // Only create pool if DATABASE_URL is provided
     if (!dbUrl) {
-        console.warn('[DB] No DATABASE_URL provided - running without database (leaderboard disabled)');
-        // Return a dummy pool that throws on queries
-        pool = {
-            on: () => {},
-            connect: () => Promise.reject(new Error('No database configured')),
-            query: () => Promise.reject(new Error('No database configured')),
-            end: () => Promise.resolve(),
-        } as any;
-        return pool;
+        console.error('[DB] ERROR: DATABASE_URL is required but not provided!');
+        console.error('[DB] Please set DATABASE_URL in Render environment variables');
+        throw new Error('DATABASE_URL is required for this application to run');
     }
 
+    // Validate URL format
+    if (!dbUrl.startsWith('postgres://') && !dbUrl.startsWith('postgresql://')) {
+        console.error(`[DB] Invalid DATABASE_URL format: ${dbUrl.substring(0, 20)}...`);
+        throw new Error('DATABASE_URL must start with postgres:// or postgresql://');
+    }
+
+    console.log(`[DB] Initializing database connection...`);
     pool = new Pool({
         connectionString: dbUrl,
         ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+        connectionTimeoutMillis: 10000,
+        idleTimeoutMillis: 30000,
     });
 
     pool.on('error', (err) => {
