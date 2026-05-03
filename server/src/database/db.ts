@@ -55,7 +55,7 @@ export function initDatabase(): Pool {
         console.error('[DB] Unexpected error on idle client', err);
     });
 
-    // Auto-run schema on first real query (lazy initialization)
+    // Auto-run schema immediately (not lazy) for Render deployments
     let schemaInitialized = false;
 
     // Fallback SQL if init.sql is not found (for Render deployments)
@@ -110,8 +110,8 @@ export function initDatabase(): Pool {
             console.warn('[DB] Schema init warning:', (err as Error).message);
         }
     };
-    // Try to init schema immediately (fire and forget)
-    initSchema();
+    // Try to init schema immediately and wait
+    await initSchema();
 
     console.log('[DB] PostgreSQL pool initialized');
     return pool;
