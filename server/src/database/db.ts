@@ -6,8 +6,23 @@ import path from 'path';
 let pool: Pool;
 
 export function initDatabase(): Pool {
+    const dbUrl = CONFIG.DATABASE_URL;
+
+    // Only create pool if DATABASE_URL is provided
+    if (!dbUrl) {
+        console.warn('[DB] No DATABASE_URL provided - running without database (leaderboard disabled)');
+        // Return a dummy pool that throws on queries
+        pool = {
+            on: () => {},
+            connect: () => Promise.reject(new Error('No database configured')),
+            query: () => Promise.reject(new Error('No database configured')),
+            end: () => Promise.resolve(),
+        } as any;
+        return pool;
+    }
+
     pool = new Pool({
-        connectionString: CONFIG.DATABASE_URL,
+        connectionString: dbUrl,
         ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
     });
 
