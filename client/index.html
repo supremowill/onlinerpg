@@ -436,6 +436,18 @@
             net.on('latencyUpdate', (ms) => { if (hudManager) hudManager.updateLatency(ms); });
             net.on('disconnected', () => { queueText.textContent = 'Desconectado. Reconectando...'; });
 
+            net.on('forceLogout', (data) => {
+                alert('Sua conta foi acessada em outro lugar. Você será desconectado.');
+                if (net) { try { net.disconnect(); } catch(e){} net = null; }
+                document.getElementById('game-over-screen').style.display = 'none';
+                document.getElementById('player-hud').style.display = 'none';
+                document.getElementById('start-screen').style.display = 'none';
+                document.getElementById('auth-container').style.display = 'flex';
+                document.getElementById('logged-in-container').style.display = 'none';
+                pcBtn.disabled = true;
+                mobileBtn.disabled = true;
+            });
+
             const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${location.host}/ws`;
 

@@ -14,6 +14,11 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
 const matchmaking = new MatchmakingService();
 
+// Track active connections: username -> playerId (prevent multi-login)
+const activeConnections = new Map<string, string>();
+// Track sockets: playerId -> WebSocket (for forcing disconnect)
+const playerSockets = new Map<string, WebSocket>();
+
 // Serve static client files
 // Production (Docker): dist/ is at /app/dist, public/ at /app/public → '../public'
 // Local dev: server/dist → ../../client
@@ -127,6 +132,9 @@ wss.on('connection', (ws: WebSocket) => {
     let playerName = 'Player';
     console.log(`[WS] New connection: ${playerId.slice(0, 8)}`);
 
+    // Register the socket for force-disconnect capability
+    playerSockets.set(playerId, ws);
+
     ws.on('message', (raw: Buffer) => {
         try {
             const msg = JSON.parse(raw.toString());
@@ -139,6 +147,26 @@ wss.on('connection', (ws: WebSocket) => {
                         if (payload) {
                             playerName = payload.username;
                             console.log(`[WS] Player ${playerName} joined via token`);
+
+                            // ─── MULTI-LOGIN CHECK ───
+                            if (activeConnections.has(playerName)) {
+                                const existingPlayerId = activeConnections.get(playerName)!;
+                                const existingWs = playerSockets.get(existingPlayerId);
+                                // Force-disconnect the OLD session
+                                if (existingWs && existingWs.readyState === WebSocket.OPEN) {
+                                    existingWs.send(JSON.stringify({
+                                        type: 'FORCE_LOGOUT',
+                                        payload: { reason: 'Nova sessão iniciada em outro lugar' }
+                                    }));
+                                    existingWs.close(1000, 'Nova sessão iniciada');
+                                }
+                                // Clean up old state
+                                activeConnections.delete(playerName);
+                                playerSockets.delete(existingPlayerId);
+                                matchmaking.onDisconnect(existingPlayerId);
+                            }
+                            // Register this new connection as the active one
+                            activeConnections.set(playerName, playerId);
                         } else {
                             playerName = msg.payload?.name || 'Player';
                         }
@@ -161,6 +189,14 @@ wss.on('connection', (ws: WebSocket) => {
 
     ws.on('close', () => {
         console.log(`[WS] Disconnected: ${playerId.slice(0, 8)}`);
+        // Clean up activeConnections if this was the active session
+        for (const [username, pid] of activeConnections.entries()) {
+            if (pid === playerId) {
+                activeConnections.delete(username);
+                break;
+            }
+        }
+        playerSockets.delete(playerId);
         matchmaking.onDisconnect(playerId);
     });
 
