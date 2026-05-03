@@ -152,9 +152,8 @@ wss.on('connection', (ws: WebSocket) => {
                     matchmaking.removeFromQueue(playerId);
                     break;
                 default:
-                    if (matchmaking.isPlayerInRoom(playerId)) {
-                        matchmaking.handleMessage(playerId, msg);
-                    }
+                    // Always forward to matchmaking (handles both queue and room messages)
+                    matchmaking.handleMessage(playerId, msg);
                     break;
             }
         } catch (e) { console.error('[WS] Bad message:', e); }

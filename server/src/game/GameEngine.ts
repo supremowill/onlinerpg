@@ -76,8 +76,9 @@ export class GameEngine {
         }
     }
 
-    addPlayer(id: string, name: string): ServerPlayer {
+    addPlayer(id: string, name: string, platform: 'pc' | 'mobile' = 'pc'): ServerPlayer {
         const p = new ServerPlayer(id, name);
+        p.platform = platform;
         this.players.set(id, p);
         return p;
     }

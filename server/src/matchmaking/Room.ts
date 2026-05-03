@@ -18,11 +18,11 @@ export class Room {
         this.engine = new GameEngine(0);
     }
 
-    addPlayer(playerId: string, name: string, ws: WebSocket): void {
+    addPlayer(playerId: string, name: string, ws: WebSocket, platform: 'pc' | 'mobile' = 'pc'): void {
         this.players.set(playerId, ws);
         this.playerNames.set(playerId, name);
-        this.engine.addPlayer(playerId, name);
-        console.log(`[Room ${this.id.slice(0, 8)}] Player joined: ${name} (${this.players.size}/${CONFIG.MAX_PLAYERS_PER_ROOM})`);
+        this.engine.addPlayer(playerId, name, platform);
+        console.log(`[Room ${this.id.slice(0, 8)}] Player joined: ${name} [${platform}] (${this.players.size}/${CONFIG.MAX_PLAYERS_PER_ROOM})`);
     }
 
     removePlayer(playerId: string): void {

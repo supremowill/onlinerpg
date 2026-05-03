@@ -308,6 +308,10 @@
         loginTab.addEventListener('click', showLogin);
         registerTab.addEventListener('click', showRegister);
 
+        // Platform selection
+        pcBtn.addEventListener('click', () => startFlow('pc'));
+        mobileBtn.addEventListener('click', () => startFlow('mobile'));
+
         loginBtn.addEventListener('click', async () => {
             loginError.textContent = '';
             try {
@@ -347,18 +351,12 @@
             queueText.textContent = 'Conectando ao servidor...';
 
             net = new NetworkClient();
-            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${location.host}/ws`;
 
-            try { await net.connect(wsUrl); } catch(e) {
-                queueText.textContent = 'Erro ao conectar! Tente novamente.';
-                pcBtn.disabled = false; mobileBtn.disabled = false;
-                return;
-            }
-
+            // Register event handlers BEFORE connecting to avoid race conditions
             net.on('welcome', () => {
                 queueText.textContent = 'Procurando partida...';
                 net.joinQueueWithToken(token);
+                net.selectPlatform(platform);
             });
 
             net.on('queueStatus', (data) => {
@@ -418,6 +416,15 @@
 
             net.on('latencyUpdate', (ms) => { if (hudManager) hudManager.updateLatency(ms); });
             net.on('disconnected', () => { queueText.textContent = 'Desconectado. Reconectando...'; });
+
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${location.host}/ws`;
+
+            try { await net.connect(wsUrl); } catch(e) {
+                queueText.textContent = 'Erro ao conectar! Tente novamente.';
+                pcBtn.disabled = false; mobileBtn.disabled = false;
+                return;
+            }
         }
 
         // --- Init 3D Scene & Game Loop ---
