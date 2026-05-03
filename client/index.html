@@ -80,7 +80,18 @@
         .sb-hp-fill { height:100%; background:#e53935; border-radius:3px; transition:width .3s; }
         /* Latency */
         #latency-display { position:absolute; bottom:5px; left:10px; font-size:.7rem; color:#666; z-index:10; }
-        /* Match found overlay */
+        /* Auth forms */
+        #auth-container { margin: 15px 0; }
+        .auth-tab { background: #333; color: #ccc; border: 1px solid #555; padding: 8px 20px; cursor: pointer; }
+        .auth-tab.active { background: #555; color: #0ff; border-color: #0ff; }
+        .auth-form { display: flex; flex-direction: column; gap: 10px; margin: 15px 0; }
+        .auth-form input { padding: 10px; border: 1px solid #555; border-radius: 5px; background: #222; color: #fff; font-size: 1rem; width: 250px; margin: 0 auto; }
+        .auth-form input:focus { border-color: #0ff; outline: none; }
+        .auth-error { color: #e53935; font-size: 0.9rem; margin: 5px 0; }
+        #logged-in-container { margin: 15px 0; padding: 10px; }
+        #logged-username { color: #0ff; font-weight: bold; }
+        #logout-button { margin-top: 10px; background: #c0392b; }
+        #logout-button:hover { background: #e74c3c; }
         #match-found-overlay { display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.9); z-index:150; flex-direction:column; justify-content:center; align-items:center; }
         #match-found-overlay h2 { color:#0ff; font-size:2rem; margin-bottom:20px; }
         #match-players-list { list-style:none; padding:0; }
@@ -96,7 +107,33 @@
     <div id="start-screen" class="overlay-screen">
         <h1>SOBREVIVÊNCIA 3D</h1>
         <p>🌐 MULTIPLAYER ONLINE</p>
-        <input type="text" id="player-name-input" placeholder="Seu nome aqui..." maxlength="15">
+
+        <!-- Login/Register Form (shown when not logged in) -->
+        <div id="auth-container">
+            <div id="auth-tabs">
+                <button id="login-tab" class="auth-tab active">Login</button>
+                <button id="register-tab" class="auth-tab">Registrar</button>
+            </div>
+            <div id="login-form" class="auth-form">
+                <input type="text" id="login-username" placeholder="Usuário" maxlength="15">
+                <input type="password" id="login-password" placeholder="Senha" maxlength="30">
+                <button id="login-button" class="overlay-button">Entrar</button>
+                <p id="login-error" class="auth-error"></p>
+            </div>
+            <div id="register-form" class="auth-form" style="display:none">
+                <input type="text" id="register-username" placeholder="Usuário (3-15 chars)" maxlength="15">
+                <input type="password" id="register-password" placeholder="Senha (mín 6 chars)" maxlength="30">
+                <button id="register-button" class="overlay-button">Registrar</button>
+                <p id="register-error" class="auth-error"></p>
+            </div>
+        </div>
+
+        <!-- Logged in view (shown when JWT is valid) -->
+        <div id="logged-in-container" style="display:none">
+            <p>Bem-vindo, <span id="logged-username"></span>!</p>
+            <button id="logout-button" class="overlay-button" style="background:#c0392b">Sair</button>
+        </div>
+
         <p>Escolha sua plataforma para entrar na fila</p>
         <div>
             <button id="pc-button" class="overlay-button" disabled>PC</button>
@@ -196,27 +233,113 @@
         let animationFrameId;
         const TICK_MS = 50; // 20Hz
 
+        // --- Auth Manager ---
+        const authManager = new AuthManager();
+
         // --- DOM refs ---
-        const nameInput = document.getElementById('player-name-input');
+        const startScreen = document.getElementById('start-screen');
         const pcBtn = document.getElementById('pc-button');
         const mobileBtn = document.getElementById('mobile-button');
         const queueStatus = document.getElementById('queue-status');
         const queueText = document.getElementById('queue-text');
 
-        // Enable buttons when name typed
-        nameInput.addEventListener('input', () => {
-            const ok = nameInput.value.trim().length > 0;
-            pcBtn.disabled = !ok; mobileBtn.disabled = !ok;
+        // Auth elements
+        const authContainer = document.getElementById('auth-container');
+        const loginTab = document.getElementById('login-tab');
+        const registerTab = document.getElementById('register-tab');
+        const loginForm = document.getElementById('login-form');
+        const registerForm = document.getElementById('register-form');
+        const loginUsername = document.getElementById('login-username');
+        const loginPassword = document.getElementById('login-password');
+        const loginBtn = document.getElementById('login-button');
+        const loginError = document.getElementById('login-error');
+        const registerUsername = document.getElementById('register-username');
+        const registerPassword = document.getElementById('register-password');
+        const registerBtn = document.getElementById('register-button');
+        const registerError = document.getElementById('register-error');
+
+        // Logged in elements
+        const loggedInContainer = document.getElementById('logged-in-container');
+        const loggedUsername = document.getElementById('logged-username');
+        const logoutBtn = document.getElementById('logout-button');
+
+        // --- Auth Logic ---
+        function showLogin() {
+            loginTab.classList.add('active');
+            registerTab.classList.remove('active');
+            loginForm.style.display = 'flex';
+            registerForm.style.display = 'none';
+        }
+
+        function showRegister() {
+            registerTab.classList.add('active');
+            loginTab.classList.remove('active');
+            registerForm.style.display = 'flex';
+            loginForm.style.display = 'none';
+        }
+
+        function showLoggedIn(username) {
+            authContainer.style.display = 'none';
+            loggedInContainer.style.display = 'block';
+            loggedUsername.textContent = username;
+            pcBtn.disabled = false;
+            mobileBtn.disabled = false;
+        }
+
+        function showLoggedOut() {
+            authContainer.style.display = 'block';
+            loggedInContainer.style.display = 'none';
+            pcBtn.disabled = true;
+            mobileBtn.disabled = true;
+        }
+
+        // Check if already logged in
+        async function checkAuth() {
+            const token = authManager.getToken();
+            if (token && await authManager.verifyToken()) {
+                showLoggedIn(authManager.getUsername());
+            } else {
+                showLoggedOut();
+            }
+        }
+        checkAuth();
+
+        loginTab.addEventListener('click', showLogin);
+        registerTab.addEventListener('click', showRegister);
+
+        loginBtn.addEventListener('click', async () => {
+            loginError.textContent = '';
+            try {
+                await authManager.login(loginUsername.value, loginPassword.value);
+                showLoggedIn(authManager.getUsername());
+            } catch(e) {
+                loginError.textContent = e.message;
+            }
         });
 
-        pcBtn.addEventListener('click', () => startFlow('pc'));
-        mobileBtn.addEventListener('click', () => startFlow('mobile'));
-        document.getElementById('restart-button').addEventListener('click', () => location.reload());
+        registerBtn.addEventListener('click', async () => {
+            registerError.textContent = '';
+            try {
+                await authManager.register(registerUsername.value, registerPassword.value);
+                showLoggedIn(authManager.getUsername());
+            } catch(e) {
+                registerError.textContent = e.message;
+            }
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            authManager.logout();
+            showLoggedOut();
+            loginUsername.value = '';
+            loginPassword.value = '';
+            registerUsername.value = '';
+            registerPassword.value = '';
+        });
 
         // --- Connect & Queue ---
         async function startFlow(platform) {
-            const name = nameInput.value.trim();
-            if (!name) return alert('Digite seu nome!');
+            const token = authManager.getToken();
+            if (!token) return alert('Você precisa fazer login primeiro!');
 
             pcBtn.disabled = true; mobileBtn.disabled = true;
             queueStatus.style.display = 'block';
@@ -234,7 +357,7 @@
 
             net.on('welcome', () => {
                 queueText.textContent = 'Procurando partida...';
-                net.joinQueue(name);
+                net.joinQueueWithToken(token);
             });
 
             net.on('queueStatus', (data) => {
@@ -243,7 +366,7 @@
             });
 
             net.on('matchFound', (data) => {
-                document.getElementById('start-screen').style.display = 'none';
+                startScreen.style.display = 'none';
                 const overlay = document.getElementById('match-found-overlay');
                 overlay.style.display = 'flex';
                 const list = document.getElementById('match-players-list');

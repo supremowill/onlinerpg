@@ -2,6 +2,8 @@ import { Pool } from 'pg';
 import { CONFIG } from '../config';
 import fs from 'fs';
 import path from 'path';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 let pool: Pool;
 
@@ -88,5 +90,54 @@ export async function testConnection(): Promise<boolean> {
     } catch (err) {
         console.error('[DB] Connection test failed:', err);
         return false;
+    }
+}
+
+// ==================== PLAYERS ACCOUNT FUNCTIONS ====================
+
+export interface PlayerAccount {
+    id: number;
+    username: string;
+    created_at: Date;
+    last_login: Date;
+}
+
+export async function createPlayer(username: string, password: string): Promise<PlayerAccount> {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+        'INSERT INTO players (username, password_hash) VALUES ($1, $2) RETURNING id, username, created_at, last_login',
+        [username, hashedPassword]
+    );
+    return result.rows[0];
+}
+
+export async function findPlayerByUsername(username: string): Promise<(PlayerAccount & { password_hash: string }) | null> {
+    const result = await pool.query('SELECT id, username, password_hash, created_at, last_login FROM players WHERE username = $1', [username]);
+    return result.rows[0] || null;
+}
+
+export async function validatePlayer(username: string, password: string): Promise<PlayerAccount | null> {
+    const player = await findPlayerByUsername(username);
+    if (!player) return null;
+    const valid = await bcrypt.compare(password, player.password_hash);
+    if (!valid) return null;
+    // Update last login
+    await pool.query('UPDATE players SET last_login = NOW() WHERE id = $1', [player.id]);
+    return { id: player.id, username: player.username, created_at: player.created_at, last_login: new Date() };
+}
+
+export function generateJWT(player: PlayerAccount): string {
+    return jwt.sign(
+        { id: player.id, username: player.username },
+        CONFIG.JWT_SECRET,
+        { expiresIn: '30d' }
+    );
+}
+
+export function verifyJWT(token: string): { id: number; username: string } | null {
+    try {
+        return jwt.verify(token, CONFIG.JWT_SECRET) as any;
+    } catch {
+        return null;
     }
 }

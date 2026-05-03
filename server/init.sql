@@ -26,3 +26,14 @@ CREATE TABLE IF NOT EXISTS match_history (
 );
 
 CREATE INDEX idx_match_room ON match_history(room_id);
+
+-- Players accounts table
+CREATE TABLE IF NOT EXISTS players (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(15) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    last_login TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_players_username ON players(username);

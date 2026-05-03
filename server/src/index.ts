@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { MatchmakingService } from './matchmaking/MatchmakingService';
 import { rankingService } from './database/ranking';
 import { getPool, closeDatabase, initDatabase } from './database/db';
+import { createPlayer, findPlayerByUsername, validatePlayer, generateJWT, verifyJWT } from './database/db';
 import { CONFIG } from './config';
 
 const app = express();
@@ -57,6 +58,48 @@ app.get('/api/matches', async (_, res) => {
 
 app.get('/api/stats', (_, res) => res.json(matchmaking.getStats()));
 
+// ==================== AUTH ENDPOINTS ====================
+
+app.post('/api/auth/register', express.json(), async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+        if (username.length < 3 || username.length > 15) return res.status(400).json({ error: 'Username must be 3-15 characters' });
+        if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+
+        const existing = await findPlayerByUsername(username);
+        if (existing) return res.status(409).json({ error: 'Username already taken' });
+
+        const player = await createPlayer(username, password);
+        const token = generateJWT(player);
+        res.json({ token, username: player.username });
+    } catch (e) { res.status(500).json({ error: 'Registration failed' }); }
+});
+
+app.post('/api/auth/login', express.json(), async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+
+        const player = await validatePlayer(username, password);
+        if (!player) return res.status(401).json({ error: 'Invalid credentials' });
+
+        const token = generateJWT(player);
+        res.json({ token, username: player.username });
+    } catch (e) { res.status(500).json({ error: 'Login failed' }); }
+});
+
+app.get('/api/auth/me', async (req, res) => {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) return res.status(401).json({ error: 'No token provided' });
+
+    const token = authHeader.split(' ')[1];
+    const payload = verifyJWT(token);
+    if (!payload) return res.status(401).json({ error: 'Invalid token' });
+
+    res.json({ id: payload.id, username: payload.username });
+});
+
 // WebSocket
 wss.on('connection', (ws: WebSocket) => {
     const playerId = uuidv4();
@@ -67,10 +110,23 @@ wss.on('connection', (ws: WebSocket) => {
         try {
             const msg = JSON.parse(raw.toString());
             switch (msg.type) {
-                case 'JOIN_QUEUE':
-                    playerName = msg.payload?.name || 'Player';
+                case 'JOIN_QUEUE': {
+                    // Check for JWT token first, then fall back to name
+                    const token = msg.payload?.token;
+                    if (token) {
+                        const payload = verifyJWT(token);
+                        if (payload) {
+                            playerName = payload.username;
+                            console.log(`[WS] Player ${playerName} joined via token`);
+                        } else {
+                            playerName = msg.payload?.name || 'Player';
+                        }
+                    } else {
+                        playerName = msg.payload?.name || 'Player';
+                    }
                     matchmaking.addToQueue(playerId, playerName, ws);
                     break;
+                }
                 case 'LEAVE_QUEUE':
                     matchmaking.removeFromQueue(playerId);
                     break;

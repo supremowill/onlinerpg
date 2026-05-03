@@ -8,6 +8,9 @@ export const CONFIG = {
     TICK_RATE: parseInt(process.env.TICK_RATE || '20'),        // Hz
     get TICK_INTERVAL_MS() { return 1000 / this.TICK_RATE; },
 
+    // JWT Secret
+    JWT_SECRET: process.env.JWT_SECRET || 'survival-3d-secret-key-change-in-production',
+
     // Matchmaking
     MAX_PLAYERS_PER_ROOM: parseInt(process.env.MAX_PLAYERS_PER_ROOM || '5'),
     MIN_PLAYERS_TO_START: parseInt(process.env.MIN_PLAYERS_TO_START || '1'),

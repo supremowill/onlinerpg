@@ -114,6 +114,7 @@ export class NetworkClient {
         }
     }
     joinQueue(name) { this.send({ type: 'JOIN_QUEUE', payload: { name } }); }
+    joinQueueWithToken(token) { this.send({ type: 'JOIN_QUEUE', payload: { token } }); }
     leaveQueue() { this.send({ type: 'LEAVE_QUEUE' }); }
     selectPlatform(platform) { this.send({ type: 'SELECT_PLATFORM', payload: { platform } }); }
 
