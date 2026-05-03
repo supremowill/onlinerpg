@@ -10,6 +10,7 @@ import { PurpleCubeEnemy, RedConeEnemy, EnemyTowerEnemy, GuardianGuerreiroEnemy,
 import { BruxaDoGeloEnemy, MestraDaIlusaoEnemy, BombardeiroInsanoEnemy, CloneIlusorioEnemy } from './enemies/Defenders';
 import { SuperBossEnemy, GangplankEnemy, RainhaDasTrevasEnemy } from './enemies/Bosses';
 import { FeiticeiroImortalEnemy, LichKingEnemy, PlantaCarnivoraEnemy, CaoDosInfernosEnemy, TheMightyOneEnemy } from './enemies/AdvancedBosses';
+import { GuardiaoDoLimboEnemy, MinosEnemy, CerberoEnemy, PlutaoEnemy, FuriaEnemy, MegeraEnemy, MinotauroEnemy, GeriaoEnemy, LuciferEnemy } from './enemies/LimboBosses';
 import { AlmaAmaldicoadaEnemy, CaveiraExplosivaEnemy, EspectroSombrioEnemy, FilhoteCaoEnemy, BrotoCarnivoroEnemy } from './enemies/Minions';
 
 export interface Orb { id: string; type: 'xp' | 'healing' | 'buff'; position: Vec3; hitboxRadius: number; buffType?: string; buffEffects?: any; buffDuration?: number; }
@@ -171,6 +172,16 @@ export class GameEngine {
             case 'LichKing': enemy = new LichKingEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
             case 'CaoDosInfernos': enemy = new CaoDosInfernosEnemy(ev.position, gm, avgLevel); break;
             case 'TheMightyOne': enemy = new TheMightyOneEnemy(ev.position); break;
+            // Novos bosses do Limbo (Círculos 1-9)
+            case 'GuardiãoDoLimbo': enemy = new GuardiaoDoLimboEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
+            case 'Minos': enemy = new MinosEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
+            case 'Cerbero': enemy = new CerberoEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
+            case 'Plutão': enemy = new PlutaoEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
+            case 'Fúria': enemy = new FuriaEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
+            case 'Megera': enemy = new MegeraEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
+            case 'Minotauro': enemy = new MinotauroEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
+            case 'Geriao': enemy = new GeriaoEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
+            case 'Lúcifer': enemy = new LuciferEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
             default: return;
         }
         this.enemies.push(enemy);
@@ -471,6 +482,16 @@ export class GameEngine {
         if (t === 'LichKing') { this.spawnManager.activeBoss = null; const items = ['coroa_lich_buff', 'lamina_geada_buff', 'fragmento_morte_buff', 'talisma_quebrado_buff']; const pick = items[Math.floor(Math.random() * items.length)]; const fx: any = { coroa_lich_buff: { ability_damage: 1.0, immunity_freeze: true }, lamina_geada_buff: { bonus_damage: 20, attack_speed: 0.1 }, fragmento_morte_buff: { chance: 0.25 }, talisma_quebrado_buff: { max_hp_bonus: 0.10, freeze_reduction: 0.50 } }; this.spawnItemDrop(enemy.position, pick, fx[pick], 120); }
         if (t === 'SuperBoss') this.spawnManager.activeBoss = null;
         if (t === 'TheMightyOne') { this.spawnManager.onMightyOneDefeated(); for (const e of this.enemies) if (!e.isDestroyed) e.applyGlobalBuff(CONFIG.COLLAPSE_MULTIPLIER); }
+        // Novos bosses do Limbo - resetar flags ao morrer
+        if (t === 'GuardiãoDoLimbo') { this.spawnManager.isGuardiãoDoLimboAlive = false; this.spawnManager.activeBoss = null; }
+        if (t === 'Minos') { this.spawnManager.isMinosAlive = false; this.spawnManager.activeBoss = null; }
+        if (t === 'Cerbero') { this.spawnManager.isCerberoAlive = false; this.spawnManager.activeBoss = null; }
+        if (t === 'Plutão') { this.spawnManager.isPlutaoAlive = false; this.spawnManager.activeBoss = null; }
+        if (t === 'Fúria') { this.spawnManager.isFuriaAlive = false; this.spawnManager.activeBoss = null; }
+        if (t === 'Megera') { this.spawnManager.isMegeraAlive = false; this.spawnManager.activeBoss = null; }
+        if (t === 'Minotauro') { this.spawnManager.isMinotauroAlive = false; this.spawnManager.activeBoss = null; }
+        if (t === 'Geriao') { this.spawnManager.isGeriaoAlive = false; this.spawnManager.activeBoss = null; }
+        if (t === 'Lúcifer') { this.spawnManager.isLuciferAlive = false; this.spawnManager.activeBoss = null; }
         if (t === 'GuardianGuerreiro') killer.applyBuff('guerreiro');
         if (t === 'GuardianMago') killer.applyBuff('mago');
         if (t === 'GuardianArqueiro') killer.applyBuff('arqueiro');

@@ -7,7 +7,7 @@ import { CONFIG } from '../../config';
 // Círculo 1 - Limbo: Guardião do Limbo
 // ============================================================
 export class GuardiaoDoLimboEnemy extends ServerEnemy {
-    public auraRadius: number = CONFIG.GUARDIAO_DO_LIMBO.AURA_RADIUS;
+    public auraRadius: number = 5;
     private habilidades = {
         suspiro: { cooldown: 8000, lastUsed: 0 },
         pesoGeo: { cooldown: 12000, lastUsed: 0, isActive: false, timer: 0, duration: 3000 },
@@ -16,13 +16,16 @@ export class GuardiaoDoLimboEnemy extends ServerEnemy {
     };
     public pendingProjectiles: { dir: Vec3, damage: number, specialEffect?: string }[] = [];
     public pendingAbilities: any[] = [];
+    private playerLevel: number;
 
     constructor(pos: Vec3, globalMult: number, playerLevel: number, playerMaxHp: number) {
         super(pos);
+        this.playerLevel = playerLevel;
         this.type = 'GuardiãoDoLimbo';
         this.name = 'Guardião do Limbo';
-        const c = CONFIG.GUARDIAO_DO_LIMBO;
-        this.maxHp = (c.BASE_HP + playerLevel * 300) * globalMult; this.hp = this.maxHp;
+        const c = (CONFIG as any).GUARDIAO_DO_LIMBO;
+        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.hp = this.maxHp;
         this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.015);
         this.speed = c.SPEED; this.originalSpeed = c.SPEED;
         this.xp = c.XP; this.score = c.SCORE;
@@ -54,7 +57,7 @@ export class GuardiaoDoLimboEnemy extends ServerEnemy {
             }
         }
 
-        // Prioridade de habilidades
+        // Prioridade: habilidades
         if (now > this.habilidades.melancolia.lastUsed + this.habilidades.melancolia.cooldown) {
             this.habilidades.melancolia.lastUsed = now;
             this.pendingAbilities.push({ type: 'melancolia', x: target.position.x, z: target.position.z });
@@ -67,7 +70,7 @@ export class GuardiaoDoLimboEnemy extends ServerEnemy {
             this.pendingProjectiles.push({ dir, damage: 10, specialEffect: 'suspiroLimbo' });
         } else if (now > this.habilidades.barreira.lastUsed + this.habilidades.barreira.cooldown && !this.habilidades.barreira.isActive) {
             this.habilidades.barreira.isActive = true;
-            this.habilidades.barreira.hp = 500 + (this.habilidades.barreira as any).level * 100 || 500;
+            this.habilidades.barreira.hp = 500 + (this.playerLevel * 100);
             this.habilidades.barreira.timer = this.habilidades.barreira.duration;
             this.speed = this.originalSpeed * 0.7; // Fica lento com escudo
         } else {
@@ -100,8 +103,9 @@ export class MinosEnemy extends ServerEnemy {
         super(pos);
         this.type = 'Minos';
         this.name = 'Minos, o Árbitro';
-        const c = CONFIG.MINOS;
-        this.maxHp = (c.BASE_HP + playerLevel * 350) * globalMult; this.hp = this.maxHp;
+        const c = (CONFIG as any).MINOS;
+        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.hp = this.maxHp;
         this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.02);
         this.speed = c.SPEED; this.originalSpeed = c.SPEED;
         this.xp = c.XP; this.score = c.SCORE;
@@ -114,7 +118,6 @@ export class MinosEnemy extends ServerEnemy {
         const target = this.getClosestPlayer(players);
         if (!target) return;
         const now = Date.now();
-        const dist = this.position.distanceToXZ(target.position);
 
         // Passiva: Ventos da Punição (rastro de mini-cubos)
         // Implementado via pendingAbility que cria zona no chão
@@ -163,8 +166,9 @@ export class CerberoEnemy extends ServerEnemy {
         super(pos);
         this.type = 'Cerbero';
         this.name = 'Cérbero Geométrico';
-        const c = CONFIG.CERVERO;
-        this.maxHp = (c.BASE_HP + playerLevel * 500) * globalMult; this.hp = this.maxHp;
+        const c = (CONFIG as any).CERBERO;
+        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.hp = this.maxHp;
         this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.02);
         this.speed = c.SPEED; this.originalSpeed = c.SPEED;
         this.xp = c.XP; this.score = c.SCORE;
@@ -177,14 +181,13 @@ export class CerberoEnemy extends ServerEnemy {
         const target = this.getClosestPlayer(players);
         if (!target) return;
         const now = Date.now();
-        const dist = this.position.distanceToXZ(target.position);
 
         // Passiva: Fome Insaciável - gera lodo no chão
-        if (this.hp < this.maxHp * 0.9) { // Quando toma dano
+        if (this.hp < this.maxHp * 0.9) {
             this.pendingAbilities.push({ type: 'lodoComida', x: this.position.x, z: this.position.z });
         }
 
-        if (now > this.habilidades.mordida.lastUsed + this.habilidades.mordida.cooldown && dist < 3) {
+        if (now > this.habilidades.mordida.lastUsed + this.habilidades.mordida.cooldown && this.position.distanceToXZ(target.position) < 3) {
             this.habilidades.mordida.lastUsed = now;
             this.pendingAbilities.push({ type: 'mordidaTripla', x: target.position.x, z: target.position.z });
         } else if (now > this.habilidades.vomito.lastUsed + this.habilidades.vomito.cooldown) {
@@ -220,8 +223,9 @@ export class PlutaoEnemy extends ServerEnemy {
         super(pos);
         this.type = 'Plutao';
         this.name = 'Plutão, o Dourado';
-        const c = CONFIG.PLUTAO;
-        this.maxHp = (c.BASE_HP + playerLevel * 400) * globalMult; this.hp = this.maxHp;
+        const c = (CONFIG as any).PLUTAO;
+        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.hp = this.maxHp;
         this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.03);
         this.speed = c.SPEED; this.originalSpeed = c.SPEED;
         this.xp = c.XP; this.score = c.SCORE;
@@ -236,7 +240,7 @@ export class PlutaoEnemy extends ServerEnemy {
         const now = Date.now(); const ms = dt * 1000;
 
         // Passiva: Peso do Ouro - mini-cubos dourados
-        if (this.hp < this.maxHp * 0.95) { // Quando toma dano
+        if (this.hp < this.maxHp * 0.95) {
             this.pendingAbilities.push({ type: 'miniCubosDourados', x: this.position.x, z: this.position.z });
         }
 
@@ -256,7 +260,7 @@ export class PlutaoEnemy extends ServerEnemy {
             this.habilidades.avareza.timer -= ms;
             if (this.habilidades.avareza.timer <= 0) {
                 this.habilidades.avareza.isActive = false;
-                this.hitboxRadius = CONFIG.PLUTAO.HITBOX_RADIUS; // Reset hitbox
+                this.hitboxRadius = (CONFIG as any).PLUTAO.HITBOX_RADIUS;
             }
         }
 
@@ -267,7 +271,7 @@ export class PlutaoEnemy extends ServerEnemy {
             this.habilidades.avareza.isActive = true;
             this.habilidades.avareza.timer = 5000;
             this.habilidades.avareza.scale = 1.3;
-            this.hitboxRadius = CONFIG.PLUTAO.HITBOX_RADIUS * 1.3;
+            this.hitboxRadius = (CONFIG as any).PLUTAO.HITBOX_RADIUS * 1.3;
         } else if (now > this.habilidades.chuva.lastUsed + this.habilidades.chuva.cooldown) {
             this.habilidades.chuva.lastUsed = now;
             this.pendingAbilities.push({ type: 'chuvaRiquezas', x: target.position.x, z: target.position.z });
@@ -300,9 +304,10 @@ export class FuriaEnemy extends ServerEnemy {
         super(pos);
         this.type = 'Furia';
         this.name = 'Fúria, o Furioso';
-        const c = CONFIG.FURIA;
-        this.maxHp = (c.BASE_HP + playerLevel * 350) * globalMult; this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE + (playerMaxHp * (1 - this.hp / this.maxHp) * 0.01); // +1% per 1% HP lost
+        const c = (CONFIG as any).FURIA;
+        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.hp = this.maxHp;
+        this.damage = c.BASE_DAMAGE + (playerMaxHp * (1 - this.hp / this.maxHp) * 0.01);
         this.speed = c.SPEED; this.originalSpeed = c.SPEED;
         this.xp = c.XP; this.score = c.SCORE;
         this.hitboxRadius = c.HITBOX_RADIUS;
@@ -314,7 +319,6 @@ export class FuriaEnemy extends ServerEnemy {
         const target = this.getClosestPlayer(players);
         if (!target) return;
         const now = Date.now();
-        const dist = this.position.distanceToXZ(target.position);
 
         // Passiva: Fervor - abaixo 50% HP, velocidade dobra
         const hpPct = this.hp / this.maxHp;
@@ -369,8 +373,9 @@ export class MegeraEnemy extends ServerEnemy {
         super(pos);
         this.type = 'Megera';
         this.name = 'Megera das Chamas';
-        const c = CONFIG.MEGERA;
-        this.maxHp = (c.BASE_HP + playerLevel * 300) * globalMult; this.hp = this.maxHp;
+        const c = (CONFIG as any).MEGERA;
+        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.hp = this.maxHp;
         this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.03);
         this.speed = c.SPEED; this.originalSpeed = c.SPEED;
         this.xp = c.XP; this.score = c.SCORE;
@@ -386,7 +391,6 @@ export class MegeraEnemy extends ServerEnemy {
 
         // Passiva: Tumba - imune a stun/slow
         this.status.slowTimer = 0; // Reset slow
-        // (Stun immunity handled in Player.takeDamage)
 
         if (now > this.habilidades.chuvaCaixas.lastUsed + this.habilidades.chuvaCaixas.cooldown) {
             this.habilidades.chuvaCaixas.lastUsed = now;
@@ -408,7 +412,7 @@ export class MegeraEnemy extends ServerEnemy {
                 this.pendingProjectiles.push({
                     dir: new Vec3(Math.cos(angle), 0, Math.sin(angle)),
                     damage: this.damage,
-                    specialEffect: 'laserHerege'
+                    specialEffect: 'laserHeresia'
                 });
             }
         } else {
@@ -440,8 +444,9 @@ export class MinotauroEnemy extends ServerEnemy {
         super(pos);
         this.type = 'Minotauro';
         this.name = 'Minotauro de Sangue';
-        const c = CONFIG.MINOTAURO;
-        this.maxHp = (c.BASE_HP + playerLevel * 500) * globalMult; this.hp = this.maxHp;
+        const c = (CONFIG as any).MINOTAURO;
+        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.hp = this.maxHp;
         this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.04);
         this.speed = c.SPEED; this.originalSpeed = c.SPEED;
         this.xp = c.XP; this.score = c.SCORE;
@@ -456,7 +461,7 @@ export class MinotauroEnemy extends ServerEnemy {
         const now = Date.now(); const ms = dt * 1000;
 
         // Passiva: Sede - sangra cubos, rouba vida
-        if (this.hp < this.maxHp * 0.95) { // Quando toma dano
+        if (this.hp < this.maxHp * 0.95) {
             this.pendingAbilities.push({ type: 'sangraCubos', x: this.position.x, z: this.position.z });
         }
 
@@ -518,8 +523,9 @@ export class GeriaoEnemy extends ServerEnemy {
         super(pos);
         this.type = 'Geriao';
         this.name = 'Gerião, a Ilusão';
-        const c = CONFIG.GERIAO;
-        this.maxHp = (c.BASE_HP + playerLevel * 200) * globalMult; this.hp = this.maxHp;
+        const c = (CONFIG as any).GERIAO;
+        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.hp = this.maxHp;
         this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.02); // Veneno
         this.speed = c.SPEED; this.originalSpeed = c.SPEED;
         this.xp = c.XP; this.score = c.SCORE;
@@ -544,7 +550,7 @@ export class GeriaoEnemy extends ServerEnemy {
             this.pendingAbilities.push({ type: 'confusaoGeriao', x: target.position.x, z: target.position.z });
         } else if (now > this.habilidades.clones.lastUsed + this.habilidades.clones.cooldown && this.clones.length === 0) {
             this.habilidades.clones.lastUsed = now;
-            this.pendingAbilities.push({ type: 'spawnClonesGeriao', x: this.position.x, z: this.position.z, count: 3 });
+            this.pendingAbilities.push({ type: 'clonesGeriao', x: this.position.x, z: this.position.z, count: 3 });
         } else if (now > this.habilidades.dardo.lastUsed + this.habilidades.dardo.cooldown) {
             this.habilidades.dardo.lastUsed = now;
             const dir = target.position.clone().sub(this.position); dir.y = 0; dir.normalize();
@@ -581,8 +587,9 @@ export class LuciferEnemy extends ServerEnemy {
         super(pos);
         this.type = 'Lucifer';
         this.name = 'Lúcifer Cósmico';
-        const c = CONFIG.LUCIFER;
-        this.maxHp = (c.HP + playerLevel * 1000) * globalMult; this.hp = this.maxHp;
+        const c = (CONFIG as any).LUCIFER;
+        this.maxHp = (c.HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.hp = this.maxHp;
         this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.05);
         this.speed = c.SPEED; this.originalSpeed = c.SPEED;
         this.xp = c.XP; this.score = c.SCORE;
@@ -611,11 +618,12 @@ export class LuciferEnemy extends ServerEnemy {
             this.pendingAbilities.push({ type: 'quedaTitanica', x: 0, z: 0 });
         } else if (now > this.habilidades.lasers.lastUsed + this.habilidades.lasers.cooldown) {
             this.habilidades.lasers.lastUsed = now;
-            for (let i = 0; i < 3; i++) {
-                const target = this.getClosestPlayer(players);
-                if (!target) break;
-                const dir = target.position.clone().sub(this.position); dir.y = 0; dir.normalize();
-                this.pendingProjectiles.push({ dir, damage: this.damage * 3, specialEffect: 'laserFrio' });
+            const target = this.getClosestPlayer(players);
+            if (target) {
+                for (let i = 0; i < 3; i++) {
+                    const dir = target.position.clone().sub(this.position); dir.y = 0; dir.normalize();
+                    this.pendingProjectiles.push({ dir, damage: this.damage * 3, specialEffect: 'laserFrio' });
+                }
             }
         } else if (now > this.habilidades.varredura.lastUsed + this.habilidades.varredura.cooldown) {
             this.habilidades.varredura.lastUsed = now;

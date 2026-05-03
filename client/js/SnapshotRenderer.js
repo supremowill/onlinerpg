@@ -53,6 +53,16 @@ export class SnapshotRenderer {
             BrotoCarnivoro: { geo: new THREE.SphereGeometry(0.6, 8, 6), color: 0x4c956c },
             CloneIlusorio: { geo: new THREE.BoxGeometry(1.5, 1.5, 1.5), color: 0xd095e0 },
             PowderKeg: { geo: new THREE.CylinderGeometry(0.5, 0.5, 1, 12), color: 0x966F33 },
+            // Novos bosses do Limbo (Círculos 1-9)
+            GuardiãoDoLimbo: { geo: new THREE.OctahedronGeometry(1.5, 0), color: 0x4A148C },
+            Minos: { geo: new THREE.CylinderGeometry(1.2, 1.5, 2.5, 12), color: 0xBF360C },
+            Cerbero: { geo: new THREE.BoxGeometry(2.5, 1.8, 1.8), color: 0x5D4037 },
+            Plutão: { geo: new THREE.SphereGeometry(1.8, 20, 20), color: 0x1A237E },
+            Fúria: { geo: new THREE.ConeGeometry(1.2, 3, 8), color: 0xE65100 },
+            Megera: { geo: new THREE.OctahedronGeometry(1.3, 0), color: 0x880E4F },
+            Minotauro: { geo: new THREE.BoxGeometry(2.5, 2.5, 2.5), color: 0x4E342E },
+            Geriao: { geo: new THREE.CylinderGeometry(0.8, 0.8, 3.5, 6), color: 0x004D40 },
+            Lúcifer: { geo: new THREE.SphereGeometry(3, 32, 32), color: 0xFF0000 },
         };
     }
 

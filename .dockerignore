@@ -1,22 +1,17 @@
-# .dockerignore — evita copiar arquivos desnecessários para a imagem Docker
-
-# Node modules (serão reinstalados no container)
-node_modules/
-server/node_modules/
-
-# TypeScript compilado local
-server/dist/
-
-# Arquivos de desenvolvimento
-server/src/**/*.js.map
-**/*.log
-**/*.md
-
-# Git e editor
-.git/
+node_modules
+npm-debug.log
+.git
 .gitignore
-.vscode/
-.idea/
-
-# Docker files (evita recursão)
-docker-compose*.yml
+*.md
+.env
+*.log
+client/node_modules
+server/dist
+server/node_modules
+__pycache__
+*.pyc
+.DS_Store
+*.swp
+.vscode
+.idea
+*.tsbuildinfo

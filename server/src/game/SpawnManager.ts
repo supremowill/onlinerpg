@@ -25,6 +25,17 @@ export class SpawnManager {
     private guardianTypes = ['GuardianGuerreiro', 'GuardianMago', 'GuardianArqueiro'];
     private defenderTypes = ['BruxaDoGelo', 'MestraDaIlusao', 'BombardeiroInsano'];
 
+    // Novos bosses do Limbo (Círculos 1-9)
+    public isGuardiãoDoLimboAlive = false;
+    public isMinosAlive = false;
+    public isCerberoAlive = false;
+    public isPlutaoAlive = false;
+    public isFuriaAlive = false;
+    public isMegeraAlive = false;
+    public isMinotauroAlive = false;
+    public isGeriaoAlive = false;
+    public isLuciferAlive = false;
+
     constructor() {
         const t = CONFIG.SPAWN_TIMERS;
         this.timers = {
@@ -38,6 +49,16 @@ export class SpawnManager {
             spawnFeiticeiro: t.FEITICEIRO,
             spawnLichKing: t.LICH_KING,
             spawnGangplank: t.GANGPLANK,
+            // Novos bosses do Limbo (Círculos 1-9)
+            spawnGuardiãoDoLimbo: t.GUARDIAO_DO_LIMBO,
+            spawnMinos: t.MINOS,
+            spawnCerbero: t.CERBERO,
+            spawnPlutao: t.PLUTAO,
+            spawnFuria: t.FURIA,
+            spawnMegera: t.MEGERA,
+            spawnMinotauro: t.MINOTAURO,
+            spawnGeriao: t.GERIAO,
+            spawnLucifer: t.LUCIFER,
         };
     }
 
@@ -147,6 +168,80 @@ export class SpawnManager {
         if (!this.mightyOneAlive && this.gameTime >= this.mightyOneNextSpawn) {
             this.mightyOneAlive = true;
             events.push({ type: 'TheMightyOne', position: this.getSpawnPosition() });
+        }
+
+        // === NOVOS BOSSES DO LIMBO (Círculos 1-9) ===
+
+        // Círculo 1 - Guardião do Limbo (60s)
+        this.timers.spawnGuardiãoDoLimbo -= dt;
+        if (!this.isGuardiãoDoLimboAlive && this.timers.spawnGuardiãoDoLimbo <= 0 && !this.activeBoss) {
+            this.timers.spawnGuardiãoDoLimbo = CONFIG.SPAWN_TIMERS.GUARDIAO_DO_LIMBO;
+            this.isGuardiãoDoLimboAlive = true;
+            events.push({ type: 'GuardiãoDoLimbo', position: this.getSpawnPosition() });
+        }
+
+        // Círculo 2 - Minos (120s)
+        this.timers.spawnMinos -= dt;
+        if (!this.isMinosAlive && this.timers.spawnMinos <= 0 && !this.activeBoss) {
+            this.timers.spawnMinos = CONFIG.SPAWN_TIMERS.MINOS;
+            this.isMinosAlive = true;
+            events.push({ type: 'Minos', position: this.getSpawnPosition() });
+        }
+
+        // Círculo 3 - Cerbero (180s)
+        this.timers.spawnCerbero -= dt;
+        if (!this.isCerberoAlive && this.timers.spawnCerbero <= 0 && !this.activeBoss) {
+            this.timers.spawnCerbero = CONFIG.SPAWN_TIMERS.CERBERO;
+            this.isCerberoAlive = true;
+            events.push({ type: 'Cerbero', position: this.getSpawnPosition() });
+        }
+
+        // Círculo 4 - Plutão (240s)
+        this.timers.spawnPlutao -= dt;
+        if (!this.isPlutaoAlive && this.timers.spawnPlutao <= 0 && !this.activeBoss) {
+            this.timers.spawnPlutao = CONFIG.SPAWN_TIMERS.PLUTAO;
+            this.isPlutaoAlive = true;
+            events.push({ type: 'Plutão', position: this.getSpawnPosition() });
+        }
+
+        // Círculo 5 - Fúria (300s)
+        this.timers.spawnFuria -= dt;
+        if (!this.isFuriaAlive && this.timers.spawnFuria <= 0 && !this.activeBoss) {
+            this.timers.spawnFuria = CONFIG.SPAWN_TIMERS.FURIA;
+            this.isFuriaAlive = true;
+            events.push({ type: 'Fúria', position: this.getSpawnPosition() });
+        }
+
+        // Círculo 6 - Megera (360s)
+        this.timers.spawnMegera -= dt;
+        if (!this.isMegeraAlive && this.timers.spawnMegera <= 0 && !this.activeBoss) {
+            this.timers.spawnMegera = CONFIG.SPAWN_TIMERS.MEGERA;
+            this.isMegeraAlive = true;
+            events.push({ type: 'Megera', position: this.getSpawnPosition() });
+        }
+
+        // Círculo 7 - Minotauro (420s)
+        this.timers.spawnMinotauro -= dt;
+        if (!this.isMinotauroAlive && this.timers.spawnMinotauro <= 0 && !this.activeBoss) {
+            this.timers.spawnMinotauro = CONFIG.SPAWN_TIMERS.MINOTAURO;
+            this.isMinotauroAlive = true;
+            events.push({ type: 'Minotauro', position: this.getSpawnPosition() });
+        }
+
+        // Círculo 8 - Geriao (480s)
+        this.timers.spawnGeriao -= dt;
+        if (!this.isGeriaoAlive && this.timers.spawnGeriao <= 0 && !this.activeBoss) {
+            this.timers.spawnGeriao = CONFIG.SPAWN_TIMERS.GERIAO;
+            this.isGeriaoAlive = true;
+            events.push({ type: 'Geriao', position: this.getSpawnPosition() });
+        }
+
+        // Círculo 9 - Lúcifer Cósmico (540s = 9 min)
+        this.timers.spawnLucifer -= dt;
+        if (!this.isLuciferAlive && this.timers.spawnLucifer <= 0 && !this.activeBoss) {
+            this.timers.spawnLucifer = CONFIG.SPAWN_TIMERS.LUCIFER;
+            this.isLuciferAlive = true;
+            events.push({ type: 'Lúcifer', position: this.getSpawnPosition() });
         }
 
         return events;
