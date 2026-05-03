@@ -7,7 +7,7 @@ import jwt from 'jsonwebtoken';
 
 let pool: Pool;
 
-export function initDatabase(): Pool {
+export async function initDatabase(): Promise<Pool> {
     const dbUrl = CONFIG.DATABASE_URL;
 
     if (!dbUrl) {

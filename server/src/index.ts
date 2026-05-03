@@ -25,23 +25,22 @@ app.use(express.json());
 
 // Init DB (will retry on failure, server starts even if DB is down)
 let dbInitialized = false;
-try {
-    initDatabase();
+initDatabase().then(pool => {
     dbInitialized = true;
-} catch (err) {
+    console.log('[DB] Initialized successfully');
+}).catch(err => {
     console.error('[DB] Initial database init failed, will retry on first request:', (err as Error).message);
-}
+});
 
 // REST API
 app.get('/api/health', (_, res) => {
     // Try to init DB on health check if not initialized
     if (!dbInitialized) {
-        try {
-            initDatabase();
+        initDatabase().then(() => {
             dbInitialized = true;
-        } catch (err) {
+        }).catch(err => {
             console.error('[DB] Retry failed:', (err as Error).message);
-        }
+        });
     }
     res.json({ status: 'ok', uptime: process.uptime(), db: dbInitialized ? 'connected' : 'disconnected' });
 });
