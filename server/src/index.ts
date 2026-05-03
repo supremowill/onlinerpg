@@ -46,6 +46,22 @@ app.get('/api/health', (_, res) => {
     res.json({ status: 'ok', uptime: process.uptime(), db: dbInitialized ? 'connected' : 'disconnected' });
 });
 
+// Debug endpoint - check DB tables (remove in production)
+app.get('/api/debug', async (_, res) => {
+    try {
+        const pool = getPool();
+        const tables = await pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'");
+        const players = await pool.query('SELECT COUNT(*) as count FROM players');
+        res.json({
+            tables: tables.rows,
+            playerCount: players.rows[0].count,
+            dbUrlPreview: CONFIG.DATABASE_URL ? CONFIG.DATABASE_URL.substring(0, 30) + '...' : 'not set',
+        });
+    } catch (e: any) {
+        res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
+
 app.get('/api/ranking', async (_, res) => {
     try { res.json(await rankingService.getLeaderboard(50)); }
     catch (e) { res.status(500).json({ error: 'Failed to fetch ranking' }); }
