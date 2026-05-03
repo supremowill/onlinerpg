@@ -68,11 +68,13 @@ export class ServerPlayer {
         lichKingPrison: { isActive: false, timer: 0 },
         lichKingLifeDrain: { isActive: false, timer: 0, damagePerSecond: 0 },
         freezingConeHits: { count: 0, timer: 0 },
+        invertedControls: { isActive: false, timer: 0 },
     };
 
     public input: InputState = { keys: { w: false, a: false, s: false, d: false }, mouseX: 0, mouseY: 0 };
     public platform: 'pc' | 'mobile' = 'pc';
     public pendingUpgrade: number | null = null;
+    public pendingRewindSeconds: number = 0;
     public lastPingTime: number = Date.now();
     public isConnected: boolean = true;
     private facingDirection: Vec3 = new Vec3(0, 0, -1);
@@ -183,15 +185,15 @@ export class ServerPlayer {
                 if (k.a) mx = -1;
                 if (k.d) mx = 1;
             }
-            if (this.statusEffects.disoriented.isActive) { dir.x = -mx; dir.z = -mz; } else { dir.x = mx; dir.z = mz; }
+            if (this.statusEffects.disoriented.isActive || this.statusEffects.invertedControls.isActive) { dir.x = -mx; dir.z = -mz; } else { dir.x = mx; dir.z = mz; }
             if (dir.lengthSq() > 0) {
                 dir.normalize().multiplyScalar(spd * dt);
                 this.position.add(dir);
                 moved = true;
             }
-        } else { 
-            mx = this.input.joystickX || 0; mz = this.input.joystickY || 0; 
-            if (this.statusEffects.disoriented.isActive) { dir.x = -mx; dir.z = -mz; } else { dir.x = mx; dir.z = mz; }
+        } else {
+            mx = this.input.joystickX || 0; mz = this.input.joystickY || 0;
+            if (this.statusEffects.disoriented.isActive || this.statusEffects.invertedControls.isActive) { dir.x = -mx; dir.z = -mz; } else { dir.x = mx; dir.z = mz; }
             if (dir.lengthSq() > 0) {
                 dir.normalize().multiplyScalar(spd * dt); 
                 this.position.add(dir);
@@ -332,6 +334,10 @@ export class ServerPlayer {
                 });
             }
         }
+        // Fragmento de Código-Fonte: rewind game time
+        if (type === 'fragmento_codigo_fonte') {
+            this.pendingRewindSeconds = effects.rewind_time_seconds || 30;
+        }
     }
     applyTemporaryBuff(type: string, durSec: number, mag: number): void { this.tempBuff.type = type; this.tempBuff.timer = durSec * 1000; this.tempBuff.magnitude = mag; }
     applyStun(d: number): void { this.statusEffects.stunned.isActive = true; this.statusEffects.stunned.timer = Math.max(this.statusEffects.stunned.timer, d); }
@@ -347,7 +353,8 @@ export class ServerPlayer {
     applySilence(d: number): void { this.statusEffects.silenced.isActive = true; this.statusEffects.silenced.timer = Math.max(this.statusEffects.silenced.timer, d); }
     applyMarcaDaAlma(d: number): void { if (this.statusEffects.marcaDaAlma.isActive) return; this.statusEffects.marcaDaAlma.isActive = true; this.statusEffects.marcaDaAlma.timer = d; }
     applyLichKingPrison(d: number): void { if (this.statusEffects.lichKingPrison.isActive) return; this.statusEffects.lichKingPrison.isActive = true; this.statusEffects.lichKingPrison.timer = d; }
-    clearNegativeEffects(): void { ['slowed','burning','bleeding','frozen','stunned','rooted','attackSpeedSlow','disoriented','blind','silenced','armorFracture'].forEach(k => { const e = (this.statusEffects as any)[k]; if (e) { e.isActive = false; e.timer = 0; if (k === 'slowed') this.speed = this.originalSpeed; if (k === 'burning') e.stacks = 0; } }); }
+    applyInvertedControls(d: number): void { if (this.statusEffects.invertedControls.isActive) return; this.statusEffects.invertedControls.isActive = true; this.statusEffects.invertedControls.timer = d; }
+    clearNegativeEffects(): void { ['slowed','burning','bleeding','frozen','stunned','rooted','attackSpeedSlow','disoriented','blind','silenced','armorFracture','invertedControls'].forEach(k => { const e = (this.statusEffects as any)[k]; if (e) { e.isActive = false; e.timer = 0; if (k === 'slowed') this.speed = this.originalSpeed; if (k === 'burning') e.stacks = 0; } }); }
 
     toSnapshot(now: number): PlayerSnapshot {
         const fx: string[] = [];

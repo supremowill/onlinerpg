@@ -241,6 +241,7 @@ export const CONFIG = {
         GERIAO: 480,
         LUCIFER: 540,
         ESPECTRO_DE_RAZIEL: 480, // 8 minutos
+        SMITH: 150, // 2:30 minutos
         SUPER_BOSS_TIME: 180,
         THE_MIGHTY_ONE_TIME: 600,
     },
@@ -388,5 +389,22 @@ export const CONFIG = {
         SKILL_2_SLOW_DURATION: 1000,
         SKILL_3_PROJECTILE_COUNT_PERCENT: 0.10,
         SKILL_4_TELEPORT_DISTANCE: 15,
+    },
+
+    SMITH: {
+        BASE_HP: 3500,
+        BASE_DAMAGE: 25,
+        SPEED: 1.2,
+        XP: 6000,
+        SCORE: 5000,
+        HITBOX_RADIUS: 1.5,
+        SPAWN_INTERVAL: 150 * 60 * 1000, // 2:30 minutes
+        SKILL_1_COOLDOWN: 6000,   // Salto de Protocolo
+        SKILL_2_COOLDOWN: 15000, // Sobrescrita Global
+        CLONE_DAMAGE_PERCENT: 0.02, // +2% per clone
+        CLONE_XP_STEAL_PERCENT: 0.01, // 1% XP steal per touch
+        CLONE_OPACITY: 0.7,
+        AURA_RADIUS: 4,
+        FRAGMENT_TELEPORT_DIST: 15,
     },
 };

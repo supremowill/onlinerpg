@@ -36,6 +36,7 @@ export class SpawnManager {
     public isGeriaoAlive = false;
     public isLuciferAlive = false;
     public isEspectroDeRazielAlive = false;
+    public isSmithAlive = false;
 
     constructor() {
         const t = CONFIG.SPAWN_TIMERS;
@@ -61,6 +62,7 @@ export class SpawnManager {
             spawnGeriao: t.GERIAO,
             spawnLucifer: t.LUCIFER,
             spawnEspectroDeRaziel: t.ESPECTRO_DE_RAZIEL,
+            spawnSmith: t.SMITH,
         };
     }
 
@@ -252,6 +254,19 @@ export class SpawnManager {
             this.timers.spawnEspectroDeRaziel = CONFIG.SPAWN_TIMERS.ESPECTRO_DE_RAZIEL || 480;
             this.isEspectroDeRazielAlive = true;
             events.push({ type: 'EspectroDeRaziel', position: this.getSpawnPosition() });
+        }
+
+        // Smith - O Agente Corruptor (150s = 2:30 min) - ciclo de invasão
+        this.timers.spawnSmith -= dt;
+        if (this.timers.spawnSmith <= 0) {
+            this.timers.spawnSmith = CONFIG.SPAWN_TIMERS.SMITH;
+            if (this.isSmithAlive) {
+                // Smith anterior ainda vivo: absorver e dobrar tamanho + 50% dano
+                events.push({ type: 'SmithAbsorb', position: this.getSpawnPosition() });
+            } else {
+                this.isSmithAlive = true;
+                events.push({ type: 'Smith', position: this.getSpawnPosition() });
+            }
         }
 
         return events;

@@ -140,6 +140,7 @@ export class ServerEnemy {
             maxHp: this.maxHp,
             name: this.name,
             isInvulnerable: this.isInvulnerable || undefined,
+            sizeMultiplier: (this as any).sizeMultiplier || undefined,
         };
     }
 }

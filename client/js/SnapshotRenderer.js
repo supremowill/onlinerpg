@@ -72,6 +72,21 @@ export class SnapshotRenderer {
                 cylinderColor: 0x8B4513, // Brown
                 orbitingSouls: true,
             },
+            Smith: {
+                geo: new THREE.BoxGeometry(2, 2, 2),
+                color: 0x0D0D0D, // Black metallic prism
+                headColor: 0x808080, // Gray cube head
+                visorColor: 0x00ff00, // Neon green visor
+                headGeo: new THREE.BoxGeometry(1, 1, 1),
+            },
+            CloneSmith: {
+                geo: new THREE.BoxGeometry(1.4, 1.4, 1.4),
+                color: 0x0D0D0D,
+                headColor: 0x808080,
+                visorColor: 0x00ff00,
+                headGeo: new THREE.BoxGeometry(0.7, 0.7, 0.7),
+                opacity: 0.7,
+            },
         };
     }
 
@@ -139,18 +154,35 @@ export class SnapshotRenderer {
                         emissive: visual.color,
                         emissiveIntensity: es.type === 'TheMightyOne' ? 1.0 : 0.2,
                         metalness: 0.4, roughness: 0.5,
-                        transparent: es.type === 'SuperBoss' || es.type === 'FeiticeiroImortal' || es.type === 'EspectroSombrio' || es.type === 'EspectroDeRaziel',
-                        opacity: es.type === 'SuperBoss' ? 0.8 : es.type === 'EspectroSombrio' ? 0.5 : es.type === 'EspectroDeRaziel' ? 0.7 : 1.0,
+                        transparent: es.type === 'SuperBoss' || es.type === 'FeiticeiroImortal' || es.type === 'EspectroSombrio' || es.type === 'EspectroDeRaziel' || es.type === 'Smith' || es.type === 'CloneSmith',
+                        opacity: visual.opacity !== undefined ? visual.opacity : (es.type === 'SuperBoss' ? 0.8 : es.type === 'EspectroSombrio' ? 0.5 : es.type === 'EspectroDeRaziel' ? 0.7 : 1.0),
                     });
                     if (es.type === 'EspectroSombrio') mat.emissive.set(0x00aaff);
                     if (es.type === 'EspectroDeRaziel') mat.emissive.set(0x00CCFF);
+                    if (es.type === 'Smith' || es.type === 'CloneSmith') mat.metalness = 0.8;
                     const mesh = new THREE.Mesh(visual.geo.clone(), mat);
                     mesh.castShadow = true;
                     this.scene.add(mesh);
                     // HP bar above enemy
                     const hpGroup = this.createHpBar();
                     mesh.add(hpGroup);
-                    entry = { mesh, type: 'enemy', hpBar: hpGroup, lastUpdate: Date.now(), orbitingSoulMeshes: [], cylinderMesh: null, auraMesh: null };
+                    entry = { mesh, type: 'enemy', hpBar: hpGroup, lastUpdate: Date.now(), orbitingSoulMeshes: [], cylinderMesh: null, auraMesh: null, headMesh: null, visorMesh: null, bsodMesh: null };
+                    // Add head and visor for Smith / CloneSmith
+                    if ((es.type === 'Smith' || es.type === 'CloneSmith') && visual.headGeo) {
+                        const headMat = new THREE.MeshStandardMaterial({ color: visual.headColor, metalness: 0.6, roughness: 0.4 });
+                        const headMesh = new THREE.Mesh(visual.headGeo.clone(), headMat);
+                        headMesh.position.y = 1.5;
+                        mesh.add(headMesh);
+                        entry.headMesh = headMesh;
+                        // Visor (green neon)
+                        const visorGeo = new THREE.BoxGeometry(0.8, 0.2, 0.1);
+                        const visorMat = new THREE.MeshBasicMaterial({ color: visual.visorColor, emissive: visual.visorColor, emissiveIntensity: 1.0 });
+                        const visorMesh = new THREE.Mesh(visorGeo, visorMat);
+                        visorMesh.position.y = 1.5;
+                        visorMesh.position.z = 0.51;
+                        mesh.add(visorMesh);
+                        entry.visorMesh = visorMesh;
+                    }
                     // Add scarf (half-cylinder) for EspectroDeRaziel
                     if (es.type === 'EspectroDeRaziel' && visual.cylinder) {
                         const cylMat = new THREE.MeshStandardMaterial({ color: visual.cylinderColor, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
@@ -183,9 +215,38 @@ export class SnapshotRenderer {
                     entry.hpBar.children[1].scale.x = Math.max(0.001, hpPct);
                     entry.hpBar.children[1].position.x = -(1 - hpPct) * 0.5;
                 }
-                // Update size multiplier for EspectroDeRaziel
-                if (es.type === 'EspectroDeRaziel' && es.sizeMultiplier) {
+                // Update size multiplier for EspectroDeRaziel and Smith
+                if ((es.type === 'EspectroDeRaziel' || es.type === 'Smith') && es.sizeMultiplier) {
                     entry.mesh.scale.set(es.sizeMultiplier, es.sizeMultiplier, es.sizeMultiplier);
+                }
+                // Pulse visor for Smith/CloneSmith
+                if ((es.type === 'Smith' || es.type === 'CloneSmith') && entry.visorMesh) {
+                    const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.005);
+                    entry.visorMesh.material.emissiveIntensity = pulse;
+                }
+                // BSOD effect on death for Smith
+                if ((es.type === 'Smith' || es.type === 'CloneSmith') && es.hp <= 0 && !entry.bsodMesh) {
+                    const bsodGeo = new THREE.PlaneGeometry(3, 2);
+                    const bsodCanvas = document.createElement('canvas');
+                    bsodCanvas.width = 256; bsodCanvas.height = 128;
+                    const ctx = bsodCanvas.getContext('2d');
+                    ctx.fillStyle = '#000080'; ctx.fillRect(0, 0, 256, 128);
+                    ctx.fillStyle = '#ffffff'; ctx.font = '10px monospace';
+                    ctx.fillText('SYSTEM ERROR: SMITH PROTOCOL TERMINATED', 10, 20);
+                    ctx.fillText('0x000000FF - CRITICAL FAILURE', 10, 40);
+                    ctx.fillText('Memory dump: ' + Math.random().toString(16).substr(2, 8), 10, 60);
+                    ctx.fillText('Rebooting in 3... 2... 1...', 10, 80);
+                    const bsodMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(bsodCanvas), transparent: true, opacity: 0.9 });
+                    const bsodMesh = new THREE.Mesh(bsodGeo, bsodMat);
+                    bsodMesh.position.y = 2.0; bsodMesh.rotation.x = -0.5;
+                    entry.mesh.add(bsodMesh);
+                    entry.bsodMesh = bsodMesh;
+                    setTimeout(() => {
+                        if (entry.mesh.parent) {
+                            entry.mesh.parent.remove(entry.mesh);
+                            entry.mesh.geometry.dispose(); entry.mesh.material.dispose();
+                        }
+                    }, 2000);
                 }
                 // Update orbiting souls for EspectroDeRaziel
                 if (es.type === 'EspectroDeRaziel' && es.orbitingSouls) {
@@ -295,6 +356,13 @@ export class SnapshotRenderer {
     cleanupPool(pool, activeIds) {
         for (const [id, entry] of pool) {
             if (!activeIds.has(id)) {
+                // Clean up extra meshes for Smith/CloneSmith
+                if (entry.headMesh) { entry.mesh.remove(entry.headMesh); entry.headMesh.geometry.dispose(); (entry.headMesh.material).dispose(); }
+                if (entry.visorMesh) { entry.mesh.remove(entry.visorMesh); entry.visorMesh.geometry.dispose(); (entry.visorMesh.material).dispose(); }
+                if (entry.bsodMesh) { entry.mesh.remove(entry.bsodMesh); entry.bsodMesh.geometry.dispose(); (entry.bsodMesh.material).dispose(); }
+                if (entry.orbitingSoulMeshes) { while (entry.orbitingSoulMeshes.length > 0) { const sm = entry.orbitingSoulMeshes.pop(); entry.mesh.remove(sm); sm.geometry.dispose(); sm.material.dispose(); } }
+                if (entry.cylinderMesh) { entry.mesh.remove(entry.cylinderMesh); entry.cylinderMesh.geometry.dispose(); (entry.cylinderMesh.material).dispose(); }
+                if (entry.auraMesh) { entry.mesh.remove(entry.auraMesh); entry.auraMesh.geometry.dispose(); (entry.auraMesh.material).dispose(); }
                 this.scene.remove(entry.mesh);
                 if (entry.mesh.geometry) entry.mesh.geometry.dispose();
                 if (entry.mesh.material) {

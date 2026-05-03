@@ -1,6 +1,7 @@
 import { ServerEnemy } from './Enemy';
 import { ServerPlayer } from '../Player';
 import { Vec3 } from '../../utils/Vector3';
+import { CONFIG } from '../../config';
 
 export interface ShieldState {
     isActive: boolean;
@@ -262,5 +263,57 @@ export class BrotoCarnivoroEnemy extends ServerEnemy {
             }
         }
         this.lookAt(target.position);
+    }
+}
+
+// ============================================================
+// CloneSmith - cloned minion created by Smith's Hive Mind passive
+// ============================================================
+export class CloneSmithEnemy extends ServerEnemy {
+    public ownerId: string; // Smith boss ID
+    private attackCooldown = 1000;
+    private lastAttackTime = 0;
+    private xpStolen = 0;
+
+    constructor(pos: Vec3, ownerId: string, globalMult: number) {
+        super(pos);
+        this.type = 'CloneSmith';
+        this.name = 'Clone de Smith';
+        this.maxHp = 300 * globalMult;
+        this.hp = this.maxHp;
+        this.damage = 0; // No direct damage, only XP steal
+        this.speed = 3.5;
+        this.originalSpeed = 3.5;
+        this.xp = 0;
+        this.score = 0;
+        this.hitboxRadius = 0.7;
+        this.ownerId = ownerId;
+        this.position.y = 1.0;
+    }
+
+    update(dt: number, players: ServerPlayer[], gameTime: number): void {
+        if (this.isDestroyed) return;
+        if (this.updateStatus(dt)) return;
+
+        const target = this.getClosestPlayer(players);
+        if (!target) return;
+
+        this.moveTowards(target.position, dt);
+        this.lookAt(target.position);
+
+        // On touch: steal 1% XP, transfer to Smith's HP
+        if (this.position.distanceToXZ(target.position) < this.hitboxRadius + target.hitboxRadius) {
+            const now = Date.now();
+            if (now > this.lastAttackTime + this.attackCooldown) {
+                this.lastAttackTime = now;
+                const xpSteal = Math.max(1, Math.floor(target.xp * CONFIG.SMITH.CLONE_XP_STEAL_PERCENT));
+                target.xp = Math.max(0, target.xp - xpSteal);
+                this.xpStolen += xpSteal;
+            }
+        }
+    }
+
+    getXpStolen(): number {
+        return this.xpStolen;
     }
 }

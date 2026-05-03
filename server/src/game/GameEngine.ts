@@ -13,6 +13,7 @@ import { FeiticeiroImortalEnemy, LichKingEnemy, PlantaCarnivoraEnemy, CaoDosInfe
 import { GuardiaoDoLimboEnemy, MinosEnemy, CerberoEnemy, PlutaoEnemy, FuriaEnemy, MegeraEnemy, MinotauroEnemy, GeriaoEnemy, LuciferEnemy } from './enemies/LimboBosses';
 import { AlmaAmaldicoadaEnemy, CaveiraExplosivaEnemy, EspectroSombrioEnemy, FilhoteCaoEnemy, BrotoCarnivoroEnemy } from './enemies/Minions';
 import { EspectroDeRazielEnemy } from './enemies/EspectroDeRaziel';
+import { SmithEnemy } from './enemies/SmithEnemy';
 
 export interface Orb { id: string; type: 'xp' | 'healing' | 'buff'; position: Vec3; hitboxRadius: number; buffType?: string; buffEffects?: any; buffDuration?: number; }
 export interface DynamicZone { id: string; type: string; position: Vec3; radius: number; duration: number; timer: number; damagePerSec: number; lastTick: number; extras?: any; }
@@ -89,6 +90,15 @@ export class GameEngine {
         if (this.isGameOver) return;
         this.tick++;
         this.gameTime += dt;
+        // Process rewind from Fragmento de Código-Fonte
+        for (const p of [...this.players.values()]) {
+            if (p.pendingRewindSeconds > 0) {
+                this.gameTime = Math.max(0, this.gameTime - p.pendingRewindSeconds * 1000);
+                p.pendingRewindSeconds = 0;
+                // Notify client via snapshot? XP is kept, only time rewinds
+                p.addXp(0); // triggers snapshot update
+            }
+        }
         const now = Date.now();
         const alivePlayers = [...this.players.values()].filter(p => !p.isDead);
         if (alivePlayers.length === 0 && this.players.size > 0 && this.gameTime > 2) { this.isGameOver = true; return; }
@@ -197,6 +207,32 @@ export class GameEngine {
             case 'Geriao': enemy = new GeriaoEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
             case 'Lúcifer': enemy = new LuciferEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
             case 'EspectroDeRaziel': enemy = new EspectroDeRazielEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
+            case 'Smith': {
+                const totalScore = players.reduce((sum, p) => sum + (p.score || 0), 0);
+                enemy = new SmithEnemy(ev.position, gm, totalScore);
+                this.spawnManager.isSmithAlive = true;
+                this.spawnManager.activeBoss = enemy.id;
+                break;
+            }
+            case 'SmithAbsorb': {
+                // Find existing Smith and absorb
+                const existingSmith = this.enemies.find(e => e.type === 'Smith' && !e.isDestroyed) as any;
+                if (existingSmith) {
+                    const totalScore = players.reduce((sum, p) => sum + (p.score || 0), 0);
+                    const newSmith = new SmithEnemy(ev.position, gm, totalScore);
+                    newSmith.absorb(existingSmith);
+                    existingSmith.isDestroyed = true;
+                    enemy = newSmith;
+                    this.spawnManager.activeBoss = enemy.id;
+                } else {
+                    // No existing Smith, spawn normally
+                    const totalScore = players.reduce((sum, p) => sum + (p.score || 0), 0);
+                    enemy = new SmithEnemy(ev.position, gm, totalScore);
+                    this.spawnManager.isSmithAlive = true;
+                    this.spawnManager.activeBoss = enemy.id;
+                }
+                break;
+            }
             default: return;
         }
         this.enemies.push(enemy);
@@ -447,6 +483,17 @@ export class GameEngine {
                     this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'mineField', position: new Vec3(mx, 0, mz), radius: ab.mineRadius, duration: ab.duration, timer: ab.duration, damagePerSec: ab.mineDamage, lastTick: 0, extras: { burst: true } });
                 }
                 break;
+            case 'smith_teleport_aoe':
+                // AoE explosion after teleport
+                for (const p of players) {
+                    if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.position.x, 0, ab.position.z)) < ab.radius) {
+                        p.takeDamage(ab.damage);
+                        if (ab.invertControls) {
+                            p.applyInvertedControls(ab.invertDuration || 2000);
+                        }
+                    }
+                }
+                break;
             case 'spawnSouls':
                 console.log(`[DEBUG] spawnSouls: count=${ab.count} ownerId=${ab.ownerId}`);
                 const ownerSouls = this.enemies.find(e => e.id === ab.ownerId);
@@ -567,10 +614,20 @@ export class GameEngine {
         }
     }
 
-    private onEnemyKilled(enemy: ServerEnemy, killer: ServerPlayer): void {
-        killer.addXp(enemy.xp);
-        killer.score += enemy.score;
-        killer.kills++;
+    private onEnemyKilled(enemy: ServerEnemy, killer: ServerEnemy | ServerPlayer | null): void {
+        const killerPlayer = killer instanceof ServerPlayer ? killer : null;
+        if (killerPlayer) {
+            killerPlayer.addXp(enemy.xp);
+            killerPlayer.score += enemy.score;
+            killerPlayer.kills++;
+        }
+        // Notify Smith about clone destroyed (for lag effect)
+        if (enemy.type === 'CloneSmith') {
+            const smith = this.enemies.find(e => e.type === 'Smith' && !e.isDestroyed) as any;
+            if (smith && smith.recordCloneDestroyed) {
+                smith.recordCloneDestroyed();
+            }
+        }
         // Boss-specific drops
         const t = enemy.type;
         if (t === 'Gangplank') { this.spawnManager.isGangplankAlive = false; this.spawnManager.activeBoss = null; this.spawnItemDrop(enemy.position, 'sabre_pirata', { physical_damage: 0.10 }, 120); }
@@ -601,9 +658,28 @@ export class GameEngine {
                 duration: 180, // 3 minutes
             }, 180);
         }
-        if (t === 'GuardianGuerreiro') killer.applyBuff('guerreiro');
-        if (t === 'GuardianMago') killer.applyBuff('mago');
-        if (t === 'GuardianArqueiro') killer.applyBuff('arqueiro');
+        if (t === 'Smith') {
+            this.spawnManager.isSmithAlive = false;
+            this.spawnManager.activeBoss = null;
+            // Drop Fragmento de Código-Fonte - retrocede 30s de jogo mantendo XP
+            this.spawnItemDrop(enemy.position, 'fragmento_codigo_fonte', {
+                rewind_time_seconds: 30,
+                duration: 300, // 5 minutes to use
+            }, 300);
+        }
+        // Notify Smith clones that Smith died
+        if (enemy.type === 'Smith' && enemy instanceof SmithEnemy) {
+            const smith = enemy as any;
+            for (const cloneId of smith.cloneIds) {
+                const clone = this.enemies.find(e => e.id === cloneId);
+                if (clone && !clone.isDestroyed) {
+                    clone.isDestroyed = true;
+                }
+            }
+        }
+        if (t === 'GuardianGuerreiro' && killerPlayer) killerPlayer.applyBuff('guerreiro');
+        if (t === 'GuardianMago' && killerPlayer) killerPlayer.applyBuff('mago');
+        if (t === 'GuardianArqueiro' && killerPlayer) killerPlayer.applyBuff('arqueiro');
         if (t === 'CaoDosInfernos') { const bt = Math.random() < 0.5 ? 'damage' : 'attackSpeed'; this.orbs.push({ id: `orb_${this.orbIdCounter++}`, type: 'buff', position: enemy.position.clone(), hitboxRadius: 0.8, buffType: bt }); }
         // Tower respawn
         if (enemy instanceof EnemyTowerEnemy) { this.towerRespawnQueue.push({ enemy, timer: CONFIG.ENEMY_TOWER.RESPAWN_DELAY }); }
