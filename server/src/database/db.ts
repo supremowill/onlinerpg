@@ -57,20 +57,55 @@ export function initDatabase(): Pool {
 
     // Auto-run schema on first real query (lazy initialization)
     let schemaInitialized = false;
+
+    // Fallback SQL if init.sql is not found (for Render deployments)
+    const FALLBACK_SQL = `
+        CREATE TABLE IF NOT EXISTS players (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(50) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW(),
+            last_login TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS ranking (
+            player_id INTEGER PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+            kills INTEGER DEFAULT 0,
+            deaths INTEGER DEFAULT 0,
+            max_kills INTEGER DEFAULT 0,
+            wins INTEGER DEFAULT 0,
+            losses INTEGER DEFAULT 0,
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+        CREATE TABLE IF NOT EXISTS match_history (
+            id SERIAL PRIMARY KEY,
+            player_id INTEGER REFERENCES players(id) ON DELETE CASCADE,
+            result VARCHAR(10) CHECK (result IN ('win', 'loss')),
+            kills INTEGER DEFAULT 0,
+            deaths INTEGER DEFAULT 0,
+            duration INTEGER,
+            played_at TIMESTAMP DEFAULT NOW()
+        );
+    `;
+
     const initSchema = async () => {
         if (schemaInitialized) return;
         try {
+            let sql: string;
             const sqlPaths = [
                 path.join(__dirname, '../../init.sql'),          // Docker: /app/init.sql
                 path.join(__dirname, '../../../server/init.sql'), // local dev fallback
             ];
             const sqlFile = sqlPaths.find(p => fs.existsSync(p));
             if (sqlFile) {
-                const sql = fs.readFileSync(sqlFile, 'utf8');
-                await pool.query(sql);
-                console.log('[DB] Schema initialized from init.sql');
-                schemaInitialized = true;
+                sql = fs.readFileSync(sqlFile, 'utf8');
+                console.log('[DB] Using init.sql from file');
+            } else {
+                sql = FALLBACK_SQL;
+                console.log('[DB] Using fallback SQL (Render deployment)');
             }
+            await pool.query(sql);
+            console.log('[DB] Schema initialized');
+            schemaInitialized = true;
         } catch (err) {
             console.warn('[DB] Schema init warning:', (err as Error).message);
         }
