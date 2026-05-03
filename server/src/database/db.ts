@@ -33,7 +33,7 @@ export function initDatabase(): Pool {
         } finally {
             client.release();
         }
-    }).catch(err => console.error('[DB] Could not connect on startup:', err));
+    }).catch(err => console.warn('[DB] Could not connect on startup (non-fatal):', err));
 
     console.log('[DB] PostgreSQL pool initialized');
     return pool;
