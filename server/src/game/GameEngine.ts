@@ -370,6 +370,38 @@ export class GameEngine {
                 const mat = this.players.get(ab.targetId);
                 if (mat && !mat.isDead) { mat.takeDamage(ab.damage); if (ab.stunDuration) mat.applyStun(ab.stunDuration); }
                 break;
+            // Passive abilities from Limbo bosses
+            case 'lodoComida':
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'lodoComida', position: new Vec3(ab.x, 0, ab.z), radius: 3, duration: 5, timer: 5, damagePerSec: 0, lastTick: 0 });
+                break;
+            case 'miniCubosDourados':
+                for (let i = 0; i < 6; i++) {
+                    const angle = (i / 6) * Math.PI * 2;
+                    const proj = new ServerProjectile(
+                        new Vec3(ab.x + Math.cos(angle) * 2, 0.5, ab.z + Math.sin(angle) * 2),
+                        new Vec3(Math.cos(angle), 0, Math.sin(angle)),
+                        ab.ownerId || 'enemy', false, 5, 0xffd700
+                    );
+                    proj.type = 'miniCuboDourado';
+                    proj.speed = 3;
+                    proj.lifetime = 3;
+                    this.enemyProjectiles.push(proj);
+                }
+                break;
+            case 'sangraCubos':
+                for (let i = 0; i < 8; i++) {
+                    const angle = (i / 8) * Math.PI * 2;
+                    const proj = new ServerProjectile(
+                        new Vec3(ab.x + Math.cos(angle) * 1.5, 0.5, ab.z + Math.sin(angle) * 1.5),
+                        new Vec3(Math.cos(angle), 0, Math.sin(angle)),
+                        ab.ownerId || 'enemy', false, 3, 0xff0000
+                    );
+                    proj.type = 'sangraCubo';
+                    proj.speed = 4;
+                    proj.lifetime = 2.5;
+                    this.enemyProjectiles.push(proj);
+                }
+                break;
             case 'dashExplosion': case 'rugido':
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < ab.radius) {
@@ -628,9 +660,17 @@ export class GameEngine {
     }
 
     private cleanup(): void {
+        // Only remove enemies that have been dead for more than 10 seconds (gives Espectro de Raziel time to absorb)
+        const now = Date.now();
+        this.enemies = this.enemies.filter(e => {
+            if (!e.isDestroyed) return true;
+            if (e instanceof EnemyTowerEnemy) return true;
+            // Keep dead bodies for 10 seconds so passives can absorb them
+            if (!(e as any).deathTime) (e as any).deathTime = now;
+            return (now - (e as any).deathTime) < 10000;
+        });
         this.playerProjectiles = this.playerProjectiles.filter(p => !p.isDestroyed);
         this.enemyProjectiles = this.enemyProjectiles.filter(p => !p.isDestroyed);
-        this.enemies = this.enemies.filter(e => !e.isDestroyed || e instanceof EnemyTowerEnemy);
     }
 
     // Skill handling

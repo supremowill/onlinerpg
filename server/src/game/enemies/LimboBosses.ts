@@ -182,8 +182,9 @@ export class CerberoEnemy extends ServerEnemy {
         if (!target) return;
         const now = Date.now();
 
-        // Passiva: Fome Insaciável - gera lodo no chão
-        if (this.hp < this.maxHp * 0.9) {
+        // Passiva: Fome Insaciável - gera lodo no chão (cooldown 2s)
+        if (this.hp < this.maxHp * 0.9 && now > (this as any)._lodoTimer + 2000) {
+            (this as any)._lodoTimer = now;
             this.pendingAbilities.push({ type: 'lodoComida', x: this.position.x, z: this.position.z });
         }
 
@@ -239,8 +240,9 @@ export class PlutaoEnemy extends ServerEnemy {
         if (!target) return;
         const now = Date.now(); const ms = dt * 1000;
 
-        // Passiva: Peso do Ouro - mini-cubos dourados
-        if (this.hp < this.maxHp * 0.95) {
+        // Passiva: Peso do Ouro - mini-cubos dourados (cooldown 2s)
+        if (this.hp < this.maxHp * 0.95 && now > (this as any)._ouroTimer + 2000) {
+            (this as any)._ouroTimer = now;
             this.pendingAbilities.push({ type: 'miniCubosDourados', x: this.position.x, z: this.position.z });
         }
 
@@ -460,8 +462,9 @@ export class MinotauroEnemy extends ServerEnemy {
         if (!target) return;
         const now = Date.now(); const ms = dt * 1000;
 
-        // Passiva: Sede - sangra cubos, rouba vida
-        if (this.hp < this.maxHp * 0.95) {
+        // Passiva: Sede - sangra cubos, rouba vida (cooldown 2s)
+        if (this.hp < this.maxHp * 0.95 && now > (this as any)._sedeTimer + 2000) {
+            (this as any)._sedeTimer = now;
             this.pendingAbilities.push({ type: 'sangraCubos', x: this.position.x, z: this.position.z });
         }
 

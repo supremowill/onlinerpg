@@ -4,22 +4,23 @@ import { ProjectileSnapshot } from '../network/Protocol';
 
 export class ServerProjectile {
     public id: string = uuidv4();
+    public type: string = 'bullet';
     public position: Vec3;
     public direction: Vec3;
     public velocity: Vec3 | null = null; // for arcing projectiles
     public speed: number = 15;
     public damage: number;
     public lifetime: number = 3;
-    public hitboxRadius: number;
-    public isPlayerOwned: boolean;
-    public ownerId: string;
+    public hitboxRadius: number = 0.3;
+    public isPlayerOwned: boolean = false;
+    public ownerId: string = '';
     public specialEffect: string | null = null;
     public isBuffed: string | null = null;
     public explosionRadius: number = 0;
     public bleedDamage: number = 0;
     public bounces: number = 0;
-    public color: number;
     public isDestroyed: boolean = false;
+    public color: number = 0xffffff;
 
     constructor(start: Vec3, dir: Vec3, ownerId: string, isPlayerOwned: boolean, damage: number, color: number) {
         this.position = start.clone();

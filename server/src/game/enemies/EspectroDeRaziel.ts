@@ -17,15 +17,15 @@ export class EspectroDeRazielEnemy extends ServerEnemy {
     public speedMultiplier: number = 1.0;
     public sizeMultiplier: number = 1.0;
     public readonly auraRadius: number = CONFIG.ESPECTRO_DE_RAZIEL.AURA_RADIUS;
-
-    // Cooldowns
-    private skill1Cooldown: number = 0; // Fenda de Garras
-    private skill2Cooldown: number = 0; // Vórtice Sombrio
+    public orbitingSouls: SoulOrb[] = [];
+    private absorbedBodyIds: Set<string> = new Set();
+    public skill1Cooldown: number = 0; // Fenda de Garras
+    public skill2Cooldown: number = 0; // Vórtice Sombrio
     private skill3Cooldown: number = 0; // Expurgo de Almas
     private skill4Cooldown: number = 0; // Transição Material
 
     // Soul orbs for visualization
-    public orbitingSouls: SoulOrb[] = [];
+    // (orbitingSouls is declared above at line 20)
 
     // State
     private playerLevel: number;
@@ -121,10 +121,14 @@ export class EspectroDeRazielEnemy extends ServerEnemy {
 
     private absorbSouls(deadBodies: { position: Vec3; id: string }[]): void {
         for (const body of deadBodies) {
+            // Skip bodies already absorbed
+            if (this.absorbedBodyIds.has(body.id)) continue;
+
             const dist = this.position.distanceToXZ(body.position);
             if (dist <= this.auraRadius) {
                 // Absorb this soul
                 this.soulsAbsorbed++;
+                this.absorbedBodyIds.add(body.id);
                 this.damageMultiplier += CONFIG.ESPECTRO_DE_RAZIEL.SOUL_DAMAGE_PERCENT;
                 this.speedMultiplier += CONFIG.ESPECTRO_DE_RAZIEL.SOUL_SPEED_PERCENT;
                 this.sizeMultiplier += CONFIG.ESPECTRO_DE_RAZIEL.SOUL_SIZE_PERCENT;
@@ -142,8 +146,7 @@ export class EspectroDeRazielEnemy extends ServerEnemy {
                     radius: 1.5 + Math.random() * 0.5,
                 });
 
-                // Remove body from list (mark as absorbed)
-                body.position.x = Infinity; // Move out of range
+                console.log(`[Raziel] Absorbed soul #${this.soulsAbsorbed} from ${body.id.slice(0,8)} | DMG x${this.damageMultiplier.toFixed(2)} SPD x${this.speedMultiplier.toFixed(2)} SIZE x${this.sizeMultiplier.toFixed(2)}`);
             }
         }
     }
