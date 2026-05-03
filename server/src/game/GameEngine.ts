@@ -12,6 +12,7 @@ import { SuperBossEnemy, GangplankEnemy, RainhaDasTrevasEnemy } from './enemies/
 import { FeiticeiroImortalEnemy, LichKingEnemy, PlantaCarnivoraEnemy, CaoDosInfernosEnemy, TheMightyOneEnemy } from './enemies/AdvancedBosses';
 import { GuardiaoDoLimboEnemy, MinosEnemy, CerberoEnemy, PlutaoEnemy, FuriaEnemy, MegeraEnemy, MinotauroEnemy, GeriaoEnemy, LuciferEnemy } from './enemies/LimboBosses';
 import { AlmaAmaldicoadaEnemy, CaveiraExplosivaEnemy, EspectroSombrioEnemy, FilhoteCaoEnemy, BrotoCarnivoroEnemy } from './enemies/Minions';
+import { EspectroDeRazielEnemy } from './enemies/EspectroDeRaziel';
 
 export interface Orb { id: string; type: 'xp' | 'healing' | 'buff'; position: Vec3; hitboxRadius: number; buffType?: string; buffEffects?: any; buffDuration?: number; }
 export interface DynamicZone { id: string; type: string; position: Vec3; radius: number; duration: number; timer: number; damagePerSec: number; lastTick: number; extras?: any; }
@@ -93,6 +94,8 @@ export class GameEngine {
 
         // Update players
         for (const p of this.players.values()) p.update(dt, now);
+        // Handle orbital souls from Espectro de Raziel essence
+        this.handleOrbitalSouls(dt);
         // Handle player attacks
         for (const p of this.players.values()) {
             if (!p.isDead && p.isAttacking && p.canAttack(now)) {
@@ -106,10 +109,20 @@ export class GameEngine {
         // Spawns
         const spawnEvents = this.spawnManager.update(dt);
         for (const ev of spawnEvents) this.handleSpawnEvent(ev, alivePlayers);
+        // Track dead bodies for passive abilities (e.g., Espectro de Raziel)
+        const deadBodies = this.enemies
+            .filter(e => e.isDestroyed && !(e instanceof EnemyTowerEnemy))
+            .map(e => ({ position: e.position.clone(), id: e.id }));
+
         // Update enemies
         for (const e of this.enemies) {
             if (!e.isDestroyed) {
-                e.update(dt, alivePlayers, this.gameTime);
+                // Pass dead bodies to EspectroDeRaziel for soul absorption
+                if (e.type === 'EspectroDeRaziel') {
+                    (e as any).update(dt, alivePlayers, this.gameTime, deadBodies);
+                } else {
+                    e.update(dt, alivePlayers, this.gameTime);
+                }
                 // Update orbital positions for AlmaAmaldicoada
                 if (e.type === 'AlmaAmaldicoada' && (e as any).ownerId) {
                     const owner = this.enemies.find(en => en.id === (e as any).ownerId);
@@ -182,6 +195,7 @@ export class GameEngine {
             case 'Minotauro': enemy = new MinotauroEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
             case 'Geriao': enemy = new GeriaoEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
             case 'Lúcifer': enemy = new LuciferEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
+            case 'EspectroDeRaziel': enemy = new EspectroDeRazielEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
             default: return;
         }
         this.enemies.push(enemy);
@@ -218,6 +232,57 @@ export class GameEngine {
             if (asAny.pendingAbilities?.length > 0) {
                 for (const ab of asAny.pendingAbilities) this.handleAbility(ab, e, players);
                 asAny.pendingAbilities = [];
+            }
+        }
+    }
+
+    private handleOrbitalSouls(dt: number): void {
+        for (const p of this.players.values()) {
+            const buff = p.timedBuffs.find(b => b.type === 'essencia_espectral_raziel');
+            if (!buff) continue;
+
+            if (!p.orbitalSouls || p.orbitalSouls.length === 0) {
+                // Initialize orbital souls from buff effects
+                p.orbitalSouls = [];
+                p.orbitalSoulDamageMultiplier = buff.effects.soul_orbital_damage_percent || 0.05;
+                p.orbitalSoulDamageFlat = buff.effects.soul_orbital_damage_flat || 3;
+                const count = buff.effects.soul_orbital_count || 5;
+                for (let i = 0; i < count; i++) {
+                    p.orbitalSouls.push({
+                        id: `orbital_soul_${i}_${Date.now()}`,
+                        angle: (Math.PI * 2 * i) / count,
+                        orbitSpeed: 1.5 + Math.random() * 0.5,
+                        radius: 2.0 + Math.random() * 0.5,
+                        fireTimer: 2000,
+                    });
+                }
+            }
+
+            // Update orbital souls and fire at enemies
+            for (const soul of p.orbitalSouls) {
+                soul.angle += soul.orbitSpeed * dt;
+                soul.fireTimer -= dt * 1000;
+
+                if (soul.fireTimer <= 0) {
+                    // Find closest enemy
+                    let closest: any = null;
+                    let minDist = Infinity;
+                    for (const e of this.enemies) {
+                        if (e.isDestroyed) continue;
+                        const dist = e.position.distanceToXZ(p.position);
+                        if (dist < minDist && dist < 15) {
+                            minDist = dist;
+                            closest = e;
+                        }
+                    }
+
+                    if (closest) {
+                        const dir = closest.position.clone().sub(p.position).normalize();
+                        const damage = (closest.maxHp * p.orbitalSoulDamageMultiplier) + (p.level * p.orbitalSoulDamageFlat);
+                        p.pendingProjectiles.push({ dir, damage, fromOrbitalSoul: true });
+                        soul.fireTimer = 2000; // Fire every 2 seconds
+                    }
+                }
             }
         }
     }
@@ -492,6 +557,17 @@ export class GameEngine {
         if (t === 'Minotauro') { this.spawnManager.isMinotauroAlive = false; this.spawnManager.activeBoss = null; }
         if (t === 'Geriao') { this.spawnManager.isGeriaoAlive = false; this.spawnManager.activeBoss = null; }
         if (t === 'Lúcifer') { this.spawnManager.isLuciferAlive = false; this.spawnManager.activeBoss = null; }
+        if (t === 'EspectroDeRaziel') {
+            this.spawnManager.isEspectroDeRazielAlive = false;
+            this.spawnManager.activeBoss = null;
+            // Drop Essência Espectral de Raziel
+            this.spawnItemDrop(enemy.position, 'essencia_espectral_raziel', {
+                soul_orbital_damage_percent: 0.05,
+                soul_orbital_damage_flat: 3, // will be multiplied by player level in Player.ts
+                soul_orbital_count: 5,
+                duration: 180, // 3 minutes
+            }, 180);
+        }
         if (t === 'GuardianGuerreiro') killer.applyBuff('guerreiro');
         if (t === 'GuardianMago') killer.applyBuff('mago');
         if (t === 'GuardianArqueiro') killer.applyBuff('arqueiro');

@@ -237,6 +237,7 @@ export const CONFIG = {
         MINOTAURO: 420,
         GERIAO: 480,
         LUCIFER: 540,
+        ESPECTRO_DE_RAZIEL: 480, // 8 minutos
         SUPER_BOSS_TIME: 180,
         THE_MIGHTY_ONE_TIME: 600,
     },
@@ -360,5 +361,29 @@ export const CONFIG = {
         XP: 5000,
         SCORE: 7000,
         HITBOX_RADIUS: 2.5,
+    },
+    // ============================================================
+    // ESPECTRO DE RAZIEL (Inimigo Elite / Chefe Menor)
+    // ============================================================
+    ESPECTRO_DE_RAZIEL: {
+        BASE_HP: 3000,
+        HP_PER_LEVEL: 200,
+        BASE_DAMAGE: 15,
+        SPEED: 0.020,
+        SPAWN_TIMER: 720, // 12 minutos
+        XP: 1500,
+        SCORE: 3000,
+        HITBOX_RADIUS: 1.2,
+        AURA_RADIUS: 15,
+        SOUL_DAMAGE_PERCENT: 0.05,
+        SOUL_SPEED_PERCENT: 0.01,
+        SOUL_SIZE_PERCENT: 0.02,
+        SKILL_1_COOLDOWN: 4000,
+        SKILL_2_COOLDOWN: 10000,
+        SKILL_3_COOLDOWN: 15000,
+        SKILL_4_COOLDOWN: 20000,
+        SKILL_2_SLOW_DURATION: 1000,
+        SKILL_3_PROJECTILE_COUNT_PERCENT: 0.10,
+        SKILL_4_TELEPORT_DISTANCE: 15,
     },
 };

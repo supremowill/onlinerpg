@@ -44,8 +44,13 @@ export class ServerPlayer {
     public tempBuff = { type: null as string | null, timer: 0, magnitude: 0 };
     public timedBuffs: { type: string; timer: number; effects: any }[] = [];
 
-    public pendingProjectiles: { dir: Vec3, damage: number }[] = [];
+    public pendingProjectiles: { dir: Vec3, damage: number, fromOrbitalSoul?: boolean }[] = [];
     public pendingZones: { type: string, x: number, z: number, radius: number, damage: number }[] = [];
+    // Espectro de Raziel essence - orbital souls
+    public orbitalSouls: { id: string; angle: number; orbitSpeed: number; radius: number; fireTimer: number }[] = [];
+    public orbitalSoulDamageMultiplier: number = 0; // 0.05 = 5% of enemy max HP
+    public orbitalSoulDamageFlat: number = 0; // level * 3
+    public orbitalSoulCount: number = 0;
 
     public statusEffects = {
         stunned: { isActive: false, timer: 0 },
@@ -304,7 +309,30 @@ export class ServerPlayer {
     canAttack(now: number): boolean { if (this.isDead || this.statusEffects.stunned.isActive || this.statusEffects.frozen.isActive || this.statusEffects.rooted.isActive) return false; return now > this.lastAttackTime + this.getEffectiveAttackCooldown(); }
     applyBuff(type: string): void { this.clearBuff(); this.activeBuff.type = type; this.activeBuff.timer = this.activeBuff.duration; if (type === 'guerreiro') { const b = this.maxHp * 0.20; this.maxHp += b; this.hp += b; } }
     clearBuff(): void { if (this.activeBuff.type === 'guerreiro') { this.maxHp = this.maxHp / 1.20; if (this.hp > this.maxHp) this.hp = this.maxHp; } this.activeBuff.type = null; this.activeBuff.timer = 0; this.activeBuff.attackCounter = 0; }
-    applyTimedBuff(type: string, durSec: number, effects: any): void { const ex = this.timedBuffs.find(b => b.type === type); if (ex) ex.timer = Math.max(ex.timer, durSec * 1000); else this.timedBuffs.push({ type, timer: durSec * 1000, effects }); }
+    applyTimedBuff(type: string, durSec: number, effects: any): void {
+        const ex = this.timedBuffs.find(b => b.type === type);
+        if (ex) {
+            ex.timer = Math.max(ex.timer, durSec * 1000);
+        } else {
+            this.timedBuffs.push({ type, timer: durSec * 1000, effects });
+        }
+        // Initialize orbital souls for Espectro de Raziel essence
+        if (type === 'essencia_espectral_raziel') {
+            this.orbitalSoulDamageMultiplier = effects.soul_orbital_damage_percent || 0.05;
+            this.orbitalSoulDamageFlat = effects.soul_orbital_damage_flat || 3;
+            this.orbitalSoulCount = effects.soul_orbital_count || 5;
+            this.orbitalSouls = [];
+            for (let i = 0; i < this.orbitalSoulCount; i++) {
+                this.orbitalSouls.push({
+                    id: `orbital_soul_${i}_${Date.now()}`,
+                    angle: (Math.PI * 2 * i) / this.orbitalSoulCount,
+                    orbitSpeed: 1.5 + Math.random() * 0.5,
+                    radius: 2.0 + Math.random() * 0.5,
+                    fireTimer: 0,
+                });
+            }
+        }
+    }
     applyTemporaryBuff(type: string, durSec: number, mag: number): void { this.tempBuff.type = type; this.tempBuff.timer = durSec * 1000; this.tempBuff.magnitude = mag; }
     applyStun(d: number): void { this.statusEffects.stunned.isActive = true; this.statusEffects.stunned.timer = Math.max(this.statusEffects.stunned.timer, d); }
     applyFreeze(d: number): void { const c = this.timedBuffs.find(b => b.type === 'coroa_lich_buff'); if (c?.effects.immunity_freeze) return; const t = this.timedBuffs.find(b => b.type === 'talisma_quebrado_buff'); if (t) d *= (1 - t.effects.freeze_reduction); if (this.statusEffects.frozen.isActive) return; this.statusEffects.frozen.isActive = true; this.statusEffects.frozen.timer = d; }

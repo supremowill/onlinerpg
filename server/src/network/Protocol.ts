@@ -125,6 +125,14 @@ export interface EnemySnapshot {
     scaleX?: number;
     scaleY?: number;
     scaleZ?: number;
+    // Espectro de Raziel fields
+    soulsAbsorbed?: number;
+    damageMultiplier?: number;
+    speedMultiplier?: number;
+    sizeMultiplier?: number;
+    orbitingSouls?: { id: string; angle: number; radius: number }[];
+    isTeleporting?: boolean;
+    vortexActive?: boolean;
 }
 
 export interface ProjectileSnapshot {

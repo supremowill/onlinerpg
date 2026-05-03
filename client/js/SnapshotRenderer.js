@@ -63,6 +63,15 @@ export class SnapshotRenderer {
             Minotauro: { geo: new THREE.BoxGeometry(2.5, 2.5, 2.5), color: 0x4E342E },
             Geriao: { geo: new THREE.CylinderGeometry(0.8, 0.8, 3.5, 6), color: 0x004D40 },
             Lúcifer: { geo: new THREE.SphereGeometry(3, 32, 32), color: 0xFF0000 },
+            EspectroDeRaziel: {
+                geo: new THREE.OctahedronGeometry(1.2, 0),
+                color: 0x00CCFF, // Cyan-blue, translucent
+                transparent: true,
+                opacity: 0.7,
+                cylinder: new THREE.CylinderGeometry(1.5, 1.5, 0.3, 16, 1, true), // Open cylinder (scarf)
+                cylinderColor: 0x8B4513, // Brown
+                orbitingSouls: true,
+            },
         };
     }
 
@@ -130,17 +139,36 @@ export class SnapshotRenderer {
                         emissive: visual.color,
                         emissiveIntensity: es.type === 'TheMightyOne' ? 1.0 : 0.2,
                         metalness: 0.4, roughness: 0.5,
-                        transparent: es.type === 'SuperBoss' || es.type === 'FeiticeiroImortal' || es.type === 'EspectroSombrio',
-                        opacity: es.type === 'SuperBoss' ? 0.8 : es.type === 'EspectroSombrio' ? 0.5 : 1.0,
+                        transparent: es.type === 'SuperBoss' || es.type === 'FeiticeiroImortal' || es.type === 'EspectroSombrio' || es.type === 'EspectroDeRaziel',
+                        opacity: es.type === 'SuperBoss' ? 0.8 : es.type === 'EspectroSombrio' ? 0.5 : es.type === 'EspectroDeRaziel' ? 0.7 : 1.0,
                     });
                     if (es.type === 'EspectroSombrio') mat.emissive.set(0x00aaff);
+                    if (es.type === 'EspectroDeRaziel') mat.emissive.set(0x00CCFF);
                     const mesh = new THREE.Mesh(visual.geo.clone(), mat);
                     mesh.castShadow = true;
                     this.scene.add(mesh);
                     // HP bar above enemy
                     const hpGroup = this.createHpBar();
                     mesh.add(hpGroup);
-                    entry = { mesh, type: 'enemy', hpBar: hpGroup, lastUpdate: Date.now() };
+                    entry = { mesh, type: 'enemy', hpBar: hpGroup, lastUpdate: Date.now(), orbitingSoulMeshes: [], cylinderMesh: null, auraMesh: null };
+                    // Add scarf (half-cylinder) for EspectroDeRaziel
+                    if (es.type === 'EspectroDeRaziel' && visual.cylinder) {
+                        const cylMat = new THREE.MeshStandardMaterial({ color: visual.cylinderColor, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
+                        const cylMesh = new THREE.Mesh(visual.cylinder.clone(), cylMat);
+                        cylMesh.rotation.x = Math.PI / 2;
+                        mesh.add(cylMesh);
+                        entry.cylinderMesh = cylMesh;
+                    }
+                    // Add aura wireframe for EspectroDeRaziel
+                    if (es.type === 'EspectroDeRaziel') {
+                        const auraGeo = new THREE.RingGeometry(visual.geo.parameters.radius || 1.2, (visual.geo.parameters.radius || 1.2) + 0.1, 8);
+                        const auraMat = new THREE.MeshBasicMaterial({ color: 0x00CCFF, wireframe: true, transparent: true, opacity: 0.3 });
+                        const auraMesh = new THREE.Mesh(auraGeo, auraMat);
+                        auraMesh.rotation.x = -Math.PI / 2;
+                        auraMesh.position.y = -0.5;
+                        mesh.add(auraMesh);
+                        entry.auraMesh = auraMesh;
+                    }
                     this.entityPool.set(es.id, entry);
                 }
                 const prevE = prev?.enemies?.find(e => e.id === es.id);
@@ -155,7 +183,36 @@ export class SnapshotRenderer {
                     entry.hpBar.children[1].scale.x = Math.max(0.001, hpPct);
                     entry.hpBar.children[1].position.x = -(1 - hpPct) * 0.5;
                 }
-                if (es.scaleX) entry.mesh.scale.set(es.scaleX, es.scaleY || 1, es.scaleZ || 1);
+                // Update size multiplier for EspectroDeRaziel
+                if (es.type === 'EspectroDeRaziel' && es.sizeMultiplier) {
+                    entry.mesh.scale.set(es.sizeMultiplier, es.sizeMultiplier, es.sizeMultiplier);
+                }
+                // Update orbiting souls for EspectroDeRaziel
+                if (es.type === 'EspectroDeRaziel' && es.orbitingSouls) {
+                    // Remove old soul meshes
+                    while (entry.orbitingSoulMeshes.length > 0) {
+                        const soulMesh = entry.orbitingSoulMeshes.pop();
+                        entry.mesh.remove(soulMesh);
+                        soulMesh.geometry.dispose();
+                        soulMesh.material.dispose();
+                    }
+                    // Add new soul meshes
+                    for (const soul of es.orbitingSouls) {
+                        const soulGeo = new THREE.SphereGeometry(0.15, 8, 8);
+                        const soulMat = new THREE.MeshBasicMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.0 });
+                        const soulMesh = new THREE.Mesh(soulGeo, soulMat);
+                        // Position based on angle and radius
+                        const x = Math.cos(soul.angle) * soul.radius * (es.sizeMultiplier || 1);
+                        const z = Math.sin(soul.angle) * soul.radius * (es.sizeMultiplier || 1);
+                        soulMesh.position.set(x, 0.5, z);
+                        entry.mesh.add(soulMesh);
+                        entry.orbitingSoulMeshes.push(soulMesh);
+                    }
+                }
+                // Rotate cylinder scarf
+                if (entry.cylinderMesh) {
+                    entry.cylinderMesh.rotation.z += 0.02;
+                }
                 entry.lastUpdate = Date.now();
             }
         }

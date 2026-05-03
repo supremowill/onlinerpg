@@ -35,6 +35,7 @@ export class SpawnManager {
     public isMinotauroAlive = false;
     public isGeriaoAlive = false;
     public isLuciferAlive = false;
+    public isEspectroDeRazielAlive = false;
 
     constructor() {
         const t = CONFIG.SPAWN_TIMERS;
@@ -59,6 +60,7 @@ export class SpawnManager {
             spawnMinotauro: t.MINOTAURO,
             spawnGeriao: t.GERIAO,
             spawnLucifer: t.LUCIFER,
+            spawnEspectroDeRaziel: t.ESPECTRO_DE_RAZIEL,
         };
     }
 
@@ -242,6 +244,14 @@ export class SpawnManager {
             this.timers.spawnLucifer = CONFIG.SPAWN_TIMERS.LUCIFER;
             this.isLuciferAlive = true;
             events.push({ type: 'Lúcifer', position: this.getSpawnPosition() });
+        }
+
+        // Espectro de Raziel (480s = 8 min) - surge uma vez por partida
+        this.timers.spawnEspectroDeRaziel -= dt;
+        if (!this.isEspectroDeRazielAlive && this.timers.spawnEspectroDeRaziel <= 0 && !this.activeBoss) {
+            this.timers.spawnEspectroDeRaziel = CONFIG.SPAWN_TIMERS.ESPECTRO_DE_RAZIEL || 480;
+            this.isEspectroDeRazielAlive = true;
+            events.push({ type: 'EspectroDeRaziel', position: this.getSpawnPosition() });
         }
 
         return events;
