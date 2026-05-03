@@ -70,16 +70,20 @@ export async function initDatabase(): Promise<Pool> {
         );
         CREATE INDEX IF NOT EXISTS idx_players_username ON players(username);
 
-        -- Ranking table (references players table)
+        -- Ranking table (matches what RankingService expects)
         CREATE TABLE IF NOT EXISTS ranking (
-            player_id INTEGER PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+            id SERIAL PRIMARY KEY,
+            player_name VARCHAR(50) NOT NULL REFERENCES players(username) ON DELETE SET NULL,
+            score INTEGER DEFAULT 0,
+            survival_time_seconds INTEGER DEFAULT 0,
+            collapse_level INTEGER DEFAULT 0,
             kills INTEGER DEFAULT 0,
-            deaths INTEGER DEFAULT 0,
-            max_kills INTEGER DEFAULT 0,
-            wins INTEGER DEFAULT 0,
-            losses INTEGER DEFAULT 0,
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            room_id VARCHAR(255),
+            players_in_room INTEGER DEFAULT 0,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
+        CREATE INDEX IF NOT EXISTS idx_ranking_score ON ranking(score DESC);
+        CREATE INDEX IF NOT EXISTS idx_ranking_created_at ON ranking(created_at DESC);
 
         -- Match history for tracking player results
         CREATE TABLE IF NOT EXISTS match_history (
@@ -91,8 +95,6 @@ export async function initDatabase(): Promise<Pool> {
             duration INTEGER,
             played_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
-
-        CREATE INDEX IF NOT EXISTS idx_ranking_wins ON ranking(wins DESC);
         CREATE INDEX IF NOT EXISTS idx_match_history_player ON match_history(player_id);
     `;
 

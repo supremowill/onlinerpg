@@ -51,9 +51,9 @@ export class RankingService {
         try {
             const pool = getPool();
             const result = await pool.query(
-                `SELECT player_name, score, survival_time_seconds, created_at
-                 FROM ranking
-                 ORDER BY score DESC
+                `SELECT r.player_name, r.score, r.survival_time_seconds, r.created_at
+                 FROM ranking r
+                 ORDER BY r.score DESC
                  LIMIT $1`,
                 [limit]
             );
