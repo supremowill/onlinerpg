@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Install all deps (including devDeps for TypeScript compiler)
 COPY server/package*.json ./
-RUN npm ci
+RUN npm install
 
 # Copy TypeScript source and compile
 COPY server/tsconfig.json ./
@@ -22,7 +22,7 @@ ENV PORT=3000
 
 # Install only production deps
 COPY server/package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm install --omit=dev && npm cache clean --force
 
 # Copy compiled server code
 COPY --from=builder /app/dist ./dist
