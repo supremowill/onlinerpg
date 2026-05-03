@@ -23,7 +23,7 @@ export class GuardiaoDoLimboEnemy extends ServerEnemy {
         this.playerLevel = playerLevel;
         this.type = 'GuardiãoDoLimbo';
         this.name = 'Guardião do Limbo';
-        const c = (CONFIG as any).GUARDIAO_DO_LIMBO;
+        const c = CONFIG.GUARDIAO_DO_LIMBO;
         this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
         this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.015);
@@ -103,7 +103,7 @@ export class MinosEnemy extends ServerEnemy {
         super(pos);
         this.type = 'Minos';
         this.name = 'Minos, o Árbitro';
-        const c = (CONFIG as any).MINOS;
+        const c = CONFIG.MINOS;
         this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
         this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.02);
@@ -166,7 +166,7 @@ export class CerberoEnemy extends ServerEnemy {
         super(pos);
         this.type = 'Cerbero';
         this.name = 'Cérbero Geométrico';
-        const c = (CONFIG as any).CERBERO;
+        const c = CONFIG.CERBERO;
         this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
         this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.02);
@@ -223,7 +223,7 @@ export class PlutaoEnemy extends ServerEnemy {
         super(pos);
         this.type = 'Plutao';
         this.name = 'Plutão, o Dourado';
-        const c = (CONFIG as any).PLUTAO;
+        const c = CONFIG.PLUTAO;
         this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
         this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.03);
@@ -304,7 +304,7 @@ export class FuriaEnemy extends ServerEnemy {
         super(pos);
         this.type = 'Furia';
         this.name = 'Fúria, o Furioso';
-        const c = (CONFIG as any).FURIA;
+        const c = CONFIG.FURIA;
         this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
         this.damage = c.BASE_DAMAGE + (playerMaxHp * (1 - this.hp / this.maxHp) * 0.01);
@@ -373,7 +373,7 @@ export class MegeraEnemy extends ServerEnemy {
         super(pos);
         this.type = 'Megera';
         this.name = 'Megera das Chamas';
-        const c = (CONFIG as any).MEGERA;
+        const c = CONFIG.MEGERA;
         this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
         this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.03);
@@ -444,7 +444,7 @@ export class MinotauroEnemy extends ServerEnemy {
         super(pos);
         this.type = 'Minotauro';
         this.name = 'Minotauro de Sangue';
-        const c = (CONFIG as any).MINOTAURO;
+        const c = CONFIG.MINOTAURO;
         this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
         this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.04);
@@ -523,7 +523,7 @@ export class GeriaoEnemy extends ServerEnemy {
         super(pos);
         this.type = 'Geriao';
         this.name = 'Gerião, a Ilusão';
-        const c = (CONFIG as any).GERIAO;
+        const c = CONFIG.GERIAO;
         this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
         this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.02); // Veneno
@@ -587,8 +587,8 @@ export class LuciferEnemy extends ServerEnemy {
         super(pos);
         this.type = 'Lucifer';
         this.name = 'Lúcifer Cósmico';
-        const c = (CONFIG as any).LUCIFER;
-        this.maxHp = (c.HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        const c = CONFIG.LUCIFER;
+        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
         this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.05);
         this.speed = c.SPEED; this.originalSpeed = c.SPEED;
