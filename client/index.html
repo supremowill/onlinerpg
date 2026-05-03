@@ -545,7 +545,7 @@
                 if (!data.length) { listEl.innerHTML = '<li>Ninguém no ranking ainda!</li>'; return; }
                 listEl.innerHTML = data.slice(0, 10).map((p, i) => {
                     const medal = i===0?'🥇 ':i===1?'🥈 ':i===2?'🥉 ':`${i+1}. `;
-                    return `<li>${medal}${p.player_name} — ${p.score} pts</li>`;
+                    return `<li>${medal}${p.playerName} — ${p.score} pts</li>`;
                 }).join('');
             } catch(e) { listEl.innerHTML = '<li>Erro ao carregar ranking.</li>'; }
         }
