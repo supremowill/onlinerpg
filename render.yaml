@@ -6,7 +6,7 @@ services:
   - type: web
     name: onlinerpg-server
     runtime: docker
-    dockerfilePath: ./Dockerfile    # Dockerfile na raiz do repositório
+    dockerfilePath: ./server/Dockerfile    # Dockerfile na raiz do repositório
     dockerContext: .                # contexto = raiz (inclui client/ e server/)
     plan: free                      # free tier do Render
     region: oregon                  # ou frankfurt para menor latência BR

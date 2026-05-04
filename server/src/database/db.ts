@@ -114,7 +114,9 @@ export async function initDatabase(): Promise<Pool> {
             console.log('[DB] Using fallback SQL (Render deployment)');
         }
         // Execute each statement separately for reliability
-        const statements = sql.split(';').map(s => s.trim()).filter(s => s.length > 0);
+        // Remove single-line comments and split by semicolon
+        const cleanedSql = sql.replace(/--[^\n]*/g, ''); // Remove SQL comments
+        const statements = cleanedSql.split(';').map(s => s.trim()).filter(s => s.length > 0);
         console.log(`[DB] Executing ${statements.length} schema statements...`);
         for (const stmt of statements) {
             try {
