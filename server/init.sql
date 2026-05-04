@@ -1,6 +1,3 @@
--- Survival 3D - Database Schema (Updated for player accounts)
-
--- Players accounts table
 CREATE TABLE IF NOT EXISTS players (
     id SERIAL PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
@@ -11,7 +8,6 @@ CREATE TABLE IF NOT EXISTS players (
 
 CREATE INDEX IF NOT EXISTS idx_players_username ON players(username);
 
--- Ranking table (matches what RankingService expects)
 CREATE TABLE IF NOT EXISTS ranking (
     id SERIAL PRIMARY KEY,
     player_name VARCHAR(50) NOT NULL REFERENCES players(username) ON DELETE SET NULL,
@@ -27,7 +23,6 @@ CREATE TABLE IF NOT EXISTS ranking (
 CREATE INDEX IF NOT EXISTS idx_ranking_score ON ranking(score DESC);
 CREATE INDEX IF NOT EXISTS idx_ranking_created_at ON ranking(created_at DESC);
 
--- Match history for tracking player results
 CREATE TABLE IF NOT EXISTS match_history (
     id SERIAL PRIMARY KEY,
     player_id INTEGER REFERENCES players(id) ON DELETE CASCADE,

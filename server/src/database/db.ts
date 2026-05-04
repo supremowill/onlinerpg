@@ -119,9 +119,10 @@ export async function initDatabase(): Promise<Pool> {
         for (const stmt of statements) {
             try {
                 await pool.query(stmt);
-            } catch (e: any) {
+            } catch (e) {
                 // Log but continue (e.g., "already exists" errors)
-                console.warn(`[DB] Schema statement failed: ${stmt.substring(0, 60)}... Error: ${e.message}`);
+                const msg = e instanceof Error ? e.message : String(e);
+                console.warn(`[DB] Schema statement failed: ${stmt.substring(0, 60)}... Error: ${msg}`);
             }
         }
         // Verify tables exist
@@ -135,7 +136,8 @@ export async function initDatabase(): Promise<Pool> {
         }
         console.log('[DB] Schema initialized');
     } catch (err) {
-        console.warn('[DB] Schema init warning:', (err as Error).message);
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn('[DB] Schema init warning:', msg);
     }
 
     console.log('[DB] PostgreSQL pool initialized');
