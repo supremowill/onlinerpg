@@ -22,6 +22,8 @@ export class ServerEnemy {
     public hitboxRadius: number = 0.5;
     public isDestroyed: boolean = false;
     public isInvulnerable: boolean = false;
+    public sizeMultiplier: number = 1.0;
+    public damageMultiplier: number = 1.0;
 
     // Status
     public status = {

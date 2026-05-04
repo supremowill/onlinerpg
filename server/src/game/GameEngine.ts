@@ -41,6 +41,7 @@ export class GameEngine {
         this.spawnManager = new SpawnManager();
         this.collisionSystem = new CollisionSystem();
         this.spawnInitialEntities();
+        (global as any).__gameEngine = this;
     }
 
     private spawnInitialEntities(): void {
@@ -212,6 +213,7 @@ export class GameEngine {
                 enemy = new SmithEnemy(ev.position, gm, totalScore);
                 this.spawnManager.isSmithAlive = true;
                 this.spawnManager.activeBoss = enemy.id;
+                console.log(`[Smith] Spawned: id=${enemy.id} hp=${enemy.hp}`);
                 break;
             }
             case 'SmithAbsorb': {
@@ -224,12 +226,14 @@ export class GameEngine {
                     existingSmith.isDestroyed = true;
                     enemy = newSmith;
                     this.spawnManager.activeBoss = enemy.id;
+                    console.log(`[Smith] Absorbed previous Smith: new sizeMult=${enemy.sizeMultiplier} dmgMult=${enemy.damageMultiplier}`);
                 } else {
                     // No existing Smith, spawn normally
                     const totalScore = players.reduce((sum, p) => sum + (p.score || 0), 0);
                     enemy = new SmithEnemy(ev.position, gm, totalScore);
                     this.spawnManager.isSmithAlive = true;
                     this.spawnManager.activeBoss = enemy.id;
+                    console.log(`[Smith] Spawned (no previous): id=${enemy.id} hp=${enemy.hp}`);
                 }
                 break;
             }

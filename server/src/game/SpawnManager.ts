@@ -260,11 +260,14 @@ export class SpawnManager {
         this.timers.spawnSmith -= dt;
         if (this.timers.spawnSmith <= 0) {
             this.timers.spawnSmith = CONFIG.SPAWN_TIMERS.SMITH;
+            console.log(`[SpawnManager] Smith spawn triggered! isSmithAlive=${this.isSmithAlive} timer=${this.timers.spawnSmith}`);
             if (this.isSmithAlive) {
                 // Smith anterior ainda vivo: absorver e dobrar tamanho + 50% dano
+                console.log('[SpawnManager] SmithAbsorb event pushed');
                 events.push({ type: 'SmithAbsorb', position: this.getSpawnPosition() });
             } else {
                 this.isSmithAlive = true;
+                console.log('[SpawnManager] Smith event pushed');
                 events.push({ type: 'Smith', position: this.getSpawnPosition() });
             }
         }
