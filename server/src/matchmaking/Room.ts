@@ -48,7 +48,9 @@ export class Room {
     private tick(): void {
         const dt = 1 / CONFIG.TICK_RATE;
         // Set enemyMap for all players (for assassin upgrade)
-        for (const p of this.engine.players.values()) p.enemyMap = this.engine.enemiesMap;
+        const enemyMap = new Map<string, any>();
+        for (const e of this.engine.enemies) enemyMap.set(e.id, e);
+        for (const p of this.engine.players.values()) p.enemyMap = enemyMap;
         this.engine.updateTick(dt);
         const snapshot = this.engine.getSnapshot();
         this.broadcast({ type: 'GAME_STATE', payload: snapshot });

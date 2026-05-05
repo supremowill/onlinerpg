@@ -15,6 +15,7 @@ export type ClientMessage =
     | { type: 'ATTACK_START' }
     | { type: 'ATTACK_STOP' }
     | { type: 'CHOOSE_UPGRADE'; payload: { skillKey: string } | { skip: true } }
+    | { type: 'UPGRADE_SELECT'; payload: { skill: string; option: string } }
     | { type: 'PING' };
 
 export interface InputState {
@@ -119,6 +120,8 @@ export interface PlayerSnapshot {
     isShieldActive: boolean;
     passiveLevel: number;
     color: number; // hex color for rendering
+    skillUpgrades?: { q?: string; w?: string; e?: string; r?: string };
+    isSelectingUpgrade?: boolean;
 }
 
 export interface EnemySnapshot {
