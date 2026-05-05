@@ -47,6 +47,8 @@ export class Room {
 
     private tick(): void {
         const dt = 1 / CONFIG.TICK_RATE;
+        // Set enemyMap for all players (for assassin upgrade)
+        for (const p of this.engine.players.values()) p.enemyMap = this.engine.enemiesMap;
         this.engine.updateTick(dt);
         const snapshot = this.engine.getSnapshot();
         this.broadcast({ type: 'GAME_STATE', payload: snapshot });
@@ -55,6 +57,15 @@ export class Room {
             if (p.justDied) {
                 p.justDied = false;
                 this.broadcast({ type: 'PLAYER_DIED', payload: { playerId: p.id, playerName: p.name, score: p.score } });
+            }
+            // Send upgrade prompt when pending
+            if (p.pendingUpgrade && !p.sentUpgradePrompt) {
+                this.send(p, { type: 'UPGRADE_PROMPT', payload: p.pendingUpgrade });
+                p.sentUpgradePrompt = true;
+            }
+            // Fury upgrade: track kills during ultimate
+            if (p.justKilled && p.skillUpgrades.r === 'fury' && p.skills.r.isActive) {
+                p.justKilled = false;
             }
         }
 
@@ -89,6 +100,15 @@ export class Room {
             case 'ATTACK_STOP': player.isAttacking = false; break;
             case 'USE_SKILL': this.engine.handleSkill(playerId, msg.payload.skill); break;
             case 'SELECT_PLATFORM': player.platform = msg.payload.platform; break;
+            case 'UPGRADE_SELECT':
+                if (player.pendingUpgrade && msg.payload.option) {
+                    const { level, skill } = player.pendingUpgrade;
+                    player.skillUpgrades[skill] = msg.payload.option;
+                    player.pendingUpgrade = null;
+                    this.send(player, { type: 'UPGRADE_APPLIED' });
+                    console.log(`[Room] Player ${player.name} chose upgrade ${msg.payload.option} for ${skill} at level ${level}`);
+                }
+                break;
             case 'CHOOSE_UPGRADE':
                 if ('skip' in msg.payload) player.skipUpgrade();
                 else player.upgradeSkill(msg.payload.skillKey);

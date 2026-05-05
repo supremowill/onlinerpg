@@ -166,15 +166,12 @@
             <ol id="leaderboard-list-gameover"><li>Atualizando...</li></ol>
         </div>
     </div>
-    <!-- UPGRADE PANEL -->
+    <!-- UPGRADE PANEL (Multiplayer) -->
     <div id="upgrade-panel" class="overlay-screen">
         <div class="panel-content">
-            <h2 id="upgrade-title">Evoluir Habilidade</h2>
-            <p id="upgrade-description">Descrição da evolução.</p>
-            <div>
-                <button id="upgrade-confirm-button" class="overlay-button">Confirmar</button>
-                <button id="upgrade-skip-button" class="overlay-button">Pular</button>
-            </div>
+            <h2 id="upgrade-title">Escolha seu Upgrade!</h2>
+            <p id="upgrade-skill-name"></p>
+            <div id="upgrade-options" class="upgrade-options"></div>
         </div>
     </div>
     <div id="event-message"></div>
@@ -515,6 +512,11 @@
             inputManager = new InputManager(net);
             inputManager.setup(platform, camera, scene);
             hudManager = new HUDManager(playerId);
+
+            // Handle upgrade prompts
+            net.on('upgradePrompt', (payload) => {
+                hudManager.showUpgradeModal(payload.skill, payload.options);
+            });
 
             // Show HUDs
             document.getElementById('player-hud').style.display = 'block';

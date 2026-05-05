@@ -174,6 +174,31 @@ export class HUDManager {
         setTimeout(() => el.classList.remove('show'), 5000);
     }
 
+    showUpgradeModal(skill, options) {
+        const panel = document.getElementById('upgrade-panel');
+        const optionsEl = document.getElementById('upgrade-options');
+        const skillNames = { q: 'Dash + Esferas', w: 'Repulsão', e: 'Escudo de Vida', r: 'Ultimate - Modo Divino' };
+        document.getElementById('upgrade-skill-name').textContent = `Melhore sua habilidade: ${skillNames[skill] || skill}`;
+        optionsEl.innerHTML = '';
+        options.forEach((opt, idx) => {
+            const btn = document.createElement('button');
+            btn.className = 'overlay-button upgrade-option';
+            btn.innerHTML = `<strong>${opt.name}</strong><br><small>${opt.description}</small>`;
+            btn.onclick = () => {
+                this.hideUpgradeModal();
+                const nc = window.net;
+                if (nc) nc.upgradeChosen(skill, opt.id);
+            };
+            optionsEl.appendChild(btn);
+        });
+        panel.style.display = 'flex';
+    }
+
+    hideUpgradeModal() {
+        const panel = document.getElementById('upgrade-panel');
+        if (panel) panel.style.display = 'none';
+    }
+
     formatTime(s) {
         const m = Math.floor(s / 60).toString().padStart(2, '0');
         const sec = Math.floor(s % 60).toString().padStart(2, '0');

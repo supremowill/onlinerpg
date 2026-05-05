@@ -42,11 +42,24 @@ export type ServerMessage =
     | { type: 'GAME_STATE'; payload: WorldSnapshot }
     | { type: 'EVENT'; payload: GameEvent }
     | { type: 'UPGRADE_PROMPT'; payload: UpgradePrompt }
+    | { type: 'UPGRADE_APPLIED' }
     | { type: 'PLAYER_DIED'; payload: { playerId: string; playerName: string; score: number } }
     | { type: 'GAME_OVER'; payload: GameOverData }
     | { type: 'LEADERBOARD'; payload: LeaderboardEntry[] }
     | { type: 'PONG'; payload: { serverTime: number } }
     | { type: 'ERROR'; payload: { message: string } };
+
+export interface UpgradeOption {
+    id: string;
+    name: string;
+    description: string;
+}
+
+export interface UpgradePrompt {
+    level: number;
+    skill: 'q' | 'w' | 'e' | 'r';
+    options: UpgradeOption[];
+}
 
 export interface QueueStatus {
     position: number;

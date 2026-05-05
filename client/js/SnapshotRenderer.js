@@ -132,11 +132,69 @@ export class SnapshotRenderer {
                 // Ult glow
                 if (ps.isUltActive) {
                     entry.mesh.material.emissive = entry.mesh.material.emissive || new THREE.Color();
-                    entry.mesh.material.emissive.set(0xff8800);
+                    // Temporal upgrade: flash white/red
+                    if (ps.skillUpgrades?.r === 'temporal') {
+                        const flash = Math.sin(Date.now() / 100) > 0;
+                        entry.mesh.material.emissive.set(flash ? 0xffffff : 0xff0000);
+                    } else {
+                        entry.mesh.material.emissive.set(0xff8800);
+                    }
                     entry.mesh.material.emissiveIntensity = 1.5;
+                    // Fury upgrade: rotate mesh faster on kills
+                    if (ps.skillUpgrades?.r === 'fury') {
+                        entry.mesh.rotation.y += 0.1;
+                    }
+                    // Singularity upgrade: darken screen
+                    if (ps.skillUpgrades?.r === 'singularity' && entry.mesh.material.emissive) {
+                        const darkness = Math.min(0.5, (Date.now() % 10000) / 20000);
+                        entry.mesh.material.emissive.setRGB(darkness, darkness, darkness);
+                    }
                 } else {
-                    if (entry.mesh.material.emissive) entry.mesh.material.emissive.set(0x000000);
-                    entry.mesh.material.emissiveIntensity = 0;
+                    // Assassin upgrade: purple flash before dash (handled elsewhere)
+                    if (ps.skillUpgrades?.q === 'assassin' && ps.isDashing) {
+                        entry.mesh.material.emissive = entry.mesh.material.emissive || new THREE.Color();
+                        entry.mesh.material.emissive.set(0x8A2BE2);
+                        entry.mesh.material.emissiveIntensity = 1.0;
+                    } else if (entry.mesh.material.emissive) {
+                        entry.mesh.material.emissive.set(0x000000);
+                        entry.mesh.material.emissiveIntensity = 0;
+                    }
+                }
+                // --- Shield visuals based on upgrades ---
+                if (ps.isShieldActive && !ps.isDead) {
+                    if (!entry.shieldMesh) {
+                        const geo = ps.skillUpgrades?.e === 'fortress' ? new THREE.DodecahedronGeometry(1.2, 0) : new THREE.SphereGeometry(1.2, 16, 16);
+                        const mat = new THREE.MeshStandardMaterial({
+                            color: 0x00aaff, transparent: true, opacity: ps.skillUpgrades?.e === 'fortress' ? 0.7 : 0.4,
+                            metalness: ps.skillUpgrades?.e === 'fortress' ? 0.8 : 0.3,
+                            emissive: new THREE.Color(0x00aaff), emissiveIntensity: 0.5
+                        });
+                        entry.shieldMesh = new THREE.Mesh(geo, mat);
+                        entry.mesh.add(entry.shieldMesh);
+                    }
+                    // Reactive upgrade: add spines
+                    if (ps.skillUpgrades?.e === 'reactive' && !entry.reactiveSpines) {
+                        entry.reactiveSpines = [];
+                        for (let i = 0; i < 8; i++) {
+                            const coneGeo = new THREE.ConeGeometry(0.1, 0.5, 4);
+                            const coneMat = new THREE.MeshStandardMaterial({ color: 0xffff00, emissive: 0xffff00, emissiveIntensity: 1 });
+                            const cone = new THREE.Mesh(coneGeo, coneMat);
+                            // Position on sphere surface
+                            const angle = (i / 8) * Math.PI * 2;
+                            cone.position.set(Math.cos(angle) * 1.2, Math.sin(angle) * 1.2, 0);
+                            cone.rotation.z = Math.PI / 2;
+                            entry.shieldMesh.add(cone);
+                            entry.reactiveSpines.push(cone);
+                        }
+                    }
+                    // Overcharge upgrade: pulse emissive between yellow and green
+                    if (ps.skillUpgrades?.e === 'overcharge' && entry.shieldMesh.material) {
+                        const pulse = Math.sin(Date.now() / 500) > 0;
+                        entry.shieldMesh.material.emissive.set(pulse ? 0xf1c40f : 0x2ecc71);
+                    }
+                    entry.shieldMesh.visible = true;
+                } else if (entry.shieldMesh) {
+                    entry.shieldMesh.visible = false;
                 }
                 entry.lastUpdate = Date.now();
             }
@@ -285,7 +343,15 @@ export class SnapshotRenderer {
                 let entry = this.projectilePool.get(ps.id);
                 if (!entry) {
                     const c = ps.color || (ps.isPlayerOwned ? 0x00BFFF : 0xff4444);
-                    const mat = new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 2 });
+                    // Apply skill upgrade visuals for Q
+                    let projColor = c;
+                    if (ps.skillUpgrades?.q === 'impact') projColor = 0x00ffff; // cyan
+                    else if (ps.skillUpgrades?.q === 'assassin') projColor = 0x8A2BE2; // purple
+                    else if (ps.skillUpgrades?.q === 'fire') projColor = 0xff4500; // orange
+                    const mat = new THREE.MeshStandardMaterial({
+                        color: projColor, emissive: projColor, emissiveIntensity: 2,
+                        wireframe: ps.skillUpgrades?.q === 'impact'
+                    });
                     const mesh = new THREE.Mesh(this.geometries.projectile.clone(), mat);
                     this.scene.add(mesh);
                     entry = { mesh };
@@ -327,13 +393,16 @@ export class SnapshotRenderer {
                 let entry = this.zonePool.get(de.id);
                 if (!entry) {
                     let color = 0xffa500;
-                    if (de.type === 'blizzard' || de.type === 'nevascaZone') color = 0x00aaff;
+                    let geo = new THREE.CircleGeometry(de.radius || 3, 32);
+                    if (de.type === 'blizzard' || de.type === 'nevascaZone') { color = 0x00aaff; geo = new THREE.RingGeometry(de.radius || 3, (de.radius || 3) + 0.1, 32); }
                     else if (de.type === 'tormentFlames') color = 0x5a189a;
                     else if (de.type === 'cannonSalvo') color = 0xff6600;
                     else if (de.type === 'powderKeg') color = 0x8B4513;
-                    const r = de.radius || 3;
-                    const geo = new THREE.CircleGeometry(r, 32);
-                    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3 });
+                    // W upgrade visuals
+                    else if (de.type === 'w_bleed') { color = 0xff0000; geo = new THREE.TetrahedronGeometry(de.radius || 1); }
+                    else if (de.type === 'w_heal') { color = 0x00ff00; geo = new THREE.SphereGeometry(de.radius || 2, 16, 16); }
+                    else if (de.type === 'w_vacuum') { color = 0x0000ff; geo = new THREE.SphereGeometry(de.radius || 2, 16, 16); }
+                    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, wireframe: de.type === 'w_bleed' });
                     const mesh = new THREE.Mesh(geo, mat);
                     mesh.rotation.x = -Math.PI / 2;
                     mesh.position.y = 0.02;
@@ -343,6 +412,11 @@ export class SnapshotRenderer {
                 }
                 entry.mesh.position.set(de.x, 0.02, de.z);
                 entry.mesh.material.opacity = de.opacity != null ? de.opacity * 0.4 : 0.3;
+                // Vacuum upgrade: implode effect
+                if (de.type === 'w_vacuum') {
+                    const scale = 1 - (de.timer || 0) / (de.duration || 1);
+                    entry.mesh.scale.set(scale, scale, scale);
+                }
             }
         }
 

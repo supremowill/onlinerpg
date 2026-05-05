@@ -130,6 +130,7 @@ export class NetworkClient {
     attackStop() { this.send({ type: 'ATTACK_STOP' }); }
     useSkill(skill) { this.send({ type: 'USE_SKILL', payload: { skill } }); }
     chooseUpgrade(skillKey) { this.send({ type: 'CHOOSE_UPGRADE', payload: { skillKey } }); }
+    upgradeChosen(skill, option) { this.send({ type: 'UPGRADE_SELECT', payload: { skill, option } }); }
     skipUpgrade() { this.send({ type: 'CHOOSE_UPGRADE', payload: { skip: true } }); }
     moveTo(x, z) { this.send({ type: 'MOVE_TO', payload: { x, z } }); }
 
