@@ -26,6 +26,17 @@ const publicDir = process.env.NODE_ENV === 'production'
     ? path.join(__dirname, '../public')
     : path.join(__dirname, '../../client');
 app.use(express.static(publicDir));
+// CORS middleware - allow browser requests
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    if (req.method === 'OPTIONS') {
+        res.sendStatus(200);
+    } else {
+        next();
+    }
+});
 app.use(express.json());
 
 // Init DB (will retry on failure, server starts even if DB is down)
