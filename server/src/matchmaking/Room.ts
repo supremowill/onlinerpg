@@ -107,7 +107,7 @@ export class Room {
                     const { level, skill } = player.pendingUpgrade;
                     player.skillUpgrades[skill] = msg.payload.option;
                     player.pendingUpgrade = null;
-                    this.send(player, { type: 'UPGRADE_APPLIED' });
+                    this.send(player.ws, { type: 'UPGRADE_APPLIED' });
                     console.log(`[Room] Player ${player.name} chose upgrade ${msg.payload.option} for ${skill} at level ${level}`);
                 }
                 break;
