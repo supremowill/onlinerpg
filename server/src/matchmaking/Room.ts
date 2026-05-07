@@ -60,15 +60,6 @@ export class Room {
                 p.justDied = false;
                 this.broadcast({ type: 'PLAYER_DIED', payload: { playerId: p.id, playerName: p.name, score: p.score } });
             }
-            // Send upgrade prompt when pending
-            if (p.pendingUpgrade && !p.sentUpgradePrompt) {
-                this.send(p, { type: 'UPGRADE_PROMPT', payload: p.pendingUpgrade });
-                p.sentUpgradePrompt = true;
-            }
-            // Fury upgrade: track kills during ultimate
-            if (p.justKilled && p.skillUpgrades.r === 'fury' && p.skills.r.isActive) {
-                p.justKilled = false;
-            }
         }
 
         if (this.engine.isGameOver) this.endGame();
@@ -102,15 +93,6 @@ export class Room {
             case 'ATTACK_STOP': player.isAttacking = false; break;
             case 'USE_SKILL': this.engine.handleSkill(playerId, msg.payload.skill); break;
             case 'SELECT_PLATFORM': player.platform = msg.payload.platform; break;
-            case 'UPGRADE_SELECT':
-                if (player.pendingUpgrade && msg.payload.option) {
-                    const { level, skill } = player.pendingUpgrade;
-                    player.skillUpgrades[skill] = msg.payload.option;
-                    player.pendingUpgrade = null;
-                    this.send(player.ws, { type: 'UPGRADE_APPLIED' });
-                    console.log(`[Room] Player ${player.name} chose upgrade ${msg.payload.option} for ${skill} at level ${level}`);
-                }
-                break;
             case 'CHOOSE_UPGRADE':
                 if ('skip' in msg.payload) player.skipUpgrade();
                 else player.upgradeSkill(msg.payload.skillKey);

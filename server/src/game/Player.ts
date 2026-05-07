@@ -8,28 +8,7 @@ import { InputState, PlayerSnapshot } from '../network/Protocol';
  */
 export class ServerPlayer {
     // Upgrade definitions: level -> skill -> options
-    static readonly UPGRADE_OPTIONS: Record<string, { id: string; name: string; description: string }[]> = {
-        q: [
-            { id: 'impact', name: 'Impacto Estilhaçante', description: 'Esferas aplicam Armor Fracture (25% defesa, 4s) e cooldown reduz em 1s' },
-            { id: 'fire', name: 'Rastro de Pólvora', description: 'Durante dash, deixa minas que causam Burn (15 dano/s, 1s)' },
-            { id: 'assassin', name: 'Convergência Assassina', description: 'Esferas em linha reta; 3+ hits = Silence + ataque speed buff' },
-        ],
-        w: [
-            { id: 'bleed', name: 'Campo de Hemorragia', description: 'Inimigos afetados recebem Bleed (10% dano/s baseado no seu dano)' },
-            { id: 'heal', name: 'Refração Vital', description: 'Projéteis revertidos curam 3% HP; 3+ projéteis limpam debuffs' },
-            { id: 'vacuum', name: 'Vácuo Magnético', description: 'Puxa inimigos levemente e aplica Slow (70%, 3s)' },
-        ],
-        e: [
-            { id: 'reactive', name: 'Carapaça Reativa', description: 'Escudo dispara projétil com 50% do dano absorvido' },
-            { id: 'overcharge', name: 'Bateria de Sobrecarga', description: '10% do dano absorvido vira XP' },
-            { id: 'fortress', name: 'Fortaleza Inabalável', description: 'Escudo dobra de tamanho e imuniza a stun/freeze/root' },
-        ],
-        r: [
-            { id: 'fury', name: 'Fúria Infinita', description: 'Abates durante ultimate adicionam +1s na duração' },
-            { id: 'temporal', name: 'Distorção Temporal', description: 'Cooldowns de Q, W, E caem para 1s durante ultimate' },
-            { id: 'singularity', name: 'Singularidade do Colapso', description: 'Armazena dano evitado e libera 200% em área (raio 20) ao fim' },
-        ],
-    };
+    static readonly UPGRADE_OPTIONS: Record<string, { id: string; name: string; description: string }[]> = { q: [], w: [], e: [], r: [] };
 
     public id: string;
     public name: string;
@@ -54,13 +33,10 @@ export class ServerPlayer {
     public isAttacking: boolean = false;
     public attackHitCounter: number = 0;
     public justDied: boolean = false;
-    public justKilled: boolean = false; // For fury upgrade
-    public sentUpgradePrompt: boolean = false;
+    public justKilled: boolean = false;
     public hitboxRadius: number = CONFIG.PLAYER.HITBOX_RADIUS;
 
     public skillLevels = { q: 1, w: 1, e: 1, r: 1, passive: 1 };
-    public skillUpgrades: { q?: string; w?: string; e?: string; r?: string } = {};
-    public pendingUpgrade: { level: number; skill: 'q' | 'w' | 'e' | 'r'; options: { id: string; name: string; description: string }[] } | null = null;
     public skills = {
         q: { cooldown: CONFIG.PLAYER.SKILL_Q.COOLDOWN, lastUsed: 0, duration: CONFIG.PLAYER.SKILL_Q.DURATION, timer: 0, isDashing: false, dashSpeed: CONFIG.PLAYER.SKILL_Q.DASH_SPEED },
         w: { cooldown: CONFIG.PLAYER.SKILL_W.COOLDOWN, lastUsed: 0 },
@@ -69,11 +45,11 @@ export class ServerPlayer {
     };
 
     public activeBuff = { type: null as string | null, timer: 0, duration: CONFIG.PLAYER.BUFF_DURATION, attackCounter: 0 };
-    public enemyMap?: Map<string, any>; // Set by GameEngine for upgrades
+    public enemyMap?: Map<string, any>;
     public tempBuff = { type: null as string | null, timer: 0, magnitude: 0 };
     public timedBuffs: { type: string; timer: number; effects: any }[] = [];
 
-    public pendingProjectiles: { dir: Vec3, damage: number, fromOrbitalSoul?: boolean }[] = [];
+    public pendingProjectiles: { dir: Vec3, damage: number, fromOrbitalSoul?: boolean, fromPlayerId?: string }[] = [];
     public pendingZones: { type: string, x: number, z: number, radius: number, damage: number }[] = [];
     // Espectro de Raziel essence - orbital souls
     public orbitalSouls: { id: string; angle: number; orbitSpeed: number; radius: number; fireTimer: number }[] = [];
@@ -102,8 +78,7 @@ export class ServerPlayer {
 
     public input: InputState = { keys: { w: false, a: false, s: false, d: false }, mouseX: 0, mouseY: 0 };
     public platform: 'pc' | 'mobile' = 'pc';
-    public pendingUpgrade: number | null = null;
-    public pendingRewindSeconds: number = 0;
+    public pendingReward: number = 0;
     public lastPingTime: number = Date.now();
     public isConnected: boolean = true;
     private facingDirection: Vec3 = new Vec3(0, 0, -1);
@@ -160,8 +135,8 @@ export class ServerPlayer {
         let cd = this.skills[key].cooldown;
         const essencia = this.timedBuffs.find(b => b.type === 'essencia_negra');
         if (essencia) cd *= (1 - essencia.effects.cooldown_reduction);
-        // Temporal upgrade: 1s cooldowns during ultimate
-        if (this.skillUpgrades.r === 'temporal' && this.skills.r.isActive) cd = 1000;
+        // Cooldown reduzido durante ultimate se nível alto
+        if (this.skillLevels.r >= 3 && this.skills.r.isActive) cd = 1000;
         return cd;
     }
 
@@ -283,18 +258,8 @@ export class ServerPlayer {
         }
         if (this.skills.r.isActive) {
             this.skills.r.timer -= ms;
-            // Fury upgrade: extend timer on kills during ultimate
-            if (this.skillUpgrades.r === 'fury' && this.justKilled) { this.skills.r.timer += 1000; this.justKilled = false; }
             if (this.skills.r.timer <= 0) {
                 this.skills.r.isActive = false;
-                // Singularity upgrade: release stored damage as area explosion
-                if (this.skillUpgrades.r === 'singularity' && this.ultimateDamageStored > 0) {
-                    this.pendingZones.push({
-                        type: 'explosion', x: this.position.x, z: this.position.z,
-                        radius: 20, damage: this.ultimateDamageStored * 2
-                    });
-                    this.ultimateDamageStored = 0;
-                }
             }
         }
     }
@@ -302,8 +267,6 @@ export class ServerPlayer {
     takeDamage(amount: number, fromProjectile = true, isTrueDamage = false): void {
         if (this.isDead) return;
         if (this.skills.r.isActive && !fromProjectile) {
-            // Singularity upgrade: store avoided damage
-            if (this.skillUpgrades.r === 'singularity') this.ultimateDamageStored += amount;
             return;
         }
         let fd = amount;
@@ -311,17 +274,12 @@ export class ServerPlayer {
         const e = this.skills.e;
         if (e.isActive && e.shieldHp > 0) {
             const ds = Math.min(fd, e.shieldHp); e.shieldHp -= ds; e.damageAbsorbed += ds;
-            // Reactive upgrade: fire projectile at attacker with 50% absorbed damage
-            if (this.skillUpgrades.e === 'reactive' && ds > 0) {
-                const dir = this.getFacingDirection();
-                this.pendingProjectiles.push({ dir, damage: ds * 0.5, fromPlayerId: this.id });
-            }
-            // Overcharge upgrade: 10% of absorbed damage -> XP
-            if (this.skillUpgrades.e === 'overcharge') this.addXp(Math.floor(ds * 0.1));
+            // Efeitos passivos removidos com sistema de upgrade
             const rem = fd - ds; if (rem > 0) this.hp -= rem;
         } else this.hp -= fd;
         // Fortress upgrade: immune to stun/freeze/root while shield active
-        if (this.skillUpgrades.e === 'fortress' && e.isActive) {
+        if (this.skillLevels.e >= 3 && e.isActive) {
+            // Nível alto: imunidade a stun/freeze/root
             this.statusEffects.stunned.isActive = false;
             this.statusEffects.frozen.isActive = false;
             this.statusEffects.rooted.isActive = false;
@@ -343,41 +301,27 @@ export class ServerPlayer {
         this.level++; const o = this.xp - this.xpToNextLevel; this.xp = o > 0 ? o : 0;
         this.xpToNextLevel = Math.floor(this.xpToNextLevel * CONFIG.PLAYER.XP_MULTIPLIER);
         this.maxHp *= CONFIG.PLAYER.LEVEL_HP_MULTIPLIER; this.hp = this.maxHp;
-        if (CONFIG.PLAYER.UPGRADE_LEVELS.includes(this.level)) {
-            let skill: 'q' | 'w' | 'e' | 'r' = 'q';
-            if (this.level === 5) skill = 'q';
-            else if (this.level === 10) skill = 'w';
-            else if (this.level === 15) skill = 'e';
-            else if (this.level === 20) skill = 'r';
-            const options = Player.UPGRADE_OPTIONS[skill].map(o => ({ id: o.id, name: o.name, description: o.description }));
-            this.pendingUpgrade = { level: this.level, skill, options };
-        }
+        // Sistema de upgrade removido, levels apenas aumentam stats
     }
 
     collectOrb(): void { this.orbsCollected++; this.score += 10; this.addXp(1 + Math.floor(this.orbsCollected / 5)); }
-    upgradeSkill(key: string): void { if (key in this.skillLevels && (this.skillLevels as any)[key] < 3) (this.skillLevels as any)[key]++; this.pendingUpgrade = null; }
-    skipUpgrade(): void { this.pendingUpgrade = null; }
+    upgradeSkill(key: string): void { if (key in this.skillLevels && (this.skillLevels as any)[key] < 3) (this.skillLevels as any)[key]++; }
+    skipUpgrade(): void {}
     activateDash(): void {
         const q = this.skills.q; q.isDashing = true; q.timer = q.duration;
         q.dashSpeed = this.skillLevels.q >= 2 ? CONFIG.PLAYER.SKILL_Q.DASH_SPEED * 1.5 : CONFIG.PLAYER.SKILL_Q.DASH_SPEED;
-        if (this.skillUpgrades.q === 'impact') q.cooldown = Math.max(q.cooldown - 1000, 0);
     }
     activateShield(): void {
         const e = this.skills.e; e.isActive = true;
         e.maxShieldHp = this.maxHp * CONFIG.PLAYER.SKILL_E.SHIELD_MULTIPLIER;
-        if (this.skillUpgrades.e === 'fortress') e.maxShieldHp *= 2;
         e.shieldHp = e.maxShieldHp; e.timer = e.duration; e.damageAbsorbed = 0;
-        if (this.skillUpgrades.e === 'fortress') { this.statusEffects.stunned.isActive = false; this.statusEffects.frozen.isActive = false; this.statusEffects.rooted.isActive = false; }
     }
-    ultimateDamageStored: number = 0; // For singularity upgrade
-
     activateUltimate(): void {
         const r = this.skills.r; r.isActive = true;
         r.timer = this.skillLevels.r >= 3 ? r.duration * 1.5 : r.duration;
-        if (this.skillUpgrades.r === 'singularity') this.ultimateDamageStored = 0;
     }
 
-    dashHits: string[] = []; // Track enemies hit during dash for assassin upgrade
+    // dashHits removido (sistema de upgrade removido)
 
     finishDash(): void {
         if (this.skillLevels.q >= 3) {
@@ -385,8 +329,6 @@ export class ServerPlayer {
         }
         const dir = this.getFacingDirection();
         let cone = this.skillLevels.q >= 2 ? Math.PI / 2 * 1.5 : Math.PI / 2;
-        // Assassin upgrade: narrower cone (near straight line)
-        if (this.skillUpgrades.q === 'assassin') cone = Math.PI / 2 * 0.2;
         const num = 8;
         for (let i = 0; i < num; i++) {
             const angle = (i / (num - 1) - 0.5) * cone;
@@ -398,24 +340,7 @@ export class ServerPlayer {
                 -dir.x * sinA + dir.z * cosA
             ).normalize();
             const proj = { dir: pDir, damage: this.getDamage(true) * 0.2, fromPlayerId: this.id };
-            // Impact upgrade: apply armor fracture on hit
-            if (this.skillUpgrades.q === 'impact') (proj as any).applyArmorFracture = { duration: 4000, amount: 0.25 };
             this.pendingProjectiles.push(proj);
-        }
-        // Assassin upgrade: track hits for silence + attack speed
-        if (this.skillUpgrades.q === 'assassin') {
-            const hitMap = new Map<string, number>();
-            for (const hitId of this.dashHits) hitMap.set(hitId, (hitMap.get(hitId) || 0) + 1);
-            for (const [enemyId, count] of hitMap) {
-                if (count >= 3) {
-                    const enemy = this.enemyMap?.get(enemyId);
-                    if (enemy) {
-                        enemy.applySilence(2000);
-                        this.applyTemporaryBuff('attackSpeed', 2, 1);
-                    }
-                }
-            }
-            this.dashHits = [];
         }
     }
 
@@ -448,7 +373,7 @@ export class ServerPlayer {
         }
         // Fragmento de Código-Fonte: rewind game time
         if (type === 'fragmento_codigo_fonte') {
-            this.pendingRewindSeconds = effects.rewind_time_seconds || 30;
+            // Rewind não implementado na versão atual
         }
     }
     applyTemporaryBuff(type: string, durSec: number, mag: number): void { this.tempBuff.type = type; this.tempBuff.timer = durSec * 1000; this.tempBuff.magnitude = mag; }
@@ -471,6 +396,6 @@ export class ServerPlayer {
     toSnapshot(now: number): PlayerSnapshot {
         const fx: string[] = [];
         for (const [k, v] of Object.entries(this.statusEffects)) { if ((v as any).isActive) fx.push(k); }
-        return { id: this.id, name: this.name, x: this.position.x, z: this.position.z, rotY: this.rotationY, hp: this.hp, maxHp: this.maxHp, xp: this.xp, xpNext: this.xpToNextLevel, level: this.level, score: this.score, shieldHp: this.skills.e.shieldHp, shieldMaxHp: this.skills.e.maxShieldHp, skillCooldowns: { q: Math.max(0, this.skills.q.lastUsed + this.getEffectiveSkillCooldown('q') - now), w: Math.max(0, this.skills.w.lastUsed + this.getEffectiveSkillCooldown('w') - now), e: Math.max(0, this.skills.e.lastUsed + this.getEffectiveSkillCooldown('e') - now), r: Math.max(0, this.skills.r.lastUsed + this.getEffectiveSkillCooldown('r') - now) }, activeBuff: this.activeBuff.type, buffTimer: this.activeBuff.timer, tempBuff: this.tempBuff.type, timedBuffs: this.timedBuffs.map(b => b.type), statusEffects: fx, isDead: this.isDead, isDashing: this.skills.q.isDashing, isUltActive: this.skills.r.isActive, isShieldActive: this.skills.e.isActive, passiveLevel: this.skillLevels.passive, color: this.color, skillUpgrades: this.skillUpgrades, isSelectingUpgrade: !!this.pendingUpgrade };
+        return { id: this.id, name: this.name, x: this.position.x, z: this.position.z, rotY: this.rotationY, hp: this.hp, maxHp: this.maxHp, xp: this.xp, xpNext: this.xpToNextLevel, level: this.level, score: this.score, shieldHp: this.skills.e.shieldHp, shieldMaxHp: this.skills.e.maxShieldHp, skillCooldowns: { q: Math.max(0, this.skills.q.lastUsed + this.getEffectiveSkillCooldown('q') - now), w: Math.max(0, this.skills.w.lastUsed + this.getEffectiveSkillCooldown('w') - now), e: Math.max(0, this.skills.e.lastUsed + this.getEffectiveSkillCooldown('e') - now), r: Math.max(0, this.skills.r.lastUsed + this.getEffectiveSkillCooldown('r') - now) }, activeBuff: this.activeBuff.type, buffTimer: this.activeBuff.timer, tempBuff: this.tempBuff.type, timedBuffs: this.timedBuffs.map(b => b.type), statusEffects: fx, isDead: this.isDead, isDashing: this.skills.q.isDashing, isUltActive: this.skills.r.isActive, isShieldActive: this.skills.e.isActive, passiveLevel: this.skillLevels.passive, color: this.color };
     }
 }

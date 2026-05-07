@@ -93,11 +93,10 @@ export class GameEngine {
         this.gameTime += dt;
         // Process rewind from Fragmento de Código-Fonte
         for (const p of [...this.players.values()]) {
-            if (p.pendingRewindSeconds > 0) {
-                this.gameTime = Math.max(0, this.gameTime - p.pendingRewindSeconds * 1000);
-                p.pendingRewindSeconds = 0;
-                // Notify client via snapshot? XP is kept, only time rewinds
-                p.addXp(0); // triggers snapshot update
+            if ((p as any).pendingRewindSeconds > 0) {
+                this.gameTime = Math.max(0, this.gameTime - (p as any).pendingRewindSeconds * 1000);
+                (p as any).pendingRewindSeconds = 0;
+                p.addXp(0);
             }
         }
         const now = Date.now();
