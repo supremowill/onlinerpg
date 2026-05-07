@@ -149,6 +149,10 @@ export interface EnemySnapshot {
     orbitingSouls?: { id: string; angle: number; radius: number }[];
     isTeleporting?: boolean;
     vortexActive?: boolean;
+    // Cão dos Infernos rework fields
+    isChannelingW?: boolean;
+    isUltActive?: boolean;
+    matilhaCount?: number;
 }
 
 export interface ProjectileSnapshot {

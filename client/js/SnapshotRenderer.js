@@ -44,12 +44,25 @@ export class SnapshotRenderer {
             FeiticeiroImortal: { geo: new THREE.SphereGeometry(1.2, 16, 16), color: 0x4B0082 },
             LichKing: { geo: new THREE.BoxGeometry(2, 2, 2), color: 0xADD8E6 },
             PlantaCarnivora: { geo: new THREE.CylinderGeometry(2, 1.5, 1, 12), color: 0x588157 },
-            CaoDosInfernos: { geo: new THREE.BoxGeometry(2.4, 1.2, 1.2), color: 0x6e1005 },
+            CaoDosInfernos: {
+                // Geometric hunter: black/red block + pyramid details (Naafiri-inspired)
+                geo: new THREE.BoxGeometry(2.4, 1.2, 1.2),
+                color: 0x1a0000, // Very dark red-black
+                emissive: 0x8B0000, // Dark red emissive
+                emissiveIntensity: 0.4,
+                // Extra meshes for the geometric look
+                pyramidLeft: new THREE.ConeGeometry(0.4, 0.8, 4),
+                pyramidRight: new THREE.ConeGeometry(0.4, 0.8, 4),
+                pyramidColor: 0x8B0000, // Dark red pyramids
+                shieldGeo: new THREE.BoxGeometry(2.6, 1.4, 0.1),
+                shieldColor: 0xFF0000,
+                isCaoDosInfernos: true, // Flag for special rendering
+            },
+            MatilhaGeometra: { geo: new THREE.BoxGeometry(0.8, 0.8, 0.8), color: 0x8B4513 },
             TheMightyOne: { geo: new THREE.BoxGeometry(8, 8, 8), color: 0x0a0a0a },
             AlmaAmaldicoada: { geo: new THREE.SphereGeometry(0.5, 16, 16), color: 0x1a1a1a },
             CaveiraExplosiva: { geo: new THREE.BoxGeometry(0.5, 0.5, 0.5), color: 0xeeeeee },
             EspectroSombrio: { geo: new THREE.SphereGeometry(0.6, 8, 6), color: 0x222222 },
-            FilhoteCao: { geo: new THREE.BoxGeometry(1.2, 0.6, 0.6), color: 0x8a3324 },
             BrotoCarnivoro: { geo: new THREE.SphereGeometry(0.6, 8, 6), color: 0x4c956c },
             CloneIlusorio: { geo: new THREE.BoxGeometry(1.5, 1.5, 1.5), color: 0xd095e0 },
             PowderKeg: { geo: new THREE.CylinderGeometry(0.5, 0.5, 1, 12), color: 0x966F33 },
@@ -273,9 +286,37 @@ export class SnapshotRenderer {
                     entry.hpBar.children[1].scale.x = Math.max(0.001, hpPct);
                     entry.hpBar.children[1].position.x = -(1 - hpPct) * 0.5;
                 }
-                // Update size multiplier for EspectroDeRaziel and Smith
-                if ((es.type === 'EspectroDeRaziel' || es.type === 'Smith') && es.sizeMultiplier) {
+                // Update size multiplier for EspectroDeRaziel, Smith, and CaoDosInfernos
+                if ((es.type === 'EspectroDeRaziel' || es.type === 'Smith' || es.type === 'CaoDosInfernos') && es.sizeMultiplier) {
                     entry.mesh.scale.set(es.sizeMultiplier, es.sizeMultiplier, es.sizeMultiplier);
+                }
+                // Shield visualization for CaoDosInfernos
+                if (es.type === 'CaoDosInfernos' && es.shieldActive && !entry.shieldMesh) {
+                    const shieldGeo = new THREE.BoxGeometry(2.6, 1.4, 0.1);
+                    const shieldMat = new THREE.MeshBasicMaterial({ color: 0xFF0000, transparent: true, opacity: 0.4, emissive: 0xFF0000, emissiveIntensity: 0.5 });
+                    const shieldMesh = new THREE.Mesh(shieldGeo, shieldMat);
+                    entry.mesh.add(shieldMesh);
+                    entry.shieldMesh = shieldMesh;
+                }
+                if (es.type === 'CaoDosInfernos') {
+                    if (entry.shieldMesh) entry.shieldMesh.visible = es.shieldActive || false;
+                    // Channeling W: red line effect
+                    if (es.isChannelingW && !entry.channelLine) {
+                        const lineGeo = new THREE.BufferGeometry().setFromPoints([
+                            new THREE.Vector3(0, 0.5, 0),
+                            new THREE.Vector3(0, 6, 0)
+                        ]);
+                        const lineMat = new THREE.LineBasicMaterial({ color: 0xFF0000, linewidth: 3 });
+                        const lineMesh = new THREE.Line(lineGeo, lineMat);
+                        entry.mesh.add(lineMesh);
+                        entry.channelLine = lineMesh;
+                    }
+                    if (entry.channelLine) entry.channelLine.visible = es.isChannelingW || false;
+                    // Ult active: pulse effect
+                    if (es.isUltActive) {
+                        const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.01);
+                        entry.mesh.material.emissiveIntensity = 0.4 + pulse * 0.6;
+                    }
                 }
                 // Pulse visor for Smith/CloneSmith
                 if ((es.type === 'Smith' || es.type === 'CloneSmith') && entry.visorMesh) {
@@ -402,7 +443,12 @@ export class SnapshotRenderer {
                     else if (de.type === 'w_bleed') { color = 0xff0000; geo = new THREE.TetrahedronGeometry(de.radius || 1); }
                     else if (de.type === 'w_heal') { color = 0x00ff00; geo = new THREE.SphereGeometry(de.radius || 2, 16, 16); }
                     else if (de.type === 'w_vacuum') { color = 0x0000ff; geo = new THREE.SphereGeometry(de.radius || 2, 16, 16); }
-                    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, wireframe: de.type === 'w_bleed' });
+                    // Cão dos Infernos zones
+                    else if (de.type === 'prismaSombrio') { color = 0x8B0000; geo = new THREE.IcosahedronGeometry(de.radius || 3, 0); }
+                    else if (de.type === 'investidaChannel' || de.type === 'investidaImpact') { color = 0xFF0000; geo = new THREE.CylinderGeometry(0.2, 0.2, 6, 8); }
+                    else if (de.type === 'eviscerarStart' || de.type === 'eviscerarSlam') { color = 0xFF4400; geo = new THREE.CylinderGeometry(de.radius || 2, de.radius || 2, 0.5, 16); }
+                    else if (de.type === 'chamadoAbismo') { color = 0x4A0000; geo = new THREE.IcosahedronGeometry(de.radius || 8, 1); }
+                    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, wireframe: de.type === 'w_bleed' || de.type === 'prismaSombrio' || de.type === 'chamadoAbismo' });
                     const mesh = new THREE.Mesh(geo, mat);
                     mesh.rotation.x = -Math.PI / 2;
                     mesh.position.y = 0.02;
@@ -416,6 +462,10 @@ export class SnapshotRenderer {
                 if (de.type === 'w_vacuum') {
                     const scale = 1 - (de.timer || 0) / (de.duration || 1);
                     entry.mesh.scale.set(scale, scale, scale);
+                }
+                // Investida: rotate cylinder to point direction
+                if (de.type === 'investidaChannel' || de.type === 'investidaImpact') {
+                    entry.mesh.rotation.y = Date.now() * 0.005;
                 }
             }
         }

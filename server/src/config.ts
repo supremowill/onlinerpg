@@ -131,12 +131,49 @@ export const CONFIG = {
         HITBOX_RADIUS: 0.7,
     },
     CAO_DOS_INFERNOS: {
-        BASE_HP_PER_LEVEL: 40,
-        BASE_HP: 80,
-        BASE_DAMAGE_PER_LEVEL: 5,
-        BASE_DAMAGE: 15,
-        SPEED: 3.8,
+        BASE_HP: 1000,
+        HP_PER_LEVEL: 500,
+        BASE_DAMAGE: 20,
+        DAMAGE_PER_LEVEL: 5,
+        DAMAGE_TARGET_HP_PERCENT: 0.05,
+        SPEED_BASE_MULT: 1.5, // 1.5x player speed
+        SPEED_PER_LEVEL: 0.02, // +2% per level
         HITBOX_RADIUS: 1.2,
+        XP_PER_LEVEL: 1500,
+        SCORE: 500,
+        // Passive: Matilha Geométrica
+        MATILHA_MAX: 4,
+        MATILHA_SPAWN_INTERVAL: 10, // seconds
+        MATILHA_HP_PER_LEVEL: 80,
+        MATILHA_DAMAGE_PER_LEVEL: 5,
+        MATILHA_PROJECTILE_SPEED: 8,
+        MATILHA_PROJECTILE_LIFETIME: 3,
+        // Skill 1: Prismas Sombrios (Q)
+        SKILL_Q_COOLDOWN: 6000,
+        SKILL_Q_DAMAGE: 30,
+        SKILL_Q_BLEED_DURATION: 4000,
+        SKILL_Q_BLEED_DPS: 10,
+        SKILL_Q_BONUS_DAMAGE_ON_BLEED: 1.5, // 150% if target already bleeding
+        SKILL_Q_LIFESTEAL_PERCENT: 0.15,
+        // Skill 2: Investida Implacável (W)
+        SKILL_W_COOLDOWN: 12000,
+        SKILL_W_DAMAGE: 50,
+        SKILL_W_DASH_SPEED: 25,
+        SKILL_W_AIM_DELAY: 1000,
+        SKILL_W_STUN_DURATION: 500,
+        // Skill 3: Evisceração Cúbica (E)
+        SKILL_E_COOLDOWN: 8000,
+        SKILL_E_DAMAGE: 40,
+        SKILL_E_RADIUS: 6,
+        SKILL_E_REPAIR_MATILHA: true,
+        // Skill 4: Chamado do Abismo (R)
+        SKILL_R_COOLDOWN: 60000,
+        SKILL_R_DURATION: 15000,
+        SKILL_R_SIZE_MULT: 1.2,
+        SKILL_R_SPEED_BONUS: 2.0, // 2x speed
+        SKILL_R_VISION_BONUS: 2.0,
+        SKILL_R_SHIELD_HP: 2000,
+        SKILL_R_SPAWN_MAX_MATILHA: true,
     },
     SUPER_BOSS: {
         BASE_HP: 5000,
@@ -196,6 +233,15 @@ export const CONFIG = {
         SCORE: 50000,
     },
 
+    // Minions
+    MATILHA_GEOMETRICA: {
+        BASE_HP: 180,
+        BASE_DAMAGE: 25,
+        HP_PER_LEVEL: 15,
+        DAMAGE_PER_LEVEL: 2,
+        HITBOX_RADIUS: 0.8,
+    },
+
     // Defenders
     BRUXA_DO_GELO: {
         BASE_HP: 1000,
@@ -225,7 +271,7 @@ export const CONFIG = {
         PURPLE_CUBE: 5,
         RED_CONE: 30,
         GUARDIAN: 240,
-        CAO_DOS_INFERNOS: 120,
+        CAO_DOS_INFERNOS: 180,
         RAINHA: 300,
         PLANTA_CARNIVORA: 210,
         FEITICEIRO: 420,

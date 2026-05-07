@@ -264,33 +264,60 @@ export class PlantaCarnivoraEnemy extends ServerEnemy {
     }
 }
 
-/** CaoDosInfernos - dash, mark, roar+shield, frenzy, spawns filhotes */
+/** CaoDosInfernos - Rework: Naafiri-inspired hunter with geometric matilha
+ * Design: Geometric (black/red rectangular block + pyramids)
+ * Behavior: Implacable hunter (aggro radius 40 + scaling)
+ * Inspiration: Naafiri (League of Legends)
+ */
 export class CaoDosInfernosEnemy extends ServerEnemy {
-    private playerLevel: number;
+    public playerLevel: number;
     private attackCooldown: number;
     private lastAttackTime = 0;
     private attackRange = 2.0;
-    public filhoteIds: string[] = [];
-    public respawnQueue: { filhoteId: string; timer: number }[] = [];
-    private habilidades = {
-        investida: { cooldown: 5000, lastUsed: 0, isDashing: false, dashTimer: 0, dashDuration: 300, dashSpeed: 20, useCount: 0 },
-        marca: { cooldown: 8000, lastUsed: 0, isActive: false, duration: 5000, timer: 0 },
-        rugido: { cooldown: 12000, lastUsed: 0 },
-        frenesi: { cooldown: 20000, lastUsed: 0, isActive: false, duration: 10000, timer: 0 },
-    };
+    public matilhaIds: string[] = [];
     public pendingAbilities: any[] = [];
+    public isChannelingW: boolean = false;
+    public channelTimerW: number = 0;
+    public isUltActive: boolean = false;
+    public ultTimer: number = 0;
+    public shieldHp: number = 0;
+    public shieldMaxHp: number = 0;
+    public detectionRadius: number = 40;
+
+    private habilidades = {
+        matilhaTimer: 0,
+        matilhaCount: 0,
+        q: { cooldown: 0, lastUsed: 0 },
+        w: { cooldown: 0, lastUsed: 0, isDashing: false, dashTimer: 0, dashDuration: 400, dashSpeed: 0, targetX: 0, targetZ: 0 },
+        e: { cooldown: 0, lastUsed: 0, isSlamming: false, slamTimer: 0, slamDuration: 500 },
+        r: { cooldown: 0, lastUsed: 0, isActive: false, timer: 0 },
+    };
 
     constructor(pos: Vec3, globalMult: number, playerLevel: number) {
         super(pos);
         this.playerLevel = playerLevel;
         this.type = 'CaoDosInfernos'; this.name = 'Cão dos Infernos';
         const c = CONFIG.CAO_DOS_INFERNOS;
-        this.maxHp = c.BASE_HP + (playerLevel * c.BASE_HP_PER_LEVEL); this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE + (playerLevel * c.BASE_DAMAGE_PER_LEVEL);
-        this.speed = c.SPEED; this.originalSpeed = c.SPEED;
-        this.xp = 30 + (playerLevel * 10); this.score = 500 + (playerLevel * 20);
+        this.maxHp = c.BASE_HP + (playerLevel * c.HP_PER_LEVEL); this.hp = this.maxHp;
+        this.damage = c.BASE_DAMAGE + (playerLevel * c.DAMAGE_PER_LEVEL);
+        const playerBaseSpeed = CONFIG.PLAYER.SPEED;
+        this.speed = playerBaseSpeed * c.SPEED_BASE_MULT * (1 + playerLevel * c.SPEED_PER_LEVEL);
+        this.originalSpeed = this.speed;
+        this.xp = c.XP_PER_LEVEL * playerLevel; this.score = c.SCORE + (playerLevel * 20);
         this.hitboxRadius = c.HITBOX_RADIUS;
-        this.attackCooldown = (1.2 - (Math.floor(playerLevel / 5) * 0.05)) * 1000;
+        this.attackCooldown = 1200;
+        this.detectionRadius = 40 * (1 + (playerLevel * 0.02));
+
+        const now = Date.now();
+        this.habilidades.q.cooldown = c.SKILL_Q_COOLDOWN;
+        this.habilidades.q.lastUsed = now - c.SKILL_Q_COOLDOWN;
+        this.habilidades.w.cooldown = c.SKILL_W_COOLDOWN;
+        this.habilidades.w.lastUsed = now - c.SKILL_W_COOLDOWN;
+        this.habilidades.w.dashSpeed = c.SKILL_W_DASH_SPEED;
+        this.habilidades.e.cooldown = c.SKILL_E_COOLDOWN;
+        this.habilidades.e.lastUsed = now - c.SKILL_E_COOLDOWN;
+        this.habilidades.r.cooldown = c.SKILL_R_COOLDOWN;
+        this.habilidades.r.lastUsed = now - c.SKILL_R_COOLDOWN;
         this.position.y = 0.6;
     }
 
@@ -301,62 +328,165 @@ export class CaoDosInfernosEnemy extends ServerEnemy {
         const now = Date.now(); const ms = dt * 1000;
         const dist = this.position.distanceToXZ(target.position);
         const h = this.habilidades;
+        const c = CONFIG.CAO_DOS_INFERNOS;
 
-        // Respawn filhotes
-        for (let i = this.respawnQueue.length - 1; i >= 0; i--) {
-            this.respawnQueue[i].timer -= dt;
-            if (this.respawnQueue[i].timer <= 0) {
-                this.pendingAbilities.push({ type: 'respawnFilhote', x: this.position.x + (Math.random() - 0.5) * 5, z: this.position.z + (Math.random() - 0.5) * 5, playerLevel: this.playerLevel, parentId: this.id });
-                this.respawnQueue.splice(i, 1);
+        if (h.r.isActive) {
+            h.r.timer -= ms;
+            if (h.r.timer <= 0) {
+                h.r.isActive = false; this.isUltActive = false;
+                this.sizeMultiplier = 1.0; this.speed = this.originalSpeed;
+                this.shieldHp = 0;
+                this.detectionRadius = 40 * (1 + (this.playerLevel * 0.02));
             }
         }
 
-        // Frenzy timer
-        if (h.frenesi.isActive) { h.frenesi.timer -= ms; if (h.frenesi.timer <= 0) { h.frenesi.isActive = false; h.frenesi.lastUsed = now; h.investida.useCount = 0; } }
-        else { if (this.updateStatus(dt)) return; }
-        // Mark timer
-        if (h.marca.isActive) { h.marca.timer -= ms; if (h.marca.timer <= 0) h.marca.isActive = false; }
-
-        // Trigger frenzy after 3 dashes
-        if (h.investida.useCount >= 3 && now > h.frenesi.lastUsed + h.frenesi.cooldown && !h.frenesi.isActive) {
-            h.frenesi.isActive = true; h.frenesi.timer = h.frenesi.duration;
-        }
-        // Roar: AoE damage + shield filhotes
-        if (now > h.rugido.lastUsed + h.rugido.cooldown && dist < 10) {
-            h.rugido.lastUsed = now;
-            this.pendingAbilities.push({ type: 'rugido', x: this.position.x, z: this.position.z, radius: 8, damage: this.damage * 1.5, filhoteIds: this.filhoteIds });
-        }
-        // Mark
-        if (now > h.marca.lastUsed + h.marca.cooldown) { h.marca.lastUsed = now; h.marca.isActive = true; h.marca.timer = h.marca.duration; }
-        // Dash
-        const dashCd = h.frenesi.isActive ? 1000 : h.investida.cooldown;
-        if (now > h.investida.lastUsed + dashCd && dist < 15 && !h.investida.isDashing) {
-            h.investida.lastUsed = now; h.investida.isDashing = true; h.investida.dashTimer = h.investida.dashDuration;
-            if (!h.frenesi.isActive) h.investida.useCount++;
-        }
-
-        if (h.investida.isDashing) {
-            h.investida.dashTimer -= ms;
-            this.moveTowards(target.position, dt, h.investida.dashSpeed);
-            if (h.investida.dashTimer <= 0) {
-                h.investida.isDashing = false;
-                this.pendingAbilities.push({ type: 'dashExplosion', x: this.position.x, z: this.position.z, radius: 4, damage: this.damage * 2, stunDuration: 1000 });
+        if (this.isChannelingW) {
+            this.channelTimerW -= ms;
+            if (this.channelTimerW <= 0) {
+                this.isChannelingW = false;
+                h.w.isDashing = true; h.w.dashTimer = h.w.dashDuration;
+                this.pendingAbilities.push({ type: 'recallMatilha', bossId: this.id });
             }
-        } else {
-            let spd = this.originalSpeed;
-            if (h.marca.isActive) spd *= 1.5;
-            if (h.frenesi.isActive) spd *= 1.2;
-            if (dist > this.attackRange) { this.moveTowards(target.position, dt, spd); }
-            else {
-                let cd = this.attackCooldown, dmg = this.damage;
-                if (h.frenesi.isActive) { cd /= 2; dmg *= 2.5; }
-                if (now > this.lastAttackTime + cd) {
-                    this.lastAttackTime = now;
-                    this.pendingAbilities.push({ type: 'meleeAttack', targetId: target.id, damage: dmg });
+            this.lookAt(target.position);
+            return;
+        }
+
+        if (h.w.isDashing) {
+            h.w.dashTimer -= ms;
+            const dir = new Vec3(h.w.targetX - this.position.x, 0, h.w.targetZ - this.position.z);
+            if (dir.lengthSq() > 0.01) {
+                dir.normalize().multiplyScalar(h.w.dashSpeed * dt);
+                this.position.add(dir);
+            }
+            if (this.position.distanceToXZ(target.position) < this.attackRange + target.hitboxRadius) {
+                const dmg = c.SKILL_W_DAMAGE + (this.playerLevel * 5);
+                target.takeDamage(dmg, false);
+                target.statusEffects.stunned = { isActive: true, timer: c.SKILL_W_STUN_DURATION };
+                h.w.isDashing = false; h.w.lastUsed = now;
+                this.pendingAbilities.push({ type: 'investidaImpact', x: this.position.x, z: this.position.z });
+            }
+            if (h.w.dashTimer <= 0) { h.w.isDashing = false; h.w.lastUsed = now; }
+            this.lookAt(target.position);
+            return;
+        }
+
+        if (h.e.isSlamming) {
+            h.e.slamTimer -= ms;
+            if (h.e.slamTimer <= 0) {
+                h.e.isSlamming = false; h.e.lastUsed = now;
+                const targets = players.filter(p => !p.isDead && this.position.distanceToXZ(p.position) < c.SKILL_E_RADIUS);
+                const dmg = c.SKILL_E_DAMAGE + (this.playerLevel * 5);
+                for (const p of targets) p.takeDamage(dmg, false);
+                this.pendingAbilities.push({ type: 'eviscerarSlam', x: this.position.x, z: this.position.z, radius: c.SKILL_E_RADIUS, bossId: this.id });
+                if (c.SKILL_E_REPAIR_MATILHA) this.pendingAbilities.push({ type: 'repairMatilha', bossId: this.id });
+            }
+            return;
+        }
+
+        h.matilhaTimer -= dt;
+        if (h.matilhaTimer <= 0 && h.matilhaCount < c.MATILHA_MAX) {
+            h.matilhaTimer = c.MATILHA_SPAWN_INTERVAL;
+            h.matilhaCount++;
+            this.pendingAbilities.push({
+                type: 'spawnMatilha',
+                x: this.position.x + (Math.random() - 0.5) * 3,
+                z: this.position.z + (Math.random() - 0.5) * 3,
+                playerLevel: this.playerLevel, parentId: this.id,
+            });
+        }
+
+        if (now > h.q.lastUsed + h.q.cooldown && dist < 25) {
+            h.q.lastUsed = now;
+            const dirToTarget = target.position.clone().sub(this.position).normalize();
+            const leftDir = new Vec3(-dirToTarget.z, 0, dirToTarget.x);
+            for (let i = 0; i < 2; i++) {
+                const offset = leftDir.clone().multiplyScalar((i === 0 ? -1.5 : 1.5));
+                const startPos = this.position.clone().add(offset);
+                this.pendingAbilities.push({
+                    type: 'prismaSombrio',
+                    x: startPos.x, y: startPos.y, z: startPos.z,
+                    dirX: dirToTarget.x, dirZ: dirToTarget.z,
+                    damage: c.SKILL_Q_DAMAGE + (this.playerLevel * 3),
+                    bossId: this.id, playerLevel: this.playerLevel,
+                });
+            }
+        }
+
+        const isBleeding = target.statusEffects.bleeding && target.statusEffects.bleeding.isActive;
+        if (now > h.w.lastUsed + h.w.cooldown && isBleeding && dist < 30) {
+            this.isChannelingW = true; this.channelTimerW = c.SKILL_W_AIM_DELAY;
+            h.w.targetX = target.position.x; h.w.targetZ = target.position.z;
+            this.pendingAbilities.push({
+                type: 'investidaChannel', x: this.position.x, z: this.position.z,
+                targetX: target.position.x, targetZ: target.position.z, duration: c.SKILL_W_AIM_DELAY,
+            });
+        }
+
+        if (now > h.e.lastUsed + h.e.cooldown && dist < 8) {
+            h.e.isSlamming = true; h.e.slamTimer = h.e.slamDuration;
+            this.pendingAbilities.push({ type: 'eviscerarStart', x: this.position.x, z: this.position.z });
+        }
+
+        const hpPercent = this.hp / this.maxHp;
+        if (now > h.r.lastUsed + h.r.cooldown && !h.r.isActive && (hpPercent < 0.4 || (dist < 15 && !h.r.isActive))) {
+            h.r.isActive = true; h.r.timer = c.SKILL_R_DURATION;
+            this.isUltActive = true;
+            this.sizeMultiplier = c.SKILL_R_SIZE_MULT;
+            this.speed = this.originalSpeed * c.SKILL_R_SPEED_BONUS;
+            this.detectionRadius = (40 * (1 + (this.playerLevel * 0.02))) * c.SKILL_R_VISION_BONUS;
+            this.shieldMaxHp = c.SKILL_R_SHIELD_HP + (this.playerLevel * 100);
+            this.shieldHp = this.shieldMaxHp;
+            if (c.SKILL_R_SPAWN_MAX_MATILHA) {
+                const toSpawn = c.MATILHA_MAX - h.matilhaCount;
+                for (let i = 0; i < toSpawn; i++) {
+                    h.matilhaCount++;
+                    this.pendingAbilities.push({
+                        type: 'spawnMatilha',
+                        x: this.position.x + (Math.random() - 0.5) * 3,
+                        z: this.position.z + (Math.random() - 0.5) * 3,
+                        playerLevel: this.playerLevel, parentId: this.id,
+                    });
                 }
+            }
+            this.pendingAbilities.push({ type: 'chamadoAbismo', x: this.position.x, z: this.position.z, duration: c.SKILL_R_DURATION });
+        }
+
+        if (dist > this.attackRange) {
+            this.moveTowards(target.position, dt, this.speed);
+        } else {
+            if (now > this.lastAttackTime + this.attackCooldown) {
+                this.lastAttackTime = now;
+                const dmg = this.damage + (target.maxHp * c.DAMAGE_TARGET_HP_PERCENT);
+                target.takeDamage(dmg, false);
+                this.pendingAbilities.push({ type: 'meleeAttack', targetId: target.id, damage: dmg });
             }
         }
         this.lookAt(target.position);
+    }
+
+    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true): void {
+        if (this.isDestroyed) return;
+        if (this.shieldHp > 0) {
+            const absorbed = Math.min(amount, this.shieldHp);
+            this.shieldHp -= absorbed;
+            amount -= absorbed;
+            if (amount <= 0) return;
+        }
+        super.takeDamage(amount, instigator, countsForPassive);
+    }
+
+    removeMatilha(id: string): void {
+        this.matilhaIds = this.matilhaIds.filter(mid => mid !== id);
+        this.habilidades.matilhaCount = Math.max(0, this.habilidades.matilhaCount - 1);
+    }
+
+    toSnapshot() {
+        const s = super.toSnapshot();
+        s.isChannelingW = this.isChannelingW || undefined;
+        s.isUltActive = this.isUltActive || undefined;
+        s.shieldActive = this.shieldHp > 0 || undefined;
+        s.matilhaCount = this.habilidades.matilhaCount || undefined;
+        return s;
     }
 }
 
@@ -387,5 +517,71 @@ export class TheMightyOneEnemy extends ServerEnemy {
         const target = this.getClosestPlayer(players);
         if (!target) return;
         this.moveTowards(target.position, dt);
+    }
+}
+
+/** MatilhaGeometraEnemy - minion spawned by Cao Dos Infernos */
+export class MatilhaGeometraEnemy extends ServerEnemy {
+    public parentId: string = '';
+    public playerLevel: number;
+    private attackCooldown: number;
+    private lastAttackTime = 0;
+    private habilidades = {
+        qTimer: 0,
+        qCooldown: 3000,
+    };
+
+    constructor(pos: Vec3, playerLevel: number, globalMult: number) {
+        super(pos);
+        this.playerLevel = playerLevel;
+        this.type = 'MatilhaGeometra'; this.name = 'Matilha Geométrica';
+        const c = CONFIG.MATILHA_GEOMETRICA;
+        this.maxHp = c.BASE_HP + (playerLevel * c.HP_PER_LEVEL); this.hp = this.maxHp;
+        this.damage = c.BASE_DAMAGE + (playerLevel * c.DAMAGE_PER_LEVEL);
+        this.speed = CONFIG.PLAYER.SPEED * (1 + 0.3 * (1 + playerLevel * 0.02));
+        this.originalSpeed = this.speed;
+        this.xp = 0; this.score = 0;
+        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.attackCooldown = 1000;
+        this.position.y = 0.6;
+    }
+
+    update(dt: number, players: ServerPlayer[], gameTime: number): void {
+        if (this.isDestroyed) return;
+        const target = this.getClosestPlayer(players);
+        if (!target) return;
+        const now = Date.now(); const ms = dt * 1000;
+        const dist = this.position.distanceToXZ(target.position);
+
+        this.habilidades.qTimer -= ms;
+
+        if (dist > 20) {
+            this.moveTowards(target.position, dt, this.speed);
+        } else if (dist < 3) {
+            if (now > this.lastAttackTime + this.attackCooldown) {
+                this.lastAttackTime = now;
+                target.takeDamage(this.damage, false);
+            }
+        } else {
+            this.moveTowards(target.position, dt, this.speed);
+        }
+
+        if (this.habilidades.qTimer <= 0 && dist < 15) {
+            this.habilidades.qTimer = this.habilidades.qCooldown;
+            const dirToTarget = target.position.clone().sub(this.position).normalize();
+            const leftDir = new Vec3(-dirToTarget.z, 0, dirToTarget.x);
+            for (let i = 0; i < 2; i++) {
+                const offset = leftDir.clone().multiplyScalar((i === 0 ? -1 : 1) * 1.2);
+                const startPos = this.position.clone().add(offset);
+                const bosses = [this];
+                for (const p of players) {
+                    if (p.isDead && this.position.distanceToXZ(p.position) < 15) {
+                        p.takeDamage(this.damage * 0.6, false);
+                    }
+                }
+            }
+        }
+
+        this.lookAt(target.position);
     }
 }

@@ -9,9 +9,9 @@ import { WorldSnapshot } from '../network/Protocol';
 import { PurpleCubeEnemy, RedConeEnemy, EnemyTowerEnemy, GuardianGuerreiroEnemy, GuardianMagoEnemy, GuardianArqueiroEnemy } from './enemies/BasicEnemies';
 import { BruxaDoGeloEnemy, MestraDaIlusaoEnemy, BombardeiroInsanoEnemy, CloneIlusorioEnemy } from './enemies/Defenders';
 import { SuperBossEnemy, GangplankEnemy, RainhaDasTrevasEnemy } from './enemies/Bosses';
-import { FeiticeiroImortalEnemy, LichKingEnemy, PlantaCarnivoraEnemy, CaoDosInfernosEnemy, TheMightyOneEnemy } from './enemies/AdvancedBosses';
+import { FeiticeiroImortalEnemy, LichKingEnemy, PlantaCarnivoraEnemy, CaoDosInfernosEnemy, TheMightyOneEnemy, MatilhaGeometraEnemy } from './enemies/AdvancedBosses';
 import { GuardiaoDoLimboEnemy, MinosEnemy, CerberoEnemy, PlutaoEnemy, FuriaEnemy, MegeraEnemy, MinotauroEnemy, GeriaoEnemy, LuciferEnemy } from './enemies/LimboBosses';
-import { AlmaAmaldicoadaEnemy, CaveiraExplosivaEnemy, EspectroSombrioEnemy, FilhoteCaoEnemy, BrotoCarnivoroEnemy } from './enemies/Minions';
+import { AlmaAmaldicoadaEnemy, CaveiraExplosivaEnemy, EspectroSombrioEnemy, BrotoCarnivoroEnemy } from './enemies/Minions';
 import { EspectroDeRazielEnemy } from './enemies/EspectroDeRaziel';
 import { SmithEnemy } from './enemies/SmithEnemy';
 
@@ -555,13 +555,57 @@ export class GameEngine {
                     this.enemies.push(broto);
                 }
                 break;
-            case 'respawnFilhote':
-                const filhote = new FilhoteCaoEnemy(
-                    new Vec3(ab.x, 0, ab.z), ab.playerLevel || 1, ab.parentId, this.spawnManager.globalMultiplier
-                );
-                this.enemies.push(filhote);
-                const pai = this.enemies.find(e => e.id === ab.parentId);
-                if (pai && (pai as any).filhoteIds) (pai as any).filhoteIds.push(filhote.id);
+            case 'spawnBrotos':
+                for (let i = 0; i < ab.count; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const bx = ab.x + Math.cos(angle) * 3;
+                    const bz = ab.z + Math.sin(angle) * 3;
+                    const broto = new BrotoCarnivoroEnemy(new Vec3(bx, 0, bz), ab.playerLevel || 1, this.spawnManager.globalMultiplier);
+                    this.enemies.push(broto);
+                }
+                break;
+            // Cao Dos Infernos abilities
+            case 'spawnMatilha':
+                const matilha = new MatilhaGeometraEnemy(new Vec3(ab.x, 0, ab.z), ab.playerLevel || 1, this.spawnManager.globalMultiplier);
+                matilha.parentId = ab.parentId;
+                matilha.xp = 0; matilha.score = 0;
+                this.enemies.push(matilha);
+                const boss = this.enemies.find(e => e.id === ab.parentId);
+                if (boss && (boss as any).matilhaIds) (boss as any).matilhaIds.push(matilha.id);
+                break;
+            case 'prismaSombrio':
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'prismaSombrio', position: new Vec3(ab.x, 0, ab.z), radius: 3, duration: ab.duration || 4000, timer: ab.duration || 4000, damagePerSec: 0, lastTick: 0, extras: { damage: ab.damage, bossId: ab.bossId } });
+                break;
+            case 'investidaChannel':
+            case 'investidaImpact':
+                for (const p of players) {
+                    if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < (ab.type === 'investidaChannel' ? 3 : 2)) {
+                        p.takeDamage(ab.damage || 0);
+                        if (ab.stunDuration) p.applyStun(ab.stunDuration);
+                    }
+                }
+                break;
+            case 'eviscerarStart':
+            case 'eviscerarSlam':
+                for (const p of players) {
+                    if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < 6) {
+                        p.takeDamage(ab.damage || 0);
+                    }
+                }
+                const bossSlam = this.enemies.find(e => e.id === ab.bossId);
+                if (bossSlam) (bossSlam as any).habilidades.e.isSlamming = false;
+                break;
+            case 'recallMatilha':
+                const ownerBoss = this.enemies.find(e => e.id === ab.bossId);
+                if (ownerBoss && (ownerBoss as any).matilhaIds) {
+                    for (const mid of (ownerBoss as any).matilhaIds) {
+                        const m = this.enemies.find(e => e.id === mid);
+                        if (m && !m.isDestroyed) m.position = new Vec3(ab.x, 0, ab.z);
+                    }
+                }
+                break;
+            case 'chamadoAbismo':
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'chamadoAbismo', position: new Vec3(ab.x, 0, ab.z), radius: 8, duration: ab.duration || 15000, timer: ab.duration || 15000, damagePerSec: 0, lastTick: 0, extras: ab });
                 break;
         }
     }
