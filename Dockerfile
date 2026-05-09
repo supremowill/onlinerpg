@@ -27,6 +27,9 @@ RUN npm install --omit=dev && npm cache clean --force
 # Copy compiled server code
 COPY --from=builder /app/dist ./dist
 
+# Copy game data (data-driven pipeline)
+COPY server/game_data.json ./game_data.json
+
 # Copy SQL schema (used by auto-init in db.ts)
 COPY server/init.sql ./init.sql
 

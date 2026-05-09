@@ -8,6 +8,13 @@ import { rankingService } from './database/ranking';
 import { getPool, closeDatabase, initDatabase } from './database/db';
 import { createPlayer, findPlayerByUsername, validatePlayer, generateJWT, verifyJWT } from './database/db';
 import { CONFIG } from './config';
+import { loadGameData } from './data/GameDataLoader';
+
+// ============================================================
+// DATA-DRIVEN PIPELINE: Carregar game_data.json no startup
+// Zero leituras de disco durante o game loop
+// ============================================================
+loadGameData();
 
 const app = express();
 const server = http.createServer(app);

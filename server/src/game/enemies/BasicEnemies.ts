@@ -2,6 +2,7 @@ import { ServerEnemy } from './Enemy';
 import { ServerPlayer } from '../Player';
 import { Vec3 } from '../../utils/Vector3';
 import { CONFIG } from '../../config';
+import { EnemyRegistry } from '../../data/EnemyRegistry';
 
 /** PurpleCube - basic ranged enemy that chases and shoots */
 export class PurpleCubeEnemy extends ServerEnemy {
@@ -14,17 +15,35 @@ export class PurpleCubeEnemy extends ServerEnemy {
         super(pos);
         this.type = 'PurpleCube';
         this.name = 'Purple Cube';
-        const c = CONFIG.PURPLE_CUBE;
-        this.maxHp = c.BASE_HP * globalMultiplier;
-        this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE * globalMultiplier;
-        this.speed = c.SPEED;
-        this.originalSpeed = c.SPEED;
-        this.attackRange = c.ATTACK_RANGE;
-        this.attackCooldown = c.ATTACK_COOLDOWN;
-        this.xp = c.XP;
-        this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+
+        // Data-driven path: EnemyRegistry (O(1) lookup)
+        const def = EnemyRegistry.get('PurpleCube');
+        if (def) {
+            const s = def.stats;
+            this.maxHp = s.hp * globalMultiplier;
+            this.hp = this.maxHp;
+            this.damage = s.damage * globalMultiplier;
+            this.speed = s.speed;
+            this.originalSpeed = s.speed;
+            this.attackRange = s.attackRange;
+            this.attackCooldown = s.attackCooldown;
+            this.xp = s.xp;
+            this.score = s.score;
+            this.hitboxRadius = s.hitboxRadius;
+        } else {
+            // Fallback: CONFIG legado (será removido após migração completa)
+            const c = CONFIG.PURPLE_CUBE;
+            this.maxHp = c.BASE_HP * globalMultiplier;
+            this.hp = this.maxHp;
+            this.damage = c.BASE_DAMAGE * globalMultiplier;
+            this.speed = c.SPEED;
+            this.originalSpeed = c.SPEED;
+            this.attackRange = c.ATTACK_RANGE;
+            this.attackCooldown = c.ATTACK_COOLDOWN;
+            this.xp = c.XP;
+            this.score = c.SCORE;
+            this.hitboxRadius = c.HITBOX_RADIUS;
+        }
         this.position.y = 0.4;
     }
 
