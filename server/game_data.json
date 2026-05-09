@@ -1,273 +1,1149 @@
 {
   "version": "1.0.0",
+  "player": {
+    "hp": 100,
+    "speed": 5,
+    "attackCooldownMs": 500,
+    "projectileSpeed": 15,
+    "projectileLifetime": 3,
+    "hitboxRadius": 0.5,
+    "xpToFirstLevel": 10,
+    "xpMultiplier": 1.8,
+    "levelHpMultiplier": 1.5,
+    "upgradeLevels": [
+      5,
+      10,
+      15,
+      20
+    ],
+    "skills": {
+      "q": {
+        "cooldown": 5000,
+        "duration": 200,
+        "dashSpeed": 30
+      },
+      "w": {
+        "cooldown": 8000,
+        "range": 10
+      },
+      "e": {
+        "cooldown": 20000,
+        "duration": 15000,
+        "shieldMultiplier": 1.5
+      },
+      "r": {
+        "cooldown": 50000,
+        "duration": 25000,
+        "damageMultiplier": 4
+      }
+    }
+  },
   "enemies": {
     "PurpleCube": {
-      "id": "PurpleCube", "name": "Purple Cube", "category": "basic",
-      "visuals": { "shape": "cube", "color": "#800080", "scale": 1.0 },
-      "stats": { "hp": 300, "speed": 2.5, "damage": 25, "attackRange": 12, "attackCooldown": 2000, "hitboxRadius": 0.6, "xp": 250, "score": 50 },
+      "id": "PurpleCube",
+      "name": "Purple Cube",
+      "category": "basic",
+      "visuals": {
+        "shape": "cube",
+        "color": "#800080",
+        "scale": 1
+      },
+      "stats": {
+        "hp": 300,
+        "speed": 2.5,
+        "damage": 25,
+        "attackRange": 12,
+        "attackCooldown": 2000,
+        "hitboxRadius": 0.6,
+        "xp": 250,
+        "score": 50
+      },
       "passives": [],
-      "ai": { "profile": "chaser", "aggroRange": 30 },
-      "spawn": { "timer": 5, "count": 2 }
+      "ai": {
+        "profile": "chaser",
+        "aggroRange": 30
+      },
+      "spawn": {
+        "timer": 5,
+        "count": 2
+      }
     },
     "RedCone": {
-      "id": "RedCone", "name": "Red Cone", "category": "structure",
-      "visuals": { "shape": "cone", "color": "#FF0000", "scale": 1.0 },
-      "stats": { "hp": 900, "speed": 0, "damage": 15, "attackRange": 10, "attackCooldown": 1000, "hitboxRadius": 0.7, "xp": 1000, "score": 150 },
+      "id": "RedCone",
+      "name": "Red Cone",
+      "category": "structure",
+      "visuals": {
+        "shape": "cone",
+        "color": "#FF0000",
+        "scale": 1
+      },
+      "stats": {
+        "hp": 900,
+        "speed": 0,
+        "damage": 15,
+        "attackRange": 10,
+        "attackCooldown": 1000,
+        "hitboxRadius": 0.7,
+        "xp": 1000,
+        "score": 150
+      },
       "passives": [],
-      "ai": { "profile": "turret", "aggroRange": 10 },
-      "spawn": { "timer": 30 }
+      "ai": {
+        "profile": "turret",
+        "aggroRange": 10
+      },
+      "spawn": {
+        "timer": 30
+      }
     },
     "EnemyTower": {
-      "id": "EnemyTower", "name": "Enemy Tower", "category": "structure",
-      "visuals": { "shape": "cylinder", "color": "#888888", "scale": 1.5 },
-      "stats": { "hp": 500, "speed": 0, "damage": 20, "attackRange": 30, "attackCooldown": 1500, "hitboxRadius": 1.2, "xp": 100, "score": 150 },
+      "id": "EnemyTower",
+      "name": "Enemy Tower",
+      "category": "structure",
+      "visuals": {
+        "shape": "cylinder",
+        "color": "#888888",
+        "scale": 1.5
+      },
+      "stats": {
+        "hp": 500,
+        "speed": 0,
+        "damage": 20,
+        "attackRange": 30,
+        "attackCooldown": 1500,
+        "hitboxRadius": 1.2,
+        "xp": 100,
+        "score": 150
+      },
       "passives": [],
-      "ai": { "profile": "turret", "aggroRange": 30 },
-      "spawn": { "timer": 60 }
+      "ai": {
+        "profile": "turret",
+        "aggroRange": 30
+      },
+      "spawn": {
+        "timer": 60
+      }
     },
     "GuardianGuerreiro": {
-      "id": "GuardianGuerreiro", "name": "Guardião Guerreiro", "category": "guardian",
-      "visuals": { "shape": "cube", "color": "#FFD700", "scale": 1.2 },
-      "stats": { "hp": 800, "speed": 2.0, "damage": 30, "attackRange": 2.0, "attackCooldown": 1500, "hitboxRadius": 1.0, "xp": 500, "score": 1000 },
-      "passives": [{ "type": "stun_on_hit", "value": 1, "duration": 1000, "chance": 1.0 }],
-      "ai": { "profile": "chaser", "aggroRange": 25 },
-      "spawn": { "timer": 240 }
+      "id": "GuardianGuerreiro",
+      "name": "Guardião Guerreiro",
+      "category": "guardian",
+      "visuals": {
+        "shape": "cube",
+        "color": "#FFD700",
+        "scale": 1.2
+      },
+      "stats": {
+        "hp": 800,
+        "speed": 2,
+        "damage": 30,
+        "attackRange": 2,
+        "attackCooldown": 1500,
+        "hitboxRadius": 1,
+        "xp": 500,
+        "score": 1000
+      },
+      "passives": [
+        {
+          "type": "stun_on_hit",
+          "value": 1,
+          "duration": 1000,
+          "chance": 1
+        }
+      ],
+      "ai": {
+        "profile": "chaser",
+        "aggroRange": 25
+      },
+      "spawn": {
+        "timer": 240
+      }
     },
     "GuardianMago": {
-      "id": "GuardianMago", "name": "Guardião Mago", "category": "guardian",
-      "visuals": { "shape": "sphere", "color": "#4169E1", "scale": 1.0 },
-      "stats": { "hp": 600, "speed": 2.5, "damage": 20, "attackRange": 15, "attackCooldown": 4000, "hitboxRadius": 0.8, "xp": 600, "score": 1200 },
-      "passives": [{ "type": "freeze_on_hit", "value": 1, "duration": 2000 }],
-      "ai": { "profile": "kiter", "aggroRange": 20, "retreatRange": 5, "idealRange": 12 },
-      "spawn": { "timer": 240 }
+      "id": "GuardianMago",
+      "name": "Guardião Mago",
+      "category": "guardian",
+      "visuals": {
+        "shape": "sphere",
+        "color": "#4169E1",
+        "scale": 1
+      },
+      "stats": {
+        "hp": 600,
+        "speed": 2.5,
+        "damage": 20,
+        "attackRange": 15,
+        "attackCooldown": 4000,
+        "hitboxRadius": 0.8,
+        "xp": 600,
+        "score": 1200
+      },
+      "passives": [
+        {
+          "type": "freeze_on_hit",
+          "value": 1,
+          "duration": 2000
+        }
+      ],
+      "ai": {
+        "profile": "kiter",
+        "aggroRange": 20,
+        "retreatRange": 5,
+        "idealRange": 12
+      },
+      "spawn": {
+        "timer": 240
+      }
     },
     "GuardianArqueiro": {
-      "id": "GuardianArqueiro", "name": "Guardião Arqueiro", "category": "guardian",
-      "visuals": { "shape": "cone", "color": "#228B22", "scale": 1.0 },
-      "stats": { "hp": 500, "speed": 3.0, "damage": 25, "attackRange": 22, "attackCooldown": 1500, "hitboxRadius": 0.7, "xp": 700, "score": 1500 },
+      "id": "GuardianArqueiro",
+      "name": "Guardião Arqueiro",
+      "category": "guardian",
+      "visuals": {
+        "shape": "cone",
+        "color": "#228B22",
+        "scale": 1
+      },
+      "stats": {
+        "hp": 500,
+        "speed": 3,
+        "damage": 25,
+        "attackRange": 22,
+        "attackCooldown": 1500,
+        "hitboxRadius": 0.7,
+        "xp": 700,
+        "score": 1500
+      },
       "passives": [],
-      "ai": { "profile": "kiter", "aggroRange": 25, "retreatRange": 6, "idealRange": 10 },
-      "spawn": { "timer": 240 }
+      "ai": {
+        "profile": "kiter",
+        "aggroRange": 25,
+        "retreatRange": 6,
+        "idealRange": 10
+      },
+      "spawn": {
+        "timer": 240
+      }
     },
     "CaoDosInfernos": {
-      "id": "CaoDosInfernos", "name": "Cão dos Infernos", "category": "boss",
-      "visuals": { "shape": "tetrahedron", "color": "#FF4500", "scale": 1.5, "emissive": "#FF2200" },
-      "stats": { "hp": 1000, "speed": 7.5, "damage": 20, "attackRange": 2.0, "attackCooldown": 1200, "hitboxRadius": 1.2, "xp": 1500, "score": 500 },
+      "id": "CaoDosInfernos",
+      "name": "Cão dos Infernos",
+      "category": "boss",
+      "visuals": {
+        "shape": "tetrahedron",
+        "color": "#FF4500",
+        "scale": 1.5,
+        "emissive": "#FF2200"
+      },
+      "stats": {
+        "hp": 1000,
+        "speed": 7.5,
+        "damage": 20,
+        "attackRange": 2,
+        "attackCooldown": 1200,
+        "hitboxRadius": 1.2,
+        "xp": 1500,
+        "score": 500
+      },
       "passives": [
-        { "type": "bleed_on_hit", "value": 10, "duration": 4000 },
-        { "type": "lifesteal", "value": 0.15 }
+        {
+          "type": "bleed_on_hit",
+          "value": 10,
+          "duration": 4000
+        },
+        {
+          "type": "lifesteal",
+          "value": 0.15
+        }
       ],
-      "ai": { "profile": "flanker", "aggroRange": 40 },
+      "ai": {
+        "profile": "flanker",
+        "aggroRange": 40
+      },
       "skills": [
-        { "id": "prisma_sombrio", "cooldown": 6000, "damage": 30 },
-        { "id": "investida", "cooldown": 12000, "damage": 50, "params": { "dashSpeed": 25, "stunDuration": 500 } },
-        { "id": "evisceracao", "cooldown": 8000, "damage": 40, "radius": 6 },
-        { "id": "chamado_abismo", "cooldown": 60000, "duration": 15000 }
+        {
+          "id": "prisma_sombrio",
+          "cooldown": 6000,
+          "damage": 30
+        },
+        {
+          "id": "investida",
+          "cooldown": 12000,
+          "damage": 50,
+          "params": {
+            "dashSpeed": 25,
+            "stunDuration": 500
+          }
+        },
+        {
+          "id": "evisceracao",
+          "cooldown": 8000,
+          "damage": 40,
+          "radius": 6
+        },
+        {
+          "id": "chamado_abismo",
+          "cooldown": 60000,
+          "duration": 15000
+        }
       ],
-      "spawn": { "timer": 180, "isBoss": true },
-      "scaling": { "hpPerLevel": 500, "damagePerLevel": 5, "speedPerLevel": 0.02 }
+      "spawn": {
+        "timer": 180,
+        "isBoss": true
+      },
+      "scaling": {
+        "hpPerLevel": 500,
+        "damagePerLevel": 5,
+        "speedPerLevel": 0.02
+      }
     },
     "SuperBoss": {
-      "id": "SuperBoss", "name": "Super Boss", "category": "boss",
-      "visuals": { "shape": "dodecahedron", "color": "#4B0082", "scale": 3.0, "emissive": "#6A0DAD" },
-      "stats": { "hp": 5000, "speed": 1.0, "damage": 50, "attackRange": 8, "attackCooldown": 1500, "hitboxRadius": 3.0, "xp": 2000, "score": 7500 },
+      "id": "SuperBoss",
+      "name": "Super Boss",
+      "category": "boss",
+      "visuals": {
+        "shape": "dodecahedron",
+        "color": "#4B0082",
+        "scale": 3,
+        "emissive": "#6A0DAD"
+      },
+      "stats": {
+        "hp": 5000,
+        "speed": 1,
+        "damage": 50,
+        "attackRange": 8,
+        "attackCooldown": 1500,
+        "hitboxRadius": 3,
+        "xp": 2000,
+        "score": 7500
+      },
       "passives": [],
-      "ai": { "profile": "chaser", "aggroRange": 40, "params": { "auraRadius": 8, "pullForce": 2.5 } },
-      "spawn": { "timer": 180, "isBoss": true }
+      "ai": {
+        "profile": "chaser",
+        "aggroRange": 40,
+        "params": {
+          "auraRadius": 8,
+          "pullForce": 2.5
+        }
+      },
+      "spawn": {
+        "timer": 180,
+        "isBoss": true
+      }
     },
     "RainhaDasTrevas": {
-      "id": "RainhaDasTrevas", "name": "Rainha das Trevas", "category": "boss",
-      "visuals": { "shape": "sphere", "color": "#2E0854", "scale": 1.5, "emissive": "#4B0082" },
-      "stats": { "hp": 70000, "speed": 2.8, "damage": 30, "attackRange": 25, "attackCooldown": 3000, "hitboxRadius": 1.5, "xp": 25000, "score": 5000 },
+      "id": "RainhaDasTrevas",
+      "name": "Rainha das Trevas",
+      "category": "boss",
+      "visuals": {
+        "shape": "sphere",
+        "color": "#2E0854",
+        "scale": 1.5,
+        "emissive": "#4B0082"
+      },
+      "stats": {
+        "hp": 70000,
+        "speed": 2.8,
+        "damage": 30,
+        "attackRange": 25,
+        "attackCooldown": 3000,
+        "hitboxRadius": 1.5,
+        "xp": 25000,
+        "score": 5000
+      },
       "passives": [],
-      "ai": { "profile": "chaser", "aggroRange": 50 },
+      "ai": {
+        "profile": "chaser",
+        "aggroRange": 50
+      },
       "skills": [
-        { "id": "prisao_sombria", "cooldown": 8000, "params": { "hpPercent": 0.15 } },
-        { "id": "chamas_atormentadas", "cooldown": 10000, "radius": 3, "duration": 4000 },
-        { "id": "escudo_das_almas", "cooldown": 12000, "duration": 5000 },
-        { "id": "devastacao_sombria", "cooldown": 20000, "radius": 5.5, "params": { "hpPercent": 0.30, "stunDuration": 1500 } }
+        {
+          "id": "prisao_sombria",
+          "cooldown": 8000,
+          "params": {
+            "hpPercent": 0.15
+          }
+        },
+        {
+          "id": "chamas_atormentadas",
+          "cooldown": 10000,
+          "radius": 3,
+          "duration": 4000
+        },
+        {
+          "id": "escudo_das_almas",
+          "cooldown": 12000,
+          "duration": 5000
+        },
+        {
+          "id": "devastacao_sombria",
+          "cooldown": 20000,
+          "radius": 5.5,
+          "params": {
+            "hpPercent": 0.3,
+            "stunDuration": 1500
+          }
+        }
       ],
-      "spawn": { "timer": 300, "isBoss": true }
+      "spawn": {
+        "timer": 300,
+        "isBoss": true
+      }
     },
     "Gangplank": {
-      "id": "Gangplank", "name": "Gangplank", "category": "boss",
-      "visuals": { "shape": "cube", "color": "#8B4513", "scale": 1.5, "emissive": "#A0522D" },
-      "stats": { "hp": 120000, "speed": 2.0, "damage": 70, "attackRange": 20, "attackCooldown": 2000, "hitboxRadius": 1.5, "xp": 30000, "score": 4500, "defense": 0.10 },
-      "passives": [{ "type": "burn_on_hit", "value": 15, "duration": 3000 }],
-      "ai": { "profile": "chaser", "aggroRange": 40 },
-      "skills": [
-        { "id": "mosquete", "cooldown": 2000 },
-        { "id": "barril", "cooldown": 4000, "radius": 5 },
-        { "id": "rum_curador", "cooldown": 0, "params": { "healPercent": 0.20 } },
-        { "id": "salva_canhoes", "cooldown": 10000, "radius": 7, "duration": 2000 }
+      "id": "Gangplank",
+      "name": "Gangplank",
+      "category": "boss",
+      "visuals": {
+        "shape": "cube",
+        "color": "#8B4513",
+        "scale": 1.5,
+        "emissive": "#A0522D"
+      },
+      "stats": {
+        "hp": 120000,
+        "speed": 2,
+        "damage": 70,
+        "attackRange": 20,
+        "attackCooldown": 2000,
+        "hitboxRadius": 1.5,
+        "xp": 30000,
+        "score": 4500,
+        "defense": 0.1
+      },
+      "passives": [
+        {
+          "type": "burn_on_hit",
+          "value": 15,
+          "duration": 3000
+        }
       ],
-      "spawn": { "timer": 360, "isBoss": true }
+      "ai": {
+        "profile": "chaser",
+        "aggroRange": 40
+      },
+      "skills": [
+        {
+          "id": "mosquete",
+          "cooldown": 2000
+        },
+        {
+          "id": "barril",
+          "cooldown": 4000,
+          "radius": 5
+        },
+        {
+          "id": "rum_curador",
+          "cooldown": 0,
+          "params": {
+            "healPercent": 0.2
+          }
+        },
+        {
+          "id": "salva_canhoes",
+          "cooldown": 10000,
+          "radius": 7,
+          "duration": 2000
+        }
+      ],
+      "spawn": {
+        "timer": 360,
+        "isBoss": true
+      }
     },
     "PlantaCarnivora": {
-      "id": "PlantaCarnivora", "name": "Planta Carnívora Rainha", "category": "boss",
-      "visuals": { "shape": "cone", "color": "#006400", "scale": 2.0, "emissive": "#228B22" },
-      "stats": { "hp": 2500, "speed": 0, "damage": 50, "attackRange": 30, "attackCooldown": 4000, "hitboxRadius": 2.0, "xp": 3000, "score": 6000 },
-      "passives": [{ "type": "poison", "value": 8, "duration": 3000 }],
-      "ai": { "profile": "turret", "aggroRange": 30 },
-      "spawn": { "timer": 210, "isBoss": true }
+      "id": "PlantaCarnivora",
+      "name": "Planta Carnívora Rainha",
+      "category": "boss",
+      "visuals": {
+        "shape": "cone",
+        "color": "#006400",
+        "scale": 2,
+        "emissive": "#228B22"
+      },
+      "stats": {
+        "hp": 2500,
+        "speed": 0,
+        "damage": 50,
+        "attackRange": 30,
+        "attackCooldown": 4000,
+        "hitboxRadius": 2,
+        "xp": 3000,
+        "score": 6000
+      },
+      "passives": [
+        {
+          "type": "poison",
+          "value": 8,
+          "duration": 3000
+        }
+      ],
+      "ai": {
+        "profile": "turret",
+        "aggroRange": 30
+      },
+      "spawn": {
+        "timer": 210,
+        "isBoss": true
+      }
     },
     "FeiticeiroImortal": {
-      "id": "FeiticeiroImortal", "name": "Lord Vouldemord", "category": "boss",
-      "visuals": { "shape": "sphere", "color": "#00008B", "scale": 1.5, "emissive": "#191970" },
-      "stats": { "hp": 50000, "speed": 1.2, "damage": 500, "attackRange": 20, "attackCooldown": 3000, "hitboxRadius": 1.2, "xp": 50000, "score": 10000 },
+      "id": "FeiticeiroImortal",
+      "name": "Lord Vouldemord",
+      "category": "boss",
+      "visuals": {
+        "shape": "sphere",
+        "color": "#00008B",
+        "scale": 1.5,
+        "emissive": "#191970"
+      },
+      "stats": {
+        "hp": 50000,
+        "speed": 1.2,
+        "damage": 500,
+        "attackRange": 20,
+        "attackCooldown": 3000,
+        "hitboxRadius": 1.2,
+        "xp": 50000,
+        "score": 10000
+      },
       "passives": [],
-      "ai": { "profile": "kiter", "aggroRange": 40, "retreatRange": 12, "idealRange": 18 },
-      "spawn": { "timer": 420, "isBoss": true }
+      "ai": {
+        "profile": "kiter",
+        "aggroRange": 40,
+        "retreatRange": 12,
+        "idealRange": 18
+      },
+      "spawn": {
+        "timer": 420,
+        "isBoss": true
+      }
     },
     "LichKing": {
-      "id": "LichKing", "name": "Lich King", "category": "boss",
-      "visuals": { "shape": "dodecahedron", "color": "#87CEEB", "scale": 1.8, "emissive": "#ADD8E6" },
-      "stats": { "hp": 32000, "speed": 0.7, "damage": 350, "attackRange": 15, "attackCooldown": 6000, "hitboxRadius": 1.5, "xp": 50000, "score": 25000 },
-      "passives": [{ "type": "slow_on_hit", "value": 0.3, "duration": 500 }],
-      "ai": { "profile": "chaser", "aggroRange": 40, "params": { "auraRadius": 4 } },
-      "spawn": { "timer": 600, "isBoss": true }
+      "id": "LichKing",
+      "name": "Lich King",
+      "category": "boss",
+      "visuals": {
+        "shape": "dodecahedron",
+        "color": "#87CEEB",
+        "scale": 1.8,
+        "emissive": "#ADD8E6"
+      },
+      "stats": {
+        "hp": 32000,
+        "speed": 0.7,
+        "damage": 350,
+        "attackRange": 15,
+        "attackCooldown": 6000,
+        "hitboxRadius": 1.5,
+        "xp": 50000,
+        "score": 25000
+      },
+      "passives": [
+        {
+          "type": "slow_on_hit",
+          "value": 0.3,
+          "duration": 500
+        }
+      ],
+      "ai": {
+        "profile": "chaser",
+        "aggroRange": 40,
+        "params": {
+          "auraRadius": 4
+        }
+      },
+      "spawn": {
+        "timer": 600,
+        "isBoss": true
+      }
     },
     "TheMightyOne": {
-      "id": "TheMightyOne", "name": "O Poderoso", "category": "boss",
-      "visuals": { "shape": "dodecahedron", "color": "#FFD700", "scale": 4.0, "emissive": "#FFA500" },
-      "stats": { "hp": 100000, "speed": 0.3, "damage": 100, "attackRange": 25, "attackCooldown": 5000, "hitboxRadius": 4.0, "xp": 30000, "score": 50000 },
+      "id": "TheMightyOne",
+      "name": "O Poderoso",
+      "category": "boss",
+      "visuals": {
+        "shape": "dodecahedron",
+        "color": "#FFD700",
+        "scale": 4,
+        "emissive": "#FFA500"
+      },
+      "stats": {
+        "hp": 100000,
+        "speed": 0.3,
+        "damage": 100,
+        "attackRange": 25,
+        "attackCooldown": 5000,
+        "hitboxRadius": 4,
+        "xp": 30000,
+        "score": 50000
+      },
       "passives": [],
-      "ai": { "profile": "chaser", "aggroRange": 50, "params": { "auraRadius": 25 } },
-      "spawn": { "timer": 600, "isBoss": true, "isUnique": true }
+      "ai": {
+        "profile": "chaser",
+        "aggroRange": 50,
+        "params": {
+          "auraRadius": 25
+        }
+      },
+      "spawn": {
+        "timer": 600,
+        "isBoss": true,
+        "isUnique": true
+      }
     },
     "MatilhaGeometra": {
-      "id": "MatilhaGeometra", "name": "Matilha Geométrica", "category": "minion",
-      "visuals": { "shape": "tetrahedron", "color": "#1A1A1A", "scale": 0.8, "emissive": "#FF4500" },
-      "stats": { "hp": 180, "speed": 6.5, "damage": 25, "attackRange": 3, "attackCooldown": 1000, "hitboxRadius": 0.8, "xp": 0, "score": 0 },
+      "id": "MatilhaGeometra",
+      "name": "Matilha Geométrica",
+      "category": "minion",
+      "visuals": {
+        "shape": "tetrahedron",
+        "color": "#1A1A1A",
+        "scale": 0.8,
+        "emissive": "#FF4500"
+      },
+      "stats": {
+        "hp": 180,
+        "speed": 6.5,
+        "damage": 25,
+        "attackRange": 3,
+        "attackCooldown": 1000,
+        "hitboxRadius": 0.8,
+        "xp": 0,
+        "score": 0
+      },
       "passives": [],
-      "ai": { "profile": "chaser", "aggroRange": 20 },
-      "scaling": { "hpPerLevel": 15, "damagePerLevel": 2 }
+      "ai": {
+        "profile": "chaser",
+        "aggroRange": 20
+      },
+      "scaling": {
+        "hpPerLevel": 15,
+        "damagePerLevel": 2
+      }
     },
     "BruxaDoGelo": {
-      "id": "BruxaDoGelo", "name": "Bruxa do Gelo", "category": "defender",
-      "visuals": { "shape": "sphere", "color": "#87CEFA", "scale": 1.0, "emissive": "#B0E0E6" },
-      "stats": { "hp": 1000, "speed": 2.0, "damage": 15, "attackRange": 10, "attackCooldown": 8000, "hitboxRadius": 1.0, "xp": 400, "score": 2000 },
-      "passives": [{ "type": "freeze_on_hit", "value": 1, "duration": 2000 }],
-      "ai": { "profile": "kiter", "aggroRange": 20, "retreatRange": 5, "idealRange": 8 }
+      "id": "BruxaDoGelo",
+      "name": "Bruxa do Gelo",
+      "category": "defender",
+      "visuals": {
+        "shape": "sphere",
+        "color": "#87CEFA",
+        "scale": 1,
+        "emissive": "#B0E0E6"
+      },
+      "stats": {
+        "hp": 1000,
+        "speed": 2,
+        "damage": 15,
+        "attackRange": 10,
+        "attackCooldown": 8000,
+        "hitboxRadius": 1,
+        "xp": 400,
+        "score": 2000
+      },
+      "passives": [
+        {
+          "type": "freeze_on_hit",
+          "value": 1,
+          "duration": 2000
+        }
+      ],
+      "ai": {
+        "profile": "kiter",
+        "aggroRange": 20,
+        "retreatRange": 5,
+        "idealRange": 8
+      }
     },
     "MestraDaIlusao": {
-      "id": "MestraDaIlusao", "name": "Mestra da Ilusão", "category": "defender",
-      "visuals": { "shape": "tetrahedron", "color": "#9400D3", "scale": 1.0, "emissive": "#8B008B" },
-      "stats": { "hp": 850, "speed": 2.5, "damage": 12, "attackRange": 12, "attackCooldown": 6000, "hitboxRadius": 1.0, "xp": 380, "score": 2200 },
-      "passives": [{ "type": "dodge", "value": 0.25, "chance": 1.0 }],
-      "ai": { "profile": "flanker", "aggroRange": 15 }
+      "id": "MestraDaIlusao",
+      "name": "Mestra da Ilusão",
+      "category": "defender",
+      "visuals": {
+        "shape": "tetrahedron",
+        "color": "#9400D3",
+        "scale": 1,
+        "emissive": "#8B008B"
+      },
+      "stats": {
+        "hp": 850,
+        "speed": 2.5,
+        "damage": 12,
+        "attackRange": 12,
+        "attackCooldown": 6000,
+        "hitboxRadius": 1,
+        "xp": 380,
+        "score": 2200
+      },
+      "passives": [
+        {
+          "type": "dodge",
+          "value": 0.25,
+          "chance": 1
+        }
+      ],
+      "ai": {
+        "profile": "flanker",
+        "aggroRange": 15
+      }
     },
     "BombardeiroInsano": {
-      "id": "BombardeiroInsano", "name": "Bombardeiro Insano", "category": "defender",
-      "visuals": { "shape": "cube", "color": "#FF6347", "scale": 1.2, "emissive": "#FF4500" },
-      "stats": { "hp": 10000, "speed": 1.8, "damage": 35, "attackRange": 18, "attackCooldown": 3000, "hitboxRadius": 1.2, "xp": 750, "score": 2500 },
-      "passives": [{ "type": "burn_on_hit", "value": 10, "duration": 5000 }],
-      "ai": { "profile": "kiter", "aggroRange": 25, "retreatRange": 6, "idealRange": 12 }
+      "id": "BombardeiroInsano",
+      "name": "Bombardeiro Insano",
+      "category": "defender",
+      "visuals": {
+        "shape": "cube",
+        "color": "#FF6347",
+        "scale": 1.2,
+        "emissive": "#FF4500"
+      },
+      "stats": {
+        "hp": 10000,
+        "speed": 1.8,
+        "damage": 35,
+        "attackRange": 18,
+        "attackCooldown": 3000,
+        "hitboxRadius": 1.2,
+        "xp": 750,
+        "score": 2500
+      },
+      "passives": [
+        {
+          "type": "burn_on_hit",
+          "value": 10,
+          "duration": 5000
+        }
+      ],
+      "ai": {
+        "profile": "kiter",
+        "aggroRange": 25,
+        "retreatRange": 6,
+        "idealRange": 12
+      }
     },
     "CloneIlusorio": {
-      "id": "CloneIlusorio", "name": "Clone Ilusório", "category": "minion",
-      "visuals": { "shape": "tetrahedron", "color": "#9400D3", "scale": 1.0, "opacity": 0.5 },
-      "stats": { "hp": 1, "speed": 0, "damage": 0, "attackRange": 0, "attackCooldown": 99999, "hitboxRadius": 0.8, "xp": 0, "score": 0 },
-      "passives": [{ "type": "disorient_on_hit", "value": 1, "duration": 1000 }],
-      "ai": { "profile": "static", "aggroRange": 0 }
+      "id": "CloneIlusorio",
+      "name": "Clone Ilusório",
+      "category": "minion",
+      "visuals": {
+        "shape": "tetrahedron",
+        "color": "#9400D3",
+        "scale": 1,
+        "opacity": 0.5
+      },
+      "stats": {
+        "hp": 1,
+        "speed": 0,
+        "damage": 0,
+        "attackRange": 0,
+        "attackCooldown": 99999,
+        "hitboxRadius": 0.8,
+        "xp": 0,
+        "score": 0
+      },
+      "passives": [
+        {
+          "type": "disorient_on_hit",
+          "value": 1,
+          "duration": 1000
+        }
+      ],
+      "ai": {
+        "profile": "static",
+        "aggroRange": 0
+      }
     },
     "GuardiaoDoLimbo": {
-      "id": "GuardiaoDoLimbo", "name": "Guardião do Limbo", "category": "miniboss",
-      "visuals": { "shape": "cube", "color": "#708090", "scale": 1.5, "emissive": "#A9A9A9" },
-      "stats": { "hp": 500, "speed": 0.015, "damage": 15, "attackRange": 15, "attackCooldown": 8000, "hitboxRadius": 1.5, "xp": 150, "score": 200 },
-      "passives": [{ "type": "slow_on_hit", "value": 0.15, "duration": 3000 }],
-      "ai": { "profile": "chaser", "aggroRange": 20 },
-      "spawn": { "timer": 60 },
-      "scaling": { "hpPerLevel": 100 }
+      "id": "GuardiaoDoLimbo",
+      "name": "Guardião do Limbo",
+      "category": "miniboss",
+      "visuals": {
+        "shape": "cube",
+        "color": "#708090",
+        "scale": 1.5,
+        "emissive": "#A9A9A9"
+      },
+      "stats": {
+        "hp": 500,
+        "speed": 0.015,
+        "damage": 15,
+        "attackRange": 15,
+        "attackCooldown": 8000,
+        "hitboxRadius": 1.5,
+        "xp": 150,
+        "score": 200
+      },
+      "passives": [
+        {
+          "type": "slow_on_hit",
+          "value": 0.15,
+          "duration": 3000
+        }
+      ],
+      "ai": {
+        "profile": "chaser",
+        "aggroRange": 20
+      },
+      "spawn": {
+        "timer": 60
+      },
+      "scaling": {
+        "hpPerLevel": 100
+      }
     },
     "Minos": {
-      "id": "Minos", "name": "Minos, o Árbitro", "category": "miniboss",
-      "visuals": { "shape": "octahedron", "color": "#FF69B4", "scale": 1.5, "emissive": "#FF1493" },
-      "stats": { "hp": 800, "speed": 0.018, "damage": 20, "attackRange": 20, "attackCooldown": 6000, "hitboxRadius": 1.5, "xp": 250, "score": 350 },
+      "id": "Minos",
+      "name": "Minos, o Árbitro",
+      "category": "miniboss",
+      "visuals": {
+        "shape": "octahedron",
+        "color": "#FF69B4",
+        "scale": 1.5,
+        "emissive": "#FF1493"
+      },
+      "stats": {
+        "hp": 800,
+        "speed": 0.018,
+        "damage": 20,
+        "attackRange": 20,
+        "attackCooldown": 6000,
+        "hitboxRadius": 1.5,
+        "xp": 250,
+        "score": 350
+      },
       "passives": [],
-      "ai": { "profile": "chaser", "aggroRange": 25 },
-      "spawn": { "timer": 120 },
-      "scaling": { "hpPerLevel": 120 }
+      "ai": {
+        "profile": "chaser",
+        "aggroRange": 25
+      },
+      "spawn": {
+        "timer": 120
+      },
+      "scaling": {
+        "hpPerLevel": 120
+      }
     },
     "Cerbero": {
-      "id": "Cerbero", "name": "Cérbero Geométrico", "category": "miniboss",
-      "visuals": { "shape": "icosahedron", "color": "#8B0000", "scale": 1.8, "emissive": "#B22222" },
-      "stats": { "hp": 1200, "speed": 0.020, "damage": 25, "attackRange": 3, "attackCooldown": 5000, "hitboxRadius": 1.8, "xp": 400, "score": 500 },
-      "passives": [{ "type": "lifesteal", "value": 0.05 }],
-      "ai": { "profile": "chaser", "aggroRange": 25 },
-      "spawn": { "timer": 180 },
-      "scaling": { "hpPerLevel": 150 }
+      "id": "Cerbero",
+      "name": "Cérbero Geométrico",
+      "category": "miniboss",
+      "visuals": {
+        "shape": "icosahedron",
+        "color": "#8B0000",
+        "scale": 1.8,
+        "emissive": "#B22222"
+      },
+      "stats": {
+        "hp": 1200,
+        "speed": 0.02,
+        "damage": 25,
+        "attackRange": 3,
+        "attackCooldown": 5000,
+        "hitboxRadius": 1.8,
+        "xp": 400,
+        "score": 500
+      },
+      "passives": [
+        {
+          "type": "lifesteal",
+          "value": 0.05
+        }
+      ],
+      "ai": {
+        "profile": "chaser",
+        "aggroRange": 25
+      },
+      "spawn": {
+        "timer": 180
+      },
+      "scaling": {
+        "hpPerLevel": 150
+      }
     },
     "Plutao": {
-      "id": "Plutao", "name": "Plutão, o Dourado", "category": "miniboss",
-      "visuals": { "shape": "dodecahedron", "color": "#FFD700", "scale": 2.0, "emissive": "#DAA520" },
-      "stats": { "hp": 1800, "speed": 0.022, "damage": 30, "attackRange": 10, "attackCooldown": 8000, "hitboxRadius": 1.8, "xp": 600, "score": 750 },
+      "id": "Plutao",
+      "name": "Plutão, o Dourado",
+      "category": "miniboss",
+      "visuals": {
+        "shape": "dodecahedron",
+        "color": "#FFD700",
+        "scale": 2,
+        "emissive": "#DAA520"
+      },
+      "stats": {
+        "hp": 1800,
+        "speed": 0.022,
+        "damage": 30,
+        "attackRange": 10,
+        "attackCooldown": 8000,
+        "hitboxRadius": 1.8,
+        "xp": 600,
+        "score": 750
+      },
       "passives": [],
-      "ai": { "profile": "chaser", "aggroRange": 25 },
-      "spawn": { "timer": 240 },
-      "scaling": { "hpPerLevel": 180 }
+      "ai": {
+        "profile": "chaser",
+        "aggroRange": 25
+      },
+      "spawn": {
+        "timer": 240
+      },
+      "scaling": {
+        "hpPerLevel": 180
+      }
     },
     "Furia": {
-      "id": "Furia", "name": "Fúria, o Furioso", "category": "miniboss",
-      "visuals": { "shape": "octahedron", "color": "#DC143C", "scale": 1.8, "emissive": "#FF0000" },
-      "stats": { "hp": 2500, "speed": 0.024, "damage": 35, "attackRange": 8, "attackCooldown": 6000, "hitboxRadius": 1.8, "xp": 900, "score": 1100 },
+      "id": "Furia",
+      "name": "Fúria, o Furioso",
+      "category": "miniboss",
+      "visuals": {
+        "shape": "octahedron",
+        "color": "#DC143C",
+        "scale": 1.8,
+        "emissive": "#FF0000"
+      },
+      "stats": {
+        "hp": 2500,
+        "speed": 0.024,
+        "damage": 35,
+        "attackRange": 8,
+        "attackCooldown": 6000,
+        "hitboxRadius": 1.8,
+        "xp": 900,
+        "score": 1100
+      },
       "passives": [],
-      "ai": { "profile": "chaser", "aggroRange": 30 },
-      "spawn": { "timer": 300 },
-      "scaling": { "hpPerLevel": 200 }
+      "ai": {
+        "profile": "chaser",
+        "aggroRange": 30
+      },
+      "spawn": {
+        "timer": 300
+      },
+      "scaling": {
+        "hpPerLevel": 200
+      }
     },
     "Megera": {
-      "id": "Megera", "name": "Megera das Chamas", "category": "miniboss",
-      "visuals": { "shape": "torus", "color": "#FF8C00", "scale": 1.8, "emissive": "#FF4500" },
-      "stats": { "hp": 3500, "speed": 0.026, "damage": 40, "attackRange": 20, "attackCooldown": 5000, "hitboxRadius": 1.8, "xp": 1300, "score": 1600 },
-      "passives": [{ "type": "cc_immunity", "value": 1 }],
-      "ai": { "profile": "static", "aggroRange": 40 },
-      "spawn": { "timer": 360 },
-      "scaling": { "hpPerLevel": 220 }
+      "id": "Megera",
+      "name": "Megera das Chamas",
+      "category": "miniboss",
+      "visuals": {
+        "shape": "torus",
+        "color": "#FF8C00",
+        "scale": 1.8,
+        "emissive": "#FF4500"
+      },
+      "stats": {
+        "hp": 3500,
+        "speed": 0.026,
+        "damage": 40,
+        "attackRange": 20,
+        "attackCooldown": 5000,
+        "hitboxRadius": 1.8,
+        "xp": 1300,
+        "score": 1600
+      },
+      "passives": [
+        {
+          "type": "cc_immunity",
+          "value": 1
+        }
+      ],
+      "ai": {
+        "profile": "static",
+        "aggroRange": 40
+      },
+      "spawn": {
+        "timer": 360
+      },
+      "scaling": {
+        "hpPerLevel": 220
+      }
     },
     "Minotauro": {
-      "id": "Minotauro", "name": "Minotauro de Sangue", "category": "miniboss",
-      "visuals": { "shape": "cube", "color": "#8B0000", "scale": 2.0, "emissive": "#DC143C" },
-      "stats": { "hp": 5000, "speed": 0.028, "damage": 45, "attackRange": 5, "attackCooldown": 6000, "hitboxRadius": 2.0, "xp": 2000, "score": 2500 },
-      "passives": [{ "type": "lifesteal", "value": 0.05 }],
-      "ai": { "profile": "chaser", "aggroRange": 30 },
-      "spawn": { "timer": 420 },
-      "scaling": { "hpPerLevel": 250 }
+      "id": "Minotauro",
+      "name": "Minotauro de Sangue",
+      "category": "miniboss",
+      "visuals": {
+        "shape": "cube",
+        "color": "#8B0000",
+        "scale": 2,
+        "emissive": "#DC143C"
+      },
+      "stats": {
+        "hp": 5000,
+        "speed": 0.028,
+        "damage": 45,
+        "attackRange": 5,
+        "attackCooldown": 6000,
+        "hitboxRadius": 2,
+        "xp": 2000,
+        "score": 2500
+      },
+      "passives": [
+        {
+          "type": "lifesteal",
+          "value": 0.05
+        }
+      ],
+      "ai": {
+        "profile": "chaser",
+        "aggroRange": 30
+      },
+      "spawn": {
+        "timer": 420
+      },
+      "scaling": {
+        "hpPerLevel": 250
+      }
     },
     "Geriao": {
-      "id": "Geriao", "name": "Gerião, a Ilusão", "category": "miniboss",
-      "visuals": { "shape": "icosahedron", "color": "#483D8B", "scale": 2.0, "emissive": "#6A5ACD" },
-      "stats": { "hp": 7000, "speed": 0.030, "damage": 50, "attackRange": 15, "attackCooldown": 5000, "hitboxRadius": 2.0, "xp": 3000, "score": 4000 },
-      "passives": [{ "type": "dodge", "value": 0.20, "chance": 1.0 }],
-      "ai": { "profile": "coward", "aggroRange": 30 },
-      "spawn": { "timer": 480 },
-      "scaling": { "hpPerLevel": 280 }
+      "id": "Geriao",
+      "name": "Gerião, a Ilusão",
+      "category": "miniboss",
+      "visuals": {
+        "shape": "icosahedron",
+        "color": "#483D8B",
+        "scale": 2,
+        "emissive": "#6A5ACD"
+      },
+      "stats": {
+        "hp": 7000,
+        "speed": 0.03,
+        "damage": 50,
+        "attackRange": 15,
+        "attackCooldown": 5000,
+        "hitboxRadius": 2,
+        "xp": 3000,
+        "score": 4000
+      },
+      "passives": [
+        {
+          "type": "dodge",
+          "value": 0.2,
+          "chance": 1
+        }
+      ],
+      "ai": {
+        "profile": "coward",
+        "aggroRange": 30
+      },
+      "spawn": {
+        "timer": 480
+      },
+      "scaling": {
+        "hpPerLevel": 280
+      }
     },
     "Lucifer": {
-      "id": "Lucifer", "name": "Lúcifer Cósmico", "category": "boss",
-      "visuals": { "shape": "dodecahedron", "color": "#000033", "scale": 2.5, "emissive": "#0000FF" },
-      "stats": { "hp": 10000, "speed": 0.035, "damage": 60, "attackRange": 50, "attackCooldown": 4000, "hitboxRadius": 2.5, "xp": 5000, "score": 7000 },
-      "passives": [{ "type": "slow_on_hit", "value": 0.90, "duration": 999999 }],
-      "ai": { "profile": "static", "aggroRange": 100 },
-      "spawn": { "timer": 540, "isBoss": true },
-      "scaling": { "hpPerLevel": 300 }
+      "id": "Lucifer",
+      "name": "Lúcifer Cósmico",
+      "category": "boss",
+      "visuals": {
+        "shape": "dodecahedron",
+        "color": "#000033",
+        "scale": 2.5,
+        "emissive": "#0000FF"
+      },
+      "stats": {
+        "hp": 10000,
+        "speed": 0.035,
+        "damage": 60,
+        "attackRange": 50,
+        "attackCooldown": 4000,
+        "hitboxRadius": 2.5,
+        "xp": 5000,
+        "score": 7000
+      },
+      "passives": [
+        {
+          "type": "slow_on_hit",
+          "value": 0.9,
+          "duration": 999999
+        }
+      ],
+      "ai": {
+        "profile": "static",
+        "aggroRange": 100
+      },
+      "spawn": {
+        "timer": 540,
+        "isBoss": true
+      },
+      "scaling": {
+        "hpPerLevel": 300
+      }
     },
     "EspectroDeRaziel": {
-      "id": "EspectroDeRaziel", "name": "Espectro de Raziel", "category": "miniboss",
-      "visuals": { "shape": "sphere", "color": "#2F4F4F", "scale": 1.2, "emissive": "#00CED1", "opacity": 0.7 },
-      "stats": { "hp": 3000, "speed": 0.020, "damage": 15, "attackRange": 15, "attackCooldown": 4000, "hitboxRadius": 1.2, "xp": 1500, "score": 3000 },
-      "passives": [{ "type": "percent_hp_damage", "value": 0.05 }],
-      "ai": { "profile": "kiter", "aggroRange": 15, "retreatRange": 8, "idealRange": 12 },
-      "spawn": { "timer": 480 },
-      "scaling": { "hpPerLevel": 200 }
+      "id": "EspectroDeRaziel",
+      "name": "Espectro de Raziel",
+      "category": "miniboss",
+      "visuals": {
+        "shape": "sphere",
+        "color": "#2F4F4F",
+        "scale": 1.2,
+        "emissive": "#00CED1",
+        "opacity": 0.7
+      },
+      "stats": {
+        "hp": 3000,
+        "speed": 0.02,
+        "damage": 15,
+        "attackRange": 15,
+        "attackCooldown": 4000,
+        "hitboxRadius": 1.2,
+        "xp": 1500,
+        "score": 3000
+      },
+      "passives": [
+        {
+          "type": "percent_hp_damage",
+          "value": 0.05
+        }
+      ],
+      "ai": {
+        "profile": "kiter",
+        "aggroRange": 15,
+        "retreatRange": 8,
+        "idealRange": 12
+      },
+      "spawn": {
+        "timer": 480
+      },
+      "scaling": {
+        "hpPerLevel": 200
+      }
     },
     "Smith": {
-      "id": "Smith", "name": "Smith", "category": "miniboss",
-      "visuals": { "shape": "cube", "color": "#1C1C1C", "scale": 1.5, "emissive": "#00FF00" },
-      "stats": { "hp": 3500, "speed": 1.2, "damage": 25, "attackRange": 10, "attackCooldown": 6000, "hitboxRadius": 1.5, "xp": 6000, "score": 5000 },
+      "id": "Smith",
+      "name": "Smith",
+      "category": "miniboss",
+      "visuals": {
+        "shape": "cube",
+        "color": "#1C1C1C",
+        "scale": 1.5,
+        "emissive": "#00FF00"
+      },
+      "stats": {
+        "hp": 3500,
+        "speed": 1.2,
+        "damage": 50,
+        "attackRange": 10,
+        "attackCooldown": 6000,
+        "hitboxRadius": 1.5,
+        "xp": 6000,
+        "score": 5000
+      },
       "passives": [],
-      "ai": { "profile": "flanker", "aggroRange": 20 },
-      "spawn": { "timer": 150 }
+      "ai": {
+        "profile": "flanker",
+        "aggroRange": 20
+      },
+      "spawn": {
+        "timer": 150
+      }
     }
   }
 }
