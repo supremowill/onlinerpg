@@ -530,7 +530,7 @@
         "emissive": "#ADD8E6"
       },
       "stats": {
-        "hp": 32000,
+        "hp": 80000,
         "speed": 0.7,
         "damage": 350,
         "attackRange": 15,
