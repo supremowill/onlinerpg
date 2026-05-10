@@ -49,32 +49,38 @@ export class HUDManager {
         if (!me) return;
 
         // HP bar
-        const hpP = me.maxHp > 0 ? (me.hp / me.maxHp) * 100 : 0;
-        this.hpBar.style.width = `${hpP}%`;
-        this.hpBar.innerHTML = `<div class="progress-bar-text">${Math.ceil(me.hp)} / ${Math.ceil(me.maxHp)}</div>`;
-        this.hpBar.classList.toggle('low', hpP < 30);
+        if (this.hpBar) {
+            const hpP = me.maxHp > 0 ? (me.hp / me.maxHp) * 100 : 0;
+            this.hpBar.style.width = `${hpP}%`;
+            this.hpBar.innerHTML = `<div class="progress-bar-text">HP: ${Math.ceil(me.hp)} / ${Math.ceil(me.maxHp)}</div>`;
+            this.hpBar.classList.toggle('low', hpP < 30);
+        }
 
         // XP bar
-        const xpP = me.xpNext > 0 ? (me.xp / me.xpNext) * 100 : 0;
-        this.xpBar.style.width = `${xpP}%`;
-        this.xpBar.innerHTML = `<div class="progress-bar-text">${Math.ceil(me.xp)} / ${me.xpNext}</div>`;
+        if (this.xpBar) {
+            const xpP = me.xpNext > 0 ? (me.xp / me.xpNext) * 100 : 0;
+            this.xpBar.style.width = `${xpP}%`;
+            this.xpBar.innerHTML = `<div class="progress-bar-text">${Math.ceil(me.xp)} / ${me.xpNext}</div>`;
+        }
 
         // Shield
-        if (me.isShieldActive && me.shieldHp > 0) {
-            this.shieldHudItem.style.display = 'block';
-            const sP = me.shieldMaxHp > 0 ? (me.shieldHp / me.shieldMaxHp) * 100 : 0;
-            this.shieldBar.style.width = `${sP}%`;
-            this.shieldBar.innerHTML = `<div class="progress-bar-text">${Math.ceil(me.shieldHp)}</div>`;
-        } else {
-            this.shieldHudItem.style.display = 'none';
+        if (this.shieldHudItem && this.shieldBar) {
+            if (me.isShieldActive && me.shieldHp > 0) {
+                this.shieldHudItem.style.display = 'block';
+                const sP = me.shieldMaxHp > 0 ? (me.shieldHp / me.shieldMaxHp) * 100 : 0;
+                this.shieldBar.style.width = `${sP}%`;
+                this.shieldBar.innerHTML = `<div class="progress-bar-text">Escudo: ${Math.ceil(me.shieldHp)}</div>`;
+            } else {
+                this.shieldHudItem.style.display = 'none';
+            }
         }
 
         // Stats
-        this.levelValue.textContent = me.level;
-        this.passiveLevelValue.textContent = me.passiveLevel || 1;
-        this.scoreValue.textContent = me.score;
-        this.timeValue.textContent = this.formatTime(snapshot.time);
-        this.collapseValue.textContent = snapshot.globalMultiplier?.toExponential(0) || '1';
+        if (this.levelValue) this.levelValue.textContent = me.level;
+        if (this.passiveLevelValue) this.passiveLevelValue.textContent = me.passiveLevel || 1;
+        if (this.scoreValue) this.scoreValue.textContent = me.score;
+        if (this.timeValue) this.timeValue.textContent = this.formatTime(snapshot.time);
+        if (this.collapseValue) this.collapseValue.textContent = snapshot.globalMultiplier?.toExponential(0) || '1';
 
         // Boss HUD
         if (snapshot.boss) {

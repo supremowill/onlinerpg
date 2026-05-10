@@ -34,20 +34,18 @@
         .leaderboard-container li { font-size:1.1rem; padding:8px 0; border-bottom:1px solid #222; }
         .leaderboard-container li:last-child { border-bottom:none; }
         /* Player HUD */
-        #player-hud { position:absolute; top:20px; left:20px; width:300px; background:rgba(0,0,0,.5); padding:10px; border-radius:8px; border:1px solid #444; z-index:10; display:none; }
+        #player-hud { position:absolute; top:20px; left:20px; width:220px; background:rgba(0,0,0,.6); padding:12px; border-radius:8px; border:1px solid #444; z-index:10; display:none; box-shadow:0 0 10px rgba(0,0,0,0.5); }
         .hud-item { margin-bottom:8px; }
-        .hud-item-label { font-size:.9rem; margin-bottom:4px; }
-        .progress-bar-container { width:100%; height:22px; background:#333; border-radius:5px; border:1px solid #555; position:relative; overflow:hidden; }
+        .progress-bar-container { width:100%; height:24px; background:#333; border-radius:5px; border:1px solid #555; position:relative; overflow:hidden; }
         .progress-bar { height:100%; border-radius:4px; transition:width .3s; position:relative; }
-        .progress-bar-text { position:absolute; width:100%; text-align:center; line-height:22px; font-size:.8rem; font-weight:bold; color:#fff; text-shadow:1px 1px 2px #000; }
+        .progress-bar-text { position:absolute; width:100%; text-align:center; line-height:24px; font-size:.85rem; font-weight:bold; color:#fff; text-shadow:1px 1px 2px #000; }
         #hp-bar { background:linear-gradient(90deg,#d32f2f,#f44336); }
         #hp-bar.low { animation:pulse-red 1s infinite; }
         #xp-bar { background:linear-gradient(90deg,#673ab7,#9575cd); }
         #shield-bar { background:linear-gradient(90deg,#fbc02d,#fdd835); }
         @keyframes pulse-red { 0%{box-shadow:0 0 3px #f44336} 50%{box-shadow:0 0 10px #f11} 100%{box-shadow:0 0 3px #f44336} }
-        .stats-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:10px; text-align:center; }
-        .stat-box h3 { font-size:1rem; margin:0 0 5px; color:#aaa; }
-        .stat-box p { font-size:1.2rem; margin:0; }
+        .stats-simple { display:flex; justify-content:space-between; margin-top:8px; font-size:1.1rem; font-weight:bold; }
+        .stat-item { color:#0ff; text-shadow:1px 1px 2px #000; }
         #buff-display { position:absolute; top:20px; right:20px; display:none; background:rgba(0,0,0,.5); padding:10px; border-radius:8px; z-index:10; text-align:right; }
         .boss-hud-container { position:absolute; top:30px; left:50%; transform:translateX(-50%); width:60%; max-width:700px; display:none; flex-direction:column; align-items:center; gap:10px; z-index:10; }
         .boss-hud-item { width:100%; background:rgba(0,0,0,.7); padding:10px; border-radius:8px; border:1px solid #555; text-align:center; }
@@ -99,10 +97,10 @@
 
         /* Responsive Mobile UI */
         @media (max-width: 768px) {
-            #player-hud { width: 220px; top: 10px; left: 10px; padding: 8px; }
-            .hud-item-label { font-size: 0.75rem; }
-            .stat-box h3 { font-size: 0.8rem; }
-            .stat-box p { font-size: 1rem; }
+            #player-hud { width: 180px; top: 10px; left: 10px; padding: 8px; }
+            .progress-bar-container { height: 20px; }
+            .progress-bar-text { line-height: 20px; font-size: 0.75rem; }
+            .stats-simple { font-size: 0.95rem; margin-top: 5px; }
             #joystick-container { width: 120px; height: 120px; bottom: 20px; left: 20px; background: rgba(255,255,255,.2); border: 2px solid rgba(255,255,255,0.4); }
             #joystick-thumb { width: 50px; height: 50px; background: rgba(255,255,255,.7); }
             #mobile-action-buttons { bottom: 20px; right: 20px; gap: 8px; }
@@ -199,16 +197,12 @@
     <div id="event-message"></div>
     <!-- PLAYER HUD -->
     <div id="player-hud">
-        <div class="hud-item"><div class="hud-item-label">HP</div><div class="progress-bar-container"><div id="hp-bar" class="progress-bar"></div></div></div>
-        <div id="shield-hud-item" class="hud-item" style="display:none"><div class="hud-item-label">Escudo</div><div class="progress-bar-container"><div id="shield-bar" class="progress-bar"></div></div></div>
-        <div class="hud-item"><div class="hud-item-label">XP</div><div class="progress-bar-container"><div id="xp-bar" class="progress-bar"></div></div></div>
-        <div class="stats-grid">
-            <div class="stat-box"><h3>Nível</h3><p><span id="level-value">1</span></p></div>
-            <div class="stat-box"><h3>Passiva</h3><p>Nv. <span id="passive-level-value">1</span></p></div>
-            <div class="stat-box"><h3>Multiplicador</h3><p><span id="collapse-value">1</span>x</p></div>
+        <div class="hud-item"><div class="progress-bar-container"><div id="hp-bar" class="progress-bar"></div></div></div>
+        <div id="shield-hud-item" class="hud-item" style="display:none"><div class="progress-bar-container"><div id="shield-bar" class="progress-bar"></div></div></div>
+        <div class="stats-simple">
+            <div class="stat-item">Nv. <span id="level-value">1</span></div>
+            <div class="stat-item">Pts: <span id="score-value">0</span></div>
         </div>
-        <div class="stats-grid"><div class="stat-box" style="grid-column:1/-1"><h3>Pontuação</h3><p id="score-value">0</p></div></div>
-        <div class="stats-grid"><div class="stat-box" style="grid-column:1/-1"><h3>Tempo</h3><p id="time-value">00:00</p></div></div>
     </div>
     <!-- BOSS HUD -->
     <div id="boss-hud" class="boss-hud-container">
