@@ -106,9 +106,9 @@
         "scale": 1.5
       },
       "stats": {
-        "hp": 500,
+        "hp": 5000,
         "speed": 0,
-        "damage": 20,
+        "damage": 40,
         "attackRange": 30,
         "attackCooldown": 1500,
         "hitboxRadius": 1.2,
@@ -569,7 +569,7 @@
         "emissive": "#FFA500"
       },
       "stats": {
-        "hp": 100000,
+        "hp": 150000,
         "speed": 0.3,
         "damage": 100,
         "attackRange": 25,
