@@ -4,6 +4,7 @@ import { GameEngine } from '../game/GameEngine';
 import { CONFIG } from '../config';
 import { ClientMessage, ServerMessage } from '../network/Protocol';
 import { rankingService } from '../database/ranking';
+import { getUpgradePromptForLevel, applyUpgrade } from '../game/UpgradeSystem';
 
 export class Room {
     public id: string = uuidv4();
@@ -62,6 +63,18 @@ export class Room {
             }
         }
 
+        // Check for upgrade prompts
+        for (const p of this.engine.players.values()) {
+            if (p.isSelectingUpgrade && p.pendingUpgradeLevel > 0) {
+                const prompt = getUpgradePromptForLevel(p.pendingUpgradeLevel);
+                if (prompt) {
+                    const ws = this.players.get(p.id);
+                    if (ws) this.send(ws, { type: 'UPGRADE_PROMPT', payload: prompt });
+                }
+                p.pendingUpgradeLevel = 0; // Only send once
+            }
+        }
+
         if (this.engine.isGameOver) this.endGame();
     }
 
@@ -97,6 +110,14 @@ export class Room {
                 if ('skip' in msg.payload) player.skipUpgrade();
                 else player.upgradeSkill(msg.payload.skillKey);
                 break;
+            case 'UPGRADE_SELECT': {
+                const { skill, option } = msg.payload;
+                if (applyUpgrade(player, skill, option)) {
+                    const ws = this.players.get(playerId);
+                    if (ws) this.send(ws, { type: 'UPGRADE_APPLIED' } as any);
+                }
+                break;
+            }
             case 'PING':
                 const ws = this.players.get(playerId);
                 if (ws) this.send(ws, { type: 'PONG', payload: { serverTime: Date.now() } });

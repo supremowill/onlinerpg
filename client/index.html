@@ -96,6 +96,28 @@
         #match-found-overlay h2 { color:#0ff; font-size:2rem; margin-bottom:20px; }
         #match-players-list { list-style:none; padding:0; }
         #match-players-list li { font-size:1.2rem; padding:8px; }
+
+        /* Responsive Mobile UI */
+        @media (max-width: 768px) {
+            #player-hud { width: 220px; top: 10px; left: 10px; padding: 8px; }
+            .hud-item-label { font-size: 0.75rem; }
+            .stat-box h3 { font-size: 0.8rem; }
+            .stat-box p { font-size: 1rem; }
+            #joystick-container { width: 120px; height: 120px; bottom: 20px; left: 20px; background: rgba(255,255,255,.2); border: 2px solid rgba(255,255,255,0.4); }
+            #joystick-thumb { width: 50px; height: 50px; background: rgba(255,255,255,.7); }
+            #mobile-action-buttons { bottom: 20px; right: 20px; gap: 8px; }
+            .mobile-button { width: 55px; height: 55px; font-size: 1.1rem; font-weight: bold; border: 2px solid rgba(255,255,255,0.6); background: rgba(0,0,0,.75); box-shadow: 0 0 15px rgba(0,255,255,0.3); text-shadow: 1px 1px 2px #000; position: relative; }
+            .mobile-button .skill-cooldown { border-radius: 50%; font-size: 1.2rem; }
+            #attack-button { width: 75px; height: 75px; font-size: 1.3rem; background: rgba(220,40,40,.8); border: 2px solid rgba(255,100,100,0.8); box-shadow: 0 0 15px rgba(255,0,0,0.5); }
+            .boss-hud-container { top: 10px; width: 95%; max-width: none; }
+            #multiplayer-scoreboard { top: 10px; right: 10px; width: 160px; }
+            .leaderboard-container { width: 95%; max-width: 320px; padding: 10px; }
+            .leaderboard-container h2 { font-size: 1.4rem; }
+            #auth-container input { width: 200px; }
+            .overlay-screen h1 { font-size: 2rem; }
+            .overlay-screen h2 { font-size: 1.5rem; }
+            #player-name-input { width: 200px; }
+        }
     </style>
     <script type="importmap">
     { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js" } }

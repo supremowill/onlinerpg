@@ -56,7 +56,7 @@ export class PurpleCubeEnemy extends ServerEnemy {
             this.moveTowards(target.position, dt);
         } else {
             const now = Date.now();
-            if (now > this.lastAttackTime + this.attackCooldown) {
+            if (now > this.lastAttackTime + this.attackCooldown && this.canUseAbility()) {
                 this.lastAttackTime = now;
                 const dir = target.position.clone().sub(this.position);
                 dir.y = 0;
@@ -109,7 +109,7 @@ export class RedConeEnemy extends ServerEnemy {
         this.lookAt(target.position);
         if (this.position.distanceToXZ(target.position) <= this.attackRange) {
             const now = Date.now();
-            if (now > this.lastAttackTime + this.attackCooldown) {
+            if (now > this.lastAttackTime + this.attackCooldown && this.canUseAbility()) {
                 this.lastAttackTime = now;
                 const baseDir = target.position.clone().sub(this.position);
                 baseDir.y = 0; baseDir.normalize();
@@ -164,7 +164,7 @@ export class EnemyTowerEnemy extends ServerEnemy {
         const dist = this.position.distanceToXZ(target.position);
         if (dist <= this.attackRange) {
             const now = Date.now();
-            if (now > this.lastAttackTime + this.attackCooldown) {
+            if (now > this.lastAttackTime + this.attackCooldown && this.canUseAbility()) {
                 this.lastAttackTime = now;
                 const start = this.position.clone(); start.y = 3;
                 const dir = target.position.clone().sub(start);
@@ -220,7 +220,7 @@ export class GuardianGuerreiroEnemy extends ServerEnemy {
             this.moveTowards(target.position, dt);
         } else {
             const now = Date.now();
-            if (now > this.lastAttackTime + this.attackCooldown) {
+            if (now > this.lastAttackTime + this.attackCooldown && this.canUseAbility()) {
                 this.lastAttackTime = now;
                 let dmg = this.damage;
                 if (this.isElite) dmg = 300 * 1 + (target.hp * 0.05);
@@ -356,7 +356,7 @@ export class GuardianArqueiroEnemy extends ServerEnemy {
             moveDir = target.position.clone().sub(this.position); moveDir.y = 0; moveDir.normalize();
         } else {
             const now = Date.now();
-            if (now > this.lastAttackTime + this.attackCooldown) {
+            if (now > this.lastAttackTime + this.attackCooldown && this.canUseAbility()) {
                 this.lastAttackTime = now;
                 const dir = target.position.clone().sub(this.position); dir.y = 0; dir.normalize();
                 let dmg = this.damage;

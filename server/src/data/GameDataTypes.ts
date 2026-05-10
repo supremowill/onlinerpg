@@ -125,9 +125,41 @@ export interface EnemyDefinition {
 }
 
 // ============================================================
+// Definição do Jogador
+// ============================================================
+export interface PlayerSkillConfig {
+    cooldown: number;
+    duration?: number;
+    dashSpeed?: number;
+    range?: number;
+    shieldMultiplier?: number;
+    damageMultiplier?: number;
+}
+
+export interface PlayerDefinition {
+    hp: number;
+    speed: number;
+    attackCooldownMs: number;
+    projectileSpeed: number;
+    projectileLifetime: number;
+    hitboxRadius: number;
+    xpToFirstLevel: number;
+    xpMultiplier: number;
+    levelHpMultiplier: number;
+    upgradeLevels: number[];
+    skills: {
+        q: PlayerSkillConfig;
+        w: PlayerSkillConfig;
+        e: PlayerSkillConfig;
+        r: PlayerSkillConfig;
+    };
+}
+
+// ============================================================
 // Root do JSON — ponto de entrada para o GameDataLoader
 // ============================================================
 export interface GameData {
     version: string;            // versão do schema (para forward-compatibility)
+    player?: PlayerDefinition;  // configuração do jogador
     enemies: Record<string, EnemyDefinition>;
 }

@@ -319,7 +319,7 @@ export class GameEngine {
                     if (closest) {
                         const dir = closest.position.clone().sub(p.position).normalize();
                         const damage = (closest.maxHp * p.orbitalSoulDamageMultiplier) + (p.level * p.orbitalSoulDamageFlat);
-                        p.pendingProjectiles.push({ dir, damage, fromOrbitalSoul: true });
+                        p.pendingProjectiles.push({ dir, damage, fromOrbitalSoul: true, skillUpgrades: { ...p.selectedUpgrades } });
                         soul.fireTimer = 2000; // Fire every 2 seconds
                     }
                 }
@@ -333,6 +333,9 @@ export class GameEngine {
             if (p.pendingProjectiles.length > 0) {
                 for (const pp of p.pendingProjectiles) {
                     const proj = new ServerProjectile(p.position.clone(), pp.dir, p.id, true, pp.damage, p.color);
+                    if (pp.specialEffect) proj.specialEffect = pp.specialEffect;
+                    if (pp.skillUpgrades) proj.skillUpgrades = pp.skillUpgrades;
+                    if (pp.trackHits) proj.trackHits = pp.trackHits;
                     this.playerProjectiles.push(proj);
                 }
                 p.pendingProjectiles = [];
@@ -647,6 +650,21 @@ export class GameEngine {
             if (!enemy || !instigator) continue;
             enemy.takeDamage(hit.damage, instigator);
             if (hit.bleedDamage > 0) enemy.status.isMarked = true;
+            
+            // Handle special effects from upgrades
+            if (hit.specialEffect === 'q_armorFracture') {
+                enemy.applyArmorFracture(4000, 0.25);
+            } else if (hit.specialEffect === 'q_dash_sphere') {
+                const currentHits = (instigator.dashHitTracker.get(enemy.id) || 0) + 1;
+                instigator.dashHitTracker.set(enemy.id, currentHits);
+                if (currentHits >= 3) {
+                    enemy.applySilence(2000);
+                    instigator.applyTemporaryBuff('attack_speed', 3, 1.5);
+                    // Clear so it doesn't trigger again for the same dash if more hit
+                    instigator.dashHitTracker.set(enemy.id, -999);
+                }
+            }
+
             if (enemy.isDestroyed) this.onEnemyKilled(enemy, instigator);
         }
         // Player vs orbs
@@ -667,6 +685,7 @@ export class GameEngine {
             killerPlayer.addXp(enemy.xp);
             killerPlayer.score += enemy.score;
             killerPlayer.kills++;
+            killerPlayer.onEnemyKilled(); // R upgrade: Fúria Infinita
         }
         // Notify Smith about clone destroyed (for lag effect)
         if (enemy.type === 'CloneSmith') {
@@ -742,16 +761,35 @@ export class GameEngine {
             z.timer -= dt * 1000;
             if (z.timer <= 0) { this.zones.splice(i, 1); continue; }
 
+            // Handle mine explosion (Q upgrade)
+            if (z.type === 'mine') {
+                for (const e of this.enemies) {
+                    if (!e.isDestroyed && z.position.distanceToXZ(e.position) < z.radius) {
+                        const p = this.players.get(z.extras?.sourceId);
+                        if (p) {
+                            e.takeDamage(z.damagePerSec, p);
+                            e.applyBleed(3000, p.getDamage(true) * 0.1);
+                        }
+                        z.timer = 0; // explode
+                        break;
+                    }
+                }
+            }
+
             if (z.extras?.burst && z.lastTick === 0) {
                 z.lastTick = 1;
-                // Burst damage from player zones (Shield explosion, dash explosion)
+                // Burst damage from player zones (Shield explosion, dash explosion, R singularity)
                 for (const e of this.enemies) {
                     if (!e.isDestroyed && z.position.distanceToXZ(e.position) < z.radius) {
                         const p = this.players.get(z.extras.sourceId);
-                        if (p) e.takeDamage(z.damagePerSec / 2, p); // We multiplied by 2 when adding, so divide to get actual burst
+                        if (p) {
+                            const damage = z.type === 'explosion' ? z.damagePerSec : z.damagePerSec / 2;
+                            e.takeDamage(damage, p);
+                        }
                     }
                 }
             } else if (!z.extras?.burst && z.damagePerSec > 0 && Date.now() > z.lastTick + 1000) {
+                // Continuous damage from zones (only for non-player zones or specific persistent ones)
                 z.lastTick = Date.now();
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(z.position) < z.radius) {
@@ -806,15 +844,45 @@ export class GameEngine {
         switch (skill) {
             case 'q': p.activateDash(); break;
             case 'w': // Repel: push enemies away
+                let projectilesReversed = 0;
+                for (const proj of this.enemyProjectiles) {
+                    if (!proj.isDestroyed && p.position.distanceToXZ(proj.position) < CONFIG.PLAYER.SKILL_W.RANGE) {
+                        proj.isDestroyed = true;
+                        projectilesReversed++;
+                    }
+                }
+
+                if (p.upgradeFlags.w_healOnReflect && projectilesReversed > 0) {
+                    p.heal(p.maxHp * 0.03 * projectilesReversed);
+                    if (projectilesReversed >= 3) p.clearNegativeEffects();
+                    p.pendingZones.push({ type: 'w_refracao_vital', x: p.position.x, z: p.position.z, radius: CONFIG.PLAYER.SKILL_W.RANGE, damage: 0 });
+                }
+
                 for (const e of this.enemies) {
                     if (e.isDestroyed) continue;
                     const dist = p.position.distanceToXZ(e.position);
                     if (dist < CONFIG.PLAYER.SKILL_W.RANGE) {
                         const dir = e.position.clone().sub(p.position); dir.y = 0; dir.normalize();
-                        const force = (p.skillLevels.w >= 2 ? 40 : 25) * (1 - dist / CONFIG.PLAYER.SKILL_W.RANGE);
+                        let force = (p.skillLevels.w >= 2 ? 40 : 25) * (1 - dist / CONFIG.PLAYER.SKILL_W.RANGE);
+                        
+                        if (p.upgradeFlags.w_pullInstead) {
+                            force = -force * 0.5; // pull inward gently
+                            e.applySlow(3000, 0.7);
+                        }
+                        
                         e.applyKnockback(dir, force);
                         if (p.skillLevels.w >= 3) e.takeDamage(p.getDamage(true) * 0.5, p);
+                        
+                        if (p.upgradeFlags.w_bleedOnRepel) {
+                            e.applyBleed(5000, p.getDamage(true) * 0.1);
+                        }
                     }
+                }
+
+                if (p.upgradeFlags.w_bleedOnRepel) {
+                    p.pendingZones.push({ type: 'w_campo_hemorragia', x: p.position.x, z: p.position.z, radius: CONFIG.PLAYER.SKILL_W.RANGE, damage: 0 });
+                } else if (p.upgradeFlags.w_pullInstead) {
+                    p.pendingZones.push({ type: 'w_vacuo_magnetico', x: p.position.x, z: p.position.z, radius: CONFIG.PLAYER.SKILL_W.RANGE, damage: 0 });
                 }
                 break;
             case 'e': p.activateShield(); break;

@@ -163,6 +163,7 @@ export interface ProjectileSnapshot {
     isPlayerOwned: boolean;
     color: number;
     specialEffect?: string;
+    skillUpgrades?: { q?: string; w?: string; e?: string; r?: string };
 }
 
 export interface OrbSnapshot {
@@ -203,13 +204,7 @@ export interface GameEvent {
     data: any;
 }
 
-export interface UpgradePrompt {
-    level: number;
-    skillKey: string;
-    skillName: string;
-    nextLevel: number;
-    description: string;
-}
+
 
 export interface GameOverData {
     scores: { playerId: string; playerName: string; score: number; rank: number }[];

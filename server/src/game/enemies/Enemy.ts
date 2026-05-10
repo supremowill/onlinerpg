@@ -30,6 +30,10 @@ export class ServerEnemy {
         slowTimer: 0,
         isMarked: false,
         knockback: null as { dir: Vec3; force: number } | null,
+        bleeding: { isActive: false, timer: 0, damage: 0, lastTick: 0, tickInterval: 1000 },
+        armorFracture: { isActive: false, timer: 0, amount: 0 },
+        silenced: { isActive: false, timer: 0 },
+        disoriented: { isActive: false, timer: 0 },
     };
 
     constructor(position: Vec3) {
@@ -51,8 +55,33 @@ export class ServerEnemy {
         this.speed = this.originalSpeed * amount;
     }
 
+    applyBleed(duration: number, damage: number): void {
+        const b = this.status.bleeding;
+        b.isActive = true;
+        b.timer = Math.max(b.timer, duration);
+        b.damage = damage;
+        b.lastTick = Date.now();
+    }
+
     applyKnockback(direction: Vec3, force: number): void {
         this.status.knockback = { dir: direction.clone(), force };
+    }
+
+    applyArmorFracture(duration: number, amount: number): void {
+        const f = this.status.armorFracture;
+        f.isActive = true;
+        f.timer = Math.max(f.timer, duration);
+        f.amount = Math.max(f.amount, amount);
+    }
+
+    applySilence(duration: number): void {
+        this.status.silenced.isActive = true;
+        this.status.silenced.timer = Math.max(this.status.silenced.timer, duration);
+    }
+
+    applyDisorientation(duration: number): void {
+        this.status.disoriented.isActive = true;
+        this.status.disoriented.timer = Math.max(this.status.disoriented.timer, duration);
     }
 
     takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true): void {
@@ -68,6 +97,12 @@ export class ServerEnemy {
         }
 
         if (this.status.isMarked) { amount *= 1.5; this.status.isMarked = false; }
+        
+        // Armor Fracture logic
+        if (this.status.armorFracture.isActive) {
+            amount *= (1 + this.status.armorFracture.amount);
+        }
+
         this.hp -= amount;
         if (this.hp <= 0) { this.hp = 0; this.isDestroyed = true; }
 
@@ -81,10 +116,45 @@ export class ServerEnemy {
     }
 
     updateStatus(dt: number): boolean {
+        const now = Date.now();
+        if (this.status.bleeding.isActive) {
+            this.status.bleeding.timer -= dt * 1000;
+            if (this.status.bleeding.timer <= 0) {
+                this.status.bleeding.isActive = false;
+            } else if (now > this.status.bleeding.lastTick + this.status.bleeding.tickInterval) {
+                this.status.bleeding.lastTick = now;
+                this.takeDamage(this.status.bleeding.damage, null, false);
+            }
+        }
+
         if (this.status.slowTimer > 0) {
             this.status.slowTimer -= dt * 1000;
             if (this.status.slowTimer <= 0) this.speed = this.originalSpeed;
         }
+
+        if (this.status.armorFracture.isActive) {
+            this.status.armorFracture.timer -= dt * 1000;
+            if (this.status.armorFracture.timer <= 0) this.status.armorFracture.isActive = false;
+        }
+
+        if (this.status.silenced.isActive) {
+            this.status.silenced.timer -= dt * 1000;
+            if (this.status.silenced.timer <= 0) this.status.silenced.isActive = false;
+        }
+
+        if (this.status.disoriented.isActive) {
+            this.status.disoriented.timer -= dt * 1000;
+            if (this.status.disoriented.timer <= 0) {
+                this.status.disoriented.isActive = false;
+            } else {
+                // Random-ish movement while disoriented
+                const angle = (now * 0.005) + (parseInt(this.id.substring(0, 4), 16) % 100);
+                const dir = new Vec3(Math.cos(angle), 0, Math.sin(angle));
+                this.position.add(dir.multiplyScalar(this.speed * dt));
+                return true; // skip normal AI
+            }
+        }
+
         if (this.status.knockback) {
             this.position.add(this.status.knockback.dir.clone().multiplyScalar(this.status.knockback.force * dt));
             this.status.knockback.force *= 0.95;
@@ -92,6 +162,10 @@ export class ServerEnemy {
             return true; // skip AI while knocked back
         }
         return false;
+    }
+
+    canUseAbility(): boolean {
+        return !this.status.silenced.isActive && !this.status.disoriented.isActive;
     }
 
     update(dt: number, players: ServerPlayer[], gameTime: number): void {

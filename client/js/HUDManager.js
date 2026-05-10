@@ -122,14 +122,27 @@ export class HUDManager {
         // Skills cooldowns
         if (me.skillCooldowns) {
             for (const key of ['q', 'w', 'e', 'r']) {
-                const slot = this.skillSlots[key];
-                if (!slot) continue;
+                const pcSlot = this.skillSlots[key];
+                const mobileSlot = document.getElementById(`${key}-button`);
                 const rem = me.skillCooldowns[key]; // remaining ms
-                let cdDiv = slot.querySelector('.skill-cooldown');
-                if (rem > 0) {
-                    if (!cdDiv) { cdDiv = document.createElement('div'); cdDiv.className = 'skill-cooldown'; slot.appendChild(cdDiv); }
-                    cdDiv.textContent = (rem / 1000).toFixed(1);
-                } else if (cdDiv) { slot.removeChild(cdDiv); }
+
+                const updateSlot = (slot) => {
+                    if (!slot) return;
+                    let cdDiv = slot.querySelector('.skill-cooldown');
+                    if (rem > 0) {
+                        if (!cdDiv) { 
+                            cdDiv = document.createElement('div'); 
+                            cdDiv.className = 'skill-cooldown'; 
+                            slot.appendChild(cdDiv); 
+                        }
+                        cdDiv.textContent = (rem / 1000).toFixed(1);
+                    } else if (cdDiv) { 
+                        slot.removeChild(cdDiv); 
+                    }
+                };
+
+                updateSlot(pcSlot);
+                updateSlot(mobileSlot);
             }
         }
 

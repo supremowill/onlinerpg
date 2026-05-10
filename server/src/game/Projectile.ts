@@ -21,6 +21,8 @@ export class ServerProjectile {
     public bounces: number = 0;
     public isDestroyed: boolean = false;
     public color: number = 0xffffff;
+    public skillUpgrades: { q?: string; w?: string; e?: string; r?: string } | null = null;
+    public trackHits: boolean = false;
 
     constructor(start: Vec3, dir: Vec3, ownerId: string, isPlayerOwned: boolean, damage: number, color: number) {
         this.position = start.clone();
@@ -58,6 +60,7 @@ export class ServerProjectile {
             isPlayerOwned: this.isPlayerOwned,
             color: this.color,
             specialEffect: this.specialEffect || undefined,
+            skillUpgrades: this.skillUpgrades || undefined,
         };
     }
 }
