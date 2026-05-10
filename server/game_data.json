@@ -55,7 +55,7 @@
         "attackRange": 12,
         "attackCooldown": 2000,
         "hitboxRadius": 0.6,
-        "xp": 250,
+        "xp": 150,
         "score": 50
       },
       "passives": [],
