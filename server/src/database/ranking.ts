@@ -148,7 +148,7 @@ export class RankingService {
         }
     }
 
-    /** Leaderboard by average score of last 5 matches — 60s in-memory cache */
+    /** Leaderboard by average score of 10 best matches of all time — 60s in-memory cache */
     private _avgCache: {data:any[];ts:number}|null = null;
 
     async getLeaderboardByAverage(limit = 50): Promise<any[]> {
@@ -162,9 +162,9 @@ export class RankingService {
                         ROUND(AVG(score)::numeric,1) AS avg_score,
                         COUNT(*) AS total_matches
                  FROM (SELECT player_name, score,
-                              ROW_NUMBER() OVER (PARTITION BY player_name ORDER BY created_at DESC) AS rn
+                              ROW_NUMBER() OVER (PARTITION BY player_name ORDER BY score DESC) AS rn
                        FROM ranking) sub
-                 WHERE rn<=5
+                 WHERE rn<=10
                  GROUP BY player_name
                  ORDER BY avg_score DESC
                  LIMIT $1`, [limit]);
@@ -173,6 +173,48 @@ export class RankingService {
             return data;
         } catch (err) {
             console.warn('[Ranking] getLeaderboardByAverage failed:', (err as Error).message);
+            return [];
+        }
+    }
+
+    /** Leaderboard by average score of 10 best matches of the current week (resets Monday 00:01 America/Sao_Paulo) — 60s cache */
+    private _weeklyCache: {data:any[];ts:number;sinceMs:number}|null = null;
+
+    async getLeaderboardByAverageWeekly(limit = 50): Promise<any[]> {
+        if (!this.isDbAvailable()) return [];
+        const now = Date.now();
+
+        // Calculate Monday 00:01 America/Sao_Paulo (UTC-3) start of week using deterministic millisecond logic
+        // Reference Monday May 11, 2026 at 00:01:00 BRT = 03:01:00 UTC
+        const REFERENCE_MS = new Date('2026-05-11T03:01:00Z').getTime();
+        const elapsed = now - REFERENCE_MS;
+        const elapsedWeeks = Math.floor(elapsed / 604800000);
+        const currentWeekStartMs = REFERENCE_MS + elapsedWeeks * 604800000;
+        const sinceDate = new Date(currentWeekStartMs);
+
+        if (this._weeklyCache && now - this._weeklyCache.ts < 60000 && this._weeklyCache.sinceMs === currentWeekStartMs) {
+            return this._weeklyCache.data.slice(0, limit);
+        }
+
+        try {
+            const pool = getPool();
+            const r = await pool.query(
+                `SELECT player_name,
+                        ROUND(AVG(score)::numeric,1) AS avg_score,
+                        COUNT(*) AS total_matches
+                 FROM (SELECT player_name, score,
+                              ROW_NUMBER() OVER (PARTITION BY player_name ORDER BY score DESC) AS rn
+                       FROM ranking
+                       WHERE created_at >= $1) sub
+                 WHERE rn<=10
+                 GROUP BY player_name
+                 ORDER BY avg_score DESC
+                 LIMIT $2`, [sinceDate, limit]);
+            const data = r.rows.map((row,i)=>({rank:i+1,playerName:row.player_name,avgScore:parseFloat(row.avg_score),totalMatches:+row.total_matches}));
+            this._weeklyCache = {data, ts:now, sinceMs:currentWeekStartMs};
+            return data;
+        } catch (err) {
+            console.warn('[Ranking] getLeaderboardByAverageWeekly failed:', (err as Error).message);
             return [];
         }
     }

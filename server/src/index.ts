@@ -99,6 +99,11 @@ app.get('/api/ranking/average', async (_, res) => {
     catch (e) { res.status(500).json({ error: 'Failed to fetch average ranking' }); }
 });
 
+app.get('/api/ranking/weekly', async (_, res) => {
+    try { res.json(await rankingService.getLeaderboardByAverageWeekly(50)); }
+    catch (e) { res.status(500).json({ error: 'Failed to fetch weekly ranking' }); }
+});
+
 app.get('/api/dashboard', async (req, res) => {
     const authHeader = req.headers['authorization'];
     if (!authHeader) return res.status(401).json({ error: 'No token provided' });
@@ -106,15 +111,27 @@ app.get('/api/dashboard', async (req, res) => {
     const payload = verifyJWT(token);
     if (!payload) return res.status(401).json({ error: 'Invalid token' });
     try {
-        const [kda, matchHistory, rankingTotal, rankingAvg] = await Promise.all([
+        const [kda, matchHistory, rankingTotal, rankingAvg, rankingWeekly] = await Promise.all([
             rankingService.getPlayerStats(payload.username),
             rankingService.getPlayerMatchHistory(payload.username, 10),
             rankingService.getLeaderboard(50),
             rankingService.getLeaderboardByAverage(50),
+            rankingService.getLeaderboardByAverageWeekly(50)
         ]);
-        const playerRankTotal = rankingTotal.findIndex(r => r.playerName === payload.username) + 1;
-        const playerRankAvg   = rankingAvg.findIndex(r => r.playerName === payload.username) + 1;
-        res.json({ username: payload.username, kda, matchHistory, rankingTotal, rankingAvg, playerRankTotal, playerRankAvg });
+        const playerRankTotal  = rankingTotal.findIndex(r => r.playerName === payload.username) + 1;
+        const playerRankAvg    = rankingAvg.findIndex(r => r.playerName === payload.username) + 1;
+        const playerRankWeekly = rankingWeekly.findIndex(r => r.playerName === payload.username) + 1;
+        res.json({
+            username: payload.username,
+            kda,
+            matchHistory,
+            rankingTotal,
+            rankingAvg,
+            rankingWeekly,
+            playerRankTotal,
+            playerRankAvg,
+            playerRankWeekly
+        });
     } catch (e) { res.status(500).json({ error: 'Failed to fetch dashboard' }); }
 });
 

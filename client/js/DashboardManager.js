@@ -247,11 +247,15 @@ export class DashboardManager {
                         <div class="dash-stat-line"><span>MELHOR SCORE</span><span id="d-best">0</span></div>
                         <div class="dash-rank-badge">
                             <div class="rank-num" id="d-rank-total">#—</div>
-                            <div class="rank-lbl">RANK GERAL</div>
+                            <div class="rank-lbl">RANK PONTOS</div>
                         </div>
-                        <div class="dash-rank-badge" style="margin-top:8px;">
+                        <div class="dash-rank-badge" style="margin-top:6px;">
                             <div class="rank-num" id="d-rank-avg">#—</div>
-                            <div class="rank-lbl">RANK MÉDIA 5</div>
+                            <div class="rank-lbl">MÉDIA GERAL (10 BEST)</div>
+                        </div>
+                        <div class="dash-rank-badge" style="margin-top:6px;">
+                            <div class="rank-num" id="d-rank-weekly">#—</div>
+                            <div class="rank-lbl">MÉDIA SEMANAL (10 BEST)</div>
                         </div>
                     </div>
 
@@ -265,11 +269,13 @@ export class DashboardManager {
                     <div id="dash-leaderboard">
                         <h3>▶ LEADERBOARD</h3>
                         <div class="dash-tabs">
-                            <div class="dash-tab active" data-tab="total">🏆 RANKING GERAL</div>
-                            <div class="dash-tab" data-tab="avg">⚡ MÉDIA 5 PARTIDAS</div>
+                            <div class="dash-tab active" data-tab="total">🏆 TOP SCORE</div>
+                            <div class="dash-tab" data-tab="avg">📊 MÉDIA GERAL</div>
+                            <div class="dash-tab" data-tab="weekly">📅 MÉDIA SEMANAL</div>
                         </div>
                         <div class="dash-lb-panel active" id="lb-total"><div class="dash-loading">CARREGANDO...</div></div>
                         <div class="dash-lb-panel" id="lb-avg"><div class="dash-loading">CARREGANDO...</div></div>
+                        <div class="dash-lb-panel" id="lb-weekly"><div class="dash-loading">CARREGANDO...</div></div>
                     </div>
                 </div>
             </div>
@@ -310,6 +316,7 @@ export class DashboardManager {
         document.getElementById('d-history-content').innerHTML = '<div class="dash-loading">CARREGANDO...</div>';
         document.getElementById('lb-total').innerHTML = '<div class="dash-loading">CARREGANDO...</div>';
         document.getElementById('lb-avg').innerHTML = '<div class="dash-loading">CARREGANDO...</div>';
+        document.getElementById('lb-weekly').innerHTML = '<div class="dash-loading">CARREGANDO...</div>';
 
         try {
             const res = await fetch('/api/dashboard', {
@@ -321,6 +328,7 @@ export class DashboardManager {
             this._renderHistory(data.matchHistory, data.username);
             this._renderLeaderboard('lb-total', data.rankingTotal, data.username, false);
             this._renderLeaderboard('lb-avg', data.rankingAvg, data.username, true);
+            this._renderLeaderboard('lb-weekly', data.rankingWeekly, data.username, true);
         } catch (e) {
             console.warn('[Dashboard] Load failed:', e.message);
             document.getElementById('d-history-content').innerHTML = '<div class="dash-loading" style="color:#c0392b">ERRO AO CARREGAR DADOS</div>';
@@ -339,6 +347,7 @@ export class DashboardManager {
         document.getElementById('d-best').textContent    = k.bestScore.toLocaleString();
         document.getElementById('d-rank-total').textContent = data.playerRankTotal > 0 ? `#${data.playerRankTotal}` : '#—';
         document.getElementById('d-rank-avg').textContent   = data.playerRankAvg > 0 ? `#${data.playerRankAvg}` : '#—';
+        document.getElementById('d-rank-weekly').textContent = data.playerRankWeekly > 0 ? `#${data.playerRankWeekly}` : '#—';
     }
 
     _renderHistory(matches, username) {
