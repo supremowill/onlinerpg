@@ -31,3 +31,8 @@ Thumbs.db
 
 # Temp files
 *.tmp
+
+# Unused huge GLB assets & test artifacts
+faraó/
+client/assets/
+test-results/

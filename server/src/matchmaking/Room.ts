@@ -75,6 +75,14 @@ export class Room {
             }
         }
 
+        // Broadcast pending game events (Faraó warnings, eclipses, etc.)
+        if (this.engine.pendingEvents.length > 0) {
+            for (const ev of this.engine.pendingEvents) {
+                this.broadcast({ type: 'EVENT', payload: ev } as any);
+            }
+            this.engine.pendingEvents = [];
+        }
+
         if (this.engine.isGameOver) this.endGame();
     }
 
@@ -138,7 +146,9 @@ export class Room {
         // Save to DB
         try {
             for (const p of this.engine.players.values()) {
-                await rankingService.postScore(p.name, p.score, time, this.engine.spawnManager.collapseLevel, p.kills, this.id, this.players.size);
+                const deaths = p.isDead ? 1 : 0;
+                const assists = 0; // Not tracked currently
+                await rankingService.postScore(p.name, p.score, time, this.engine.spawnManager.collapseLevel, p.kills, this.id, this.players.size, deaths, assists);
             }
             await rankingService.saveMatchHistory(this.id, scores.length, time, this.engine.spawnManager.collapseLevel);
         } catch (e) { console.error('[Room] Failed to save scores:', e); }

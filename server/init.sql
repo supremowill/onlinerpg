@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS ranking (
     survival_time_seconds INTEGER DEFAULT 0,
     collapse_level INTEGER DEFAULT 0,
     kills INTEGER DEFAULT 0,
+    deaths INTEGER DEFAULT 0,
+    assists INTEGER DEFAULT 0,
     room_id VARCHAR(255),
     players_in_room INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

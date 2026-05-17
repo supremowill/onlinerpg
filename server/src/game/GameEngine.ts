@@ -14,6 +14,7 @@ import { GuardiaoDoLimboEnemy, MinosEnemy, CerberoEnemy, PlutaoEnemy, FuriaEnemy
 import { AlmaAmaldicoadaEnemy, CaveiraExplosivaEnemy, EspectroSombrioEnemy, BrotoCarnivoroEnemy } from './enemies/Minions';
 import { EspectroDeRazielEnemy } from './enemies/EspectroDeRaziel';
 import { SmithEnemy } from './enemies/SmithEnemy';
+import { FaraoEnemy, EscaravelhoFaraoEnemy } from './enemies/Farao';
 
 export interface Orb { id: string; type: 'xp' | 'healing' | 'buff'; position: Vec3; hitboxRadius: number; buffType?: string; buffEffects?: any; buffDuration?: number; }
 export interface DynamicZone { id: string; type: string; position: Vec3; radius: number; duration: number; timer: number; damagePerSec: number; lastTick: number; extras?: any; }
@@ -36,7 +37,7 @@ export class GameEngine {
     private healingTowerLastHeal = 0;
     private orbIdCounter = 0;
     private zoneIdCounter = 0;
-
+    public pendingEvents: { event: string; data: any }[] = [];
     constructor(numPlayers: number) {
         this.spawnManager = new SpawnManager();
         this.collisionSystem = new CollisionSystem();
@@ -234,6 +235,20 @@ export class GameEngine {
                     this.spawnManager.activeBoss = enemy.id;
                     console.log(`[Smith] Spawned (no previous): id=${enemy.id} hp=${enemy.hp}`);
                 }
+                break;
+            }
+            // ======= O FARAÓ — Entidade Deus =======
+            case 'FaraoWarning': {
+                // 5s warning phase: broadcast event but don't spawn yet
+                this.pendingEvents.push({ event: 'FARAO_SPAWN_WARNING', data: { timer: CONFIG.FARAO.SPAWN_WARNING_DURATION } });
+                return; // No enemy to push
+            }
+            case 'Farao': {
+                const farao = new FaraoEnemy(ev.position, this.spawnManager.faraoSpawnCount);
+                enemy = farao;
+                // Farao does NOT use activeBoss — it's above the boss tier
+                this.pendingEvents.push({ event: 'BOSS_SPAWN', data: { name: 'O Faraó', tier: 'Deus' } });
+                console.log(`[Faraó] Spawned! HP=${farao.hp} spawnCount=${farao.spawnCount}`);
                 break;
             }
             default: return;
@@ -609,6 +624,94 @@ export class GameEngine {
             case 'chamadoAbismo':
                 this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'chamadoAbismo', position: new Vec3(ab.x, 0, ab.z), radius: 8, duration: ab.duration || 15000, timer: ab.duration || 15000, damagePerSec: 0, lastTick: 0, extras: ab });
                 break;
+
+            // ======= O FARAÓ — Abilities =======
+            case 'raioDeRaWarning':
+                // Warning circle on the ground (VFX only, handled by client via zone)
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'raioDeRaWarning', position: new Vec3(ab.x, 0, ab.z), radius: 3, duration: ab.warningDuration, timer: ab.warningDuration, damagePerSec: 0, lastTick: 0, extras: ab });
+                break;
+            case 'raioDeRaStrike':
+                // AoE damage: 30% max HP + burn
+                for (const p of players) {
+                    if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < ab.radius) {
+                        p.takeDamage(p.maxHp * ab.hpPercent, false, true); // true damage
+                        p.applyBurn(ab.burnDuration, ab.burnDps);
+                    }
+                }
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'raioDeRaStrike', position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: 1000, timer: 1000, damagePerSec: 0, lastTick: 0, extras: ab });
+                break;
+            case 'prisaoDeGize': {
+                // Create closing pyramid zone, then root if player inside after escape time
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'prisaoDeGize', position: new Vec3(ab.x, 0, ab.z), radius: 4, duration: ab.escapeTime, timer: ab.escapeTime, damagePerSec: 0, lastTick: 0, extras: ab });
+                // Schedule root after escape time
+                setTimeout(() => {
+                    const target = this.players.get(ab.targetId);
+                    if (target && !target.isDead && target.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < 4) {
+                        target.applyRoot(ab.rootDuration);
+                    }
+                }, ab.escapeTime);
+                break;
+            }
+            case 'julgamentoStart':
+                // Broadcast Julgamento event to clients (visual split)
+                this.pendingEvents.push({ event: 'FARAO_JULGAMENTO', data: { timer: ab.timer, safeX: ab.safeX, safeZ: ab.safeZ } });
+                break;
+            case 'julgamentoResolve':
+                // 99% max HP true damage to everyone NOT in the safe half
+                for (const p of players) {
+                    if (p.isDead) continue;
+                    // Safe side: left half (safeX < 0) or right half (safeX > 0)
+                    const isSafe = (ab.safeX < 0 && p.position.x < 0) || (ab.safeX > 0 && p.position.x > 0);
+                    if (!isSafe) {
+                        p.takeDamage(p.maxHp * ab.damagePercent, false, true); // true damage
+                    }
+                }
+                break;
+            case 'pragaDeVoxeis': {
+                // Cone blind + DoT zone
+                for (const p of players) {
+                    if (p.isDead) continue;
+                    const toPlayer = p.position.clone().sub(new Vec3(ab.x, 0, ab.z));
+                    toPlayer.y = 0;
+                    const coneDir = new Vec3(ab.dirX, 0, ab.dirZ);
+                    const dot = toPlayer.normalize().dot(coneDir);
+                    const dist = p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z));
+                    if (dot > 0.6 && dist < 15) { // 60° cone, 15 units range
+                        p.applyBlindness(ab.blindDuration);
+                    }
+                }
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'pragaDeVoxeis', position: new Vec3(ab.x, 0, ab.z), radius: 15, duration: 3000, timer: 3000, damagePerSec: ab.damagePerSec || 10, lastTick: 0, extras: { dirX: ab.dirX, dirZ: ab.dirZ } });
+                break;
+            }
+            case 'colapsoStart':
+                // VFX event: Pharaoh levitating
+                this.pendingEvents.push({ event: 'MESSAGE', data: { message: '⚠ O Faraó prepara o Colapso Monumental! ⚠' } });
+                break;
+            case 'colapsoBlock':
+                // Falling block: damage zone + temporary obstacle
+                for (const p of players) {
+                    if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < 2.5) {
+                        p.takeDamage(ab.damage, false);
+                    }
+                }
+                // Add temporary obstacle
+                const obsId = `farao_obs_${this.zoneIdCounter++}`;
+                this.obstacles.push({ id: obsId, x: ab.x, z: ab.z, width: 3, depth: 3 });
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'colapsoBlock', position: new Vec3(ab.x, 0, ab.z), radius: 2.5, duration: ab.duration, timer: ab.duration, damagePerSec: 0, lastTick: 0, extras: { obstacleId: obsId } });
+                // Remove obstacle when zone expires
+                setTimeout(() => {
+                    this.obstacles = this.obstacles.filter(o => o.id !== obsId);
+                }, ab.duration);
+                break;
+            case 'spawnEscaravelhoFarao': {
+                const escaravelho = new EscaravelhoFaraoEnemy(new Vec3(ab.x, 0, ab.z), ab.ownerId);
+                this.enemies.push(escaravelho);
+                break;
+            }
+            case 'faraoEclipse':
+                // Broadcast eclipse event to clients
+                this.pendingEvents.push({ event: 'FARAO_ECLIPSE', data: { duration: ab.duration } });
+                break;
         }
     }
 
@@ -732,6 +835,34 @@ export class GameEngine {
                 rewind_time_seconds: 30,
                 duration: 300, // 5 minutes to use
             }, 300);
+        }
+        // ======= O FARAÓ — Kill rewards =======
+        if (t === 'Farao') {
+            this.spawnManager.onFaraoDefeated();
+            // Clean up all scarabs
+            for (const e of this.enemies) {
+                if (e.type === 'EscaravelhoFarao' && !e.isDestroyed) e.isDestroyed = true;
+            }
+            // Award 1,000,000 XP to all alive players
+            for (const p of [...this.players.values()]) {
+                if (!p.isDead) {
+                    p.addXp(CONFIG.FARAO.XP);
+                    p.score += CONFIG.FARAO.SCORE;
+                    // Bênção do Faraó: permanent stacking buff +50% all base stats
+                    const stacks = this.spawnManager.faraoSpawnCount; // already incremented
+                    const statMultiplier = 1 + (0.50 * stacks);
+                    p.maxHp *= 1.50;
+                    p.hp = p.maxHp;
+                    p.speed *= 1.50;
+                    p.originalSpeed = p.speed;
+                    p.applyTimedBuff('bencao_do_farao', 999999, {
+                        stacks: stacks,
+                        stat_multiplier: statMultiplier,
+                    });
+                }
+            }
+            this.pendingEvents.push({ event: 'BOSS_KILLED', data: { name: 'O Faraó', tier: 'Deus', xp: CONFIG.FARAO.XP } });
+            this.pendingEvents.push({ event: 'MESSAGE', data: { message: `☀ O Faraó foi derrotado! Bênção do Faraó concedida! ☀` } });
         }
         // Notify Smith clones that Smith died
         if (enemy.type === 'Smith' && enemy instanceof SmithEnemy) {
@@ -904,6 +1035,10 @@ export class GameEngine {
             mightyOne: this.spawnManager.mightyOneAlive ? (() => { const m = this.enemies.find(e => e.type === 'TheMightyOne'); return m ? { hp: m.hp, maxHp: m.maxHp, damageBonus: (m as TheMightyOneEnemy).damageBonus } : null; })() : null,
             collapseLevel: this.spawnManager.collapseLevel,
             globalMultiplier: this.spawnManager.globalMultiplier,
+            // Faraó arena state
+            eclipseActive: (() => { const f = this.enemies.find(e => e.type === 'Farao' && !e.isDestroyed) as FaraoEnemy | undefined; return f?.eclipseActive || undefined; })(),
+            faraoWarning: this.spawnManager.faraoWarningActive ? { timer: this.spawnManager.faraoWarningTimer } : undefined,
+            julgamento: (() => { const f = this.enemies.find(e => e.type === 'Farao' && !e.isDestroyed) as any; return f?.habilidades?.julgamento?.isActive ? { timer: f.habilidades.julgamento.timer, safeX: f.habilidades.julgamento.safeX, safeZ: 0 } : undefined; })(),
         };
     }
 }

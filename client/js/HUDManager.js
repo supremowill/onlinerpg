@@ -25,6 +25,16 @@ export class HUDManager {
         this.poderosoHpText = document.getElementById('poderoso-hp-text');
         this.poderosoPowerBar = document.getElementById('poderoso-power-bar');
         this.poderosoPowerText = document.getElementById('poderoso-power-text');
+
+        this.faraoHud = document.getElementById('farao-hud');
+        this.faraoHpBar = document.getElementById('farao-hp-bar');
+        this.faraoHpText = document.getElementById('farao-hp-text');
+        this.faraoWarning = document.getElementById('farao-warning');
+        this.faraoWarningTimer = document.getElementById('farao-warning-timer');
+
+        this.julgamentoWarning = document.getElementById('julgamento-warning');
+        this.julgamentoWarningTimer = document.getElementById('julgamento-warning-timer');
+
         // Buffs
         this.buffDisplay = document.getElementById('buff-display');
         this.buffName = document.getElementById('buff-name');
@@ -106,6 +116,33 @@ export class HUDManager {
             this.poderosoHud.style.display = 'none';
         }
 
+        // Farao HUD
+        const farao = snapshot.enemies?.find(e => e.type === 'Farao');
+        if (farao) {
+            this.faraoHud.style.display = 'flex';
+            const fP = (farao.hp / farao.maxHp) * 100;
+            this.faraoHpBar.style.width = `${fP}%`;
+            this.faraoHpText.textContent = `${Math.ceil(farao.hp)} / ${farao.maxHp}`;
+        } else {
+            this.faraoHud.style.display = 'none';
+        }
+
+        // Farao Warning
+        if (snapshot.faraoWarning) {
+            this.faraoWarning.style.display = 'block';
+            this.faraoWarningTimer.textContent = Math.ceil(snapshot.faraoWarning.timer);
+        } else {
+            this.faraoWarning.style.display = 'none';
+        }
+
+        // Julgamento Warning
+        if (snapshot.julgamento) {
+            this.julgamentoWarning.style.display = 'block';
+            this.julgamentoWarningTimer.textContent = Math.ceil(snapshot.julgamento.timer / 1000);
+        } else {
+            this.julgamentoWarning.style.display = 'none';
+        }
+
         // Buffs
         let buffText = '';
         if (me.activeBuff) buffText += me.activeBuff;
@@ -115,6 +152,7 @@ export class HUDManager {
                 essencia_negra: 'Essência do Medo', coroa_lich_buff: 'Coroa do Lich',
                 lamina_geada_buff: 'Lâmina da Geada', fragmento_morte_buff: 'Fragmento da Morte',
                 talisma_quebrado_buff: 'Talismã Quebrado', sabre_pirata: 'Sabre Pirata',
+                bencao_do_farao: '☀ Bênção do Faraó',
             };
             for (const b of me.timedBuffs) {
                 const name = buffNames[b] || b;
@@ -136,14 +174,14 @@ export class HUDManager {
                     if (!slot) return;
                     let cdDiv = slot.querySelector('.skill-cooldown');
                     if (rem > 0) {
-                        if (!cdDiv) { 
-                            cdDiv = document.createElement('div'); 
-                            cdDiv.className = 'skill-cooldown'; 
-                            slot.appendChild(cdDiv); 
+                        if (!cdDiv) {
+                            cdDiv = document.createElement('div');
+                            cdDiv.className = 'skill-cooldown';
+                            slot.appendChild(cdDiv);
                         }
                         cdDiv.textContent = (rem / 1000).toFixed(1);
-                    } else if (cdDiv) { 
-                        slot.removeChild(cdDiv); 
+                    } else if (cdDiv) {
+                        slot.removeChild(cdDiv);
                     }
                 };
 

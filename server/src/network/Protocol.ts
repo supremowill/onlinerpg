@@ -92,6 +92,10 @@ export interface WorldSnapshot {
     mightyOne: MightyOneSnapshot | null;
     collapseLevel: number;
     globalMultiplier: number;
+    // Faraó arena state
+    faraoWarning?: { timer: number };
+    eclipseActive?: boolean;
+    julgamento?: { timer: number; safeX: number; safeZ: number };
 }
 
 export interface PlayerSnapshot {
@@ -153,6 +157,14 @@ export interface EnemySnapshot {
     isChannelingW?: boolean;
     isUltActive?: boolean;
     matilhaCount?: number;
+    // O Faraó fields
+    isLevitating?: boolean;
+    eclipseActive?: boolean;
+    isJulgamentoActive?: boolean;
+    julgamentoSafeX?: number;
+    isRaioWarning?: boolean;
+    raioTargetX?: number;
+    raioTargetZ?: number;
 }
 
 export interface ProjectileSnapshot {
@@ -200,7 +212,8 @@ export interface MightyOneSnapshot {
 
 export interface GameEvent {
     event: 'BOSS_SPAWN' | 'BOSS_KILLED' | 'COLLAPSE' | 'PLAYER_LEVEL_UP'
-        | 'ITEM_DROP' | 'MESSAGE' | 'PLAYER_BUFF';
+        | 'ITEM_DROP' | 'MESSAGE' | 'PLAYER_BUFF'
+        | 'FARAO_SPAWN_WARNING' | 'FARAO_ECLIPSE' | 'FARAO_JULGAMENTO';
     data: any;
 }
 

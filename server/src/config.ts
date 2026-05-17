@@ -288,6 +288,7 @@ export const CONFIG = {
         LUCIFER: 540,
         ESPECTRO_DE_RAZIEL: 480, // 8 minutos
         SMITH: 150, // 2:30 minutos
+        FARAO: 300, // 5 minutos (Entidade Deus)
         SUPER_BOSS_TIME: 180,
         THE_MIGHTY_ONE_TIME: 600,
     },
@@ -452,5 +453,58 @@ export const CONFIG = {
         CLONE_OPACITY: 0.7,
         AURA_RADIUS: 4,
         FRAGMENT_TELEPORT_DIST: 15,
+    },
+
+    // ============================================================
+    // O FARAÓ — Entidade DEUS (Acima de Boss)
+    // ============================================================
+    FARAO: {
+        BASE_HP: 150000,
+        HP_SCALE_PER_SPAWN: 1.20,       // +20% HP each respawn
+        SPEED: 0,                        // Moves only via teleport
+        HITBOX_RADIUS: 2.5,
+        XP: 1000000,
+        SCORE: 100000,
+        SPAWN_WARNING_DURATION: 5000,    // 5s screen shake warning
+        // Teleport AI
+        TELEPORT_INTERVAL: 8000,         // 8s between teleports
+        LOS_BLOCK_THRESHOLD: 3000,       // 3s before destroying obstacle
+        // Passives
+        AREIAS_SLOW_PER_SEC: 0.01,       // 1% per second
+        MALDIÇÃO_REFLECT_PCT: 0.10,      // 10% damage reflect
+        ESCARAVELHO_INTERVAL: 12000,     // 12s scarab spawn
+        ESCARAVELHO_COUNT: 3,
+        ESCARAVELHO_HP: 200,
+        ESCARAVELHO_DAMAGE: 50,
+        ESCARAVELHO_SPEED: 8,
+        // Eclipse thresholds
+        ECLIPSE_DURATION: 10000,         // 10s darkness
+        // Active skills
+        RAIO_RA_COOLDOWN: 15000,
+        RAIO_RA_WARNING: 1500,           // 1.5s warning circle
+        RAIO_RA_HP_PERCENT: 0.30,        // 30% max HP
+        RAIO_RA_BURN_DURATION: 5000,
+        RAIO_RA_BURN_DPS: 20,
+        PRISAO_GIZE_COOLDOWN: 25000,
+        PRISAO_GIZE_ESCAPE_TIME: 1000,   // 1s to escape
+        PRISAO_GIZE_ROOT_DURATION: 3000,
+        JULGAMENTO_COOLDOWN: 45000,
+        JULGAMENTO_TIMER: 4000,          // 4s to reach green zone
+        JULGAMENTO_DAMAGE_PERCENT: 0.99, // 99% max HP true damage
+        PRAGA_COOLDOWN: 20000,
+        PRAGA_BLIND_DURATION: 4000,
+        PRAGA_DAMAGE_PER_SEC: 10,
+        COLAPSO_COOLDOWN: 65000,
+        COLAPSO_BLOCK_COUNT: 8,
+        COLAPSO_BLOCK_DURATION: 10000,   // 10s obstacle persistence
+        COLAPSO_DAMAGE: 500,
+    },
+    ESCARAVELHO_FARAO: {
+        BASE_HP: 200,
+        BASE_DAMAGE: 50,
+        SPEED: 8,
+        HITBOX_RADIUS: 0.4,
+        XP: 0,
+        SCORE: 0,
     },
 };

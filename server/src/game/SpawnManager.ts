@@ -37,6 +37,11 @@ export class SpawnManager {
     public isLuciferAlive = false;
     public isEspectroDeRazielAlive = false;
     public isSmithAlive = false;
+    // O Faraó — Entidade Deus (acima de boss)
+    public isFaraoAlive = false;
+    public faraoSpawnCount = 0;
+    public faraoWarningTimer = 0;
+    public faraoWarningActive = false;
 
     constructor() {
         const t = CONFIG.SPAWN_TIMERS;
@@ -63,6 +68,7 @@ export class SpawnManager {
             spawnLucifer: t.LUCIFER,
             spawnEspectroDeRaziel: t.ESPECTRO_DE_RAZIEL,
             spawnSmith: t.SMITH,
+            spawnFarao: t.FARAO,
         };
     }
 
@@ -272,6 +278,24 @@ export class SpawnManager {
             }
         }
 
+        // === O FARAÓ — Entidade Deus (12 min, respawns, independent of activeBoss) ===
+        this.timers.spawnFarao -= dt;
+        if (!this.isFaraoAlive && !this.faraoWarningActive && this.timers.spawnFarao <= 0) {
+            // Start 5s warning phase
+            this.faraoWarningActive = true;
+            this.faraoWarningTimer = CONFIG.FARAO.SPAWN_WARNING_DURATION / 1000; // 5s
+            events.push({ type: 'FaraoWarning', position: this.getSpawnPosition() });
+        }
+        if (this.faraoWarningActive) {
+            this.faraoWarningTimer -= dt;
+            if (this.faraoWarningTimer <= 0) {
+                this.faraoWarningActive = false;
+                this.isFaraoAlive = true;
+                this.timers.spawnFarao = CONFIG.SPAWN_TIMERS.FARAO;
+                events.push({ type: 'Farao', position: this.getSpawnPosition() });
+            }
+        }
+
         return events;
     }
 
@@ -288,5 +312,10 @@ export class SpawnManager {
 
     getNumPlayers(n: number): number {
         return 1 + CONFIG.ENEMY_SCALE_PER_PLAYER * (n - 1);
+    }
+
+    onFaraoDefeated(): void {
+        this.isFaraoAlive = false;
+        this.faraoSpawnCount++;
     }
 }

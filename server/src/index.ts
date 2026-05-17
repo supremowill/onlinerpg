@@ -94,6 +94,30 @@ app.get('/api/matches', async (_, res) => {
     catch (e) { res.status(500).json({ error: 'Failed to fetch matches' }); }
 });
 
+app.get('/api/ranking/average', async (_, res) => {
+    try { res.json(await rankingService.getLeaderboardByAverage(50)); }
+    catch (e) { res.status(500).json({ error: 'Failed to fetch average ranking' }); }
+});
+
+app.get('/api/dashboard', async (req, res) => {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) return res.status(401).json({ error: 'No token provided' });
+    const token = authHeader.split(' ')[1];
+    const payload = verifyJWT(token);
+    if (!payload) return res.status(401).json({ error: 'Invalid token' });
+    try {
+        const [kda, matchHistory, rankingTotal, rankingAvg] = await Promise.all([
+            rankingService.getPlayerStats(payload.username),
+            rankingService.getPlayerMatchHistory(payload.username, 10),
+            rankingService.getLeaderboard(50),
+            rankingService.getLeaderboardByAverage(50),
+        ]);
+        const playerRankTotal = rankingTotal.findIndex(r => r.playerName === payload.username) + 1;
+        const playerRankAvg   = rankingAvg.findIndex(r => r.playerName === payload.username) + 1;
+        res.json({ username: payload.username, kda, matchHistory, rankingTotal, rankingAvg, playerRankTotal, playerRankAvg });
+    } catch (e) { res.status(500).json({ error: 'Failed to fetch dashboard' }); }
+});
+
 app.get('/api/stats', (_, res) => res.json(matchmaking.getStats()));
 
 // ==================== AUTH ENDPOINTS ====================

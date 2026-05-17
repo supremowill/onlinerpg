@@ -119,7 +119,12 @@
         }
     </style>
     <script type="importmap">
-    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js" } }
+    { 
+        "imports": { 
+            "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js",
+            "three/addons/loaders/GLTFLoader.js": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/loaders/GLTFLoader.js"
+        } 
+    }
     </script>
 </head>
 <body>
@@ -152,6 +157,7 @@
         <!-- Logged in view (shown when JWT is valid) -->
         <div id="logged-in-container" style="display:none">
             <p>Bem-vindo, <span id="logged-username"></span>!</p>
+            <button id="dashboard-button" class="overlay-button" style="background:#003540;border-color:#00e5ff;color:#00e5ff">📊 DASHBOARD</button>
             <button id="logout-button" class="overlay-button" style="background:#c0392b">Sair</button>
         </div>
 
@@ -182,6 +188,7 @@
             <p>Nível de Colapso: <span id="final-collapse-level">0</span></p>
         </div>
         <button id="restart-button" class="overlay-button">JOGAR NOVAMENTE</button>
+        <button id="gameover-dashboard-button" class="overlay-button" style="background:#003540;border-color:#00e5ff;color:#00e5ff">📊 MINHAS ESTATÍSTICAS</button>
         <div class="leaderboard-container">
             <h2>🏆 Ranking — Top 10 🏆</h2>
             <ol id="leaderboard-list-gameover"><li>Atualizando...</li></ol>
@@ -208,6 +215,18 @@
     <!-- BOSS HUD -->
     <div id="boss-hud" class="boss-hud-container">
         <div class="boss-hud-item"><div id="boss-name-label" class="hud-item-label">Boss</div><div class="progress-bar-container"><div id="boss-hp-bar" class="progress-bar"></div></div></div>
+    </div>
+    <div id="farao-hud" class="boss-hud-container" style="top: 100px;">
+        <div class="boss-hud-item" style="border-color: #daa520; box-shadow: 0 0 10px #daa520;">
+            <div class="hud-item-label" style="color:#ffd700; text-shadow: 0 0 5px #ff0000;">O FARAÓ</div>
+            <div class="progress-bar-container"><div id="farao-hp-bar" class="progress-bar" style="background:linear-gradient(90deg,#ff0000,#ffd700);"><div id="farao-hp-text" class="progress-bar-text"></div></div></div>
+        </div>
+    </div>
+    <div id="farao-warning" style="display:none; position:absolute; top:30%; left:50%; transform:translateX(-50%); font-size:3rem; color:#ff0000; text-shadow: 0 0 20px #000, 0 0 10px #ff0000; font-weight:bold; z-index:200; text-align:center;">
+        O FARAÓ DESPERTA EM <span id="farao-warning-timer">5</span>s!
+    </div>
+    <div id="julgamento-warning" style="display:none; position:absolute; top:40%; left:50%; transform:translateX(-50%); font-size:2.5rem; color:#00ff00; text-shadow: 0 0 20px #000, 0 0 10px #00ff00; font-weight:bold; z-index:200; text-align:center;">
+        JULGAMENTO DE OSÍRIS!<br/>CORRA PARA A ZONA SEGURA: <span id="julgamento-warning-timer">3</span>s!
     </div>
     <div id="poderoso-hud" class="boss-hud-container">
         <div class="boss-hud-item"><div class="hud-item-label" style="color:var(--poderoso-color)">O PODEROSO</div><div class="progress-bar-container"><div id="poderoso-hp-bar" class="progress-bar"><div id="poderoso-hp-text" class="progress-bar-text"></div></div></div></div>
@@ -241,6 +260,7 @@
         import { InputManager } from './js/InputManager.js';
         import { HUDManager } from './js/HUDManager.js';
         import { AuthManager } from './js/auth.js';
+        import { DashboardManager } from './js/DashboardManager.js';
 
         // --- State ---
         let scene, camera, renderer, clock;
@@ -250,6 +270,11 @@
 
         // --- Auth Manager ---
         const authManager = new AuthManager();
+        const dashboardManager = new DashboardManager(authManager);
+
+        // Dashboard buttons
+        document.getElementById('dashboard-button').addEventListener('click', () => dashboardManager.open());
+        document.getElementById('gameover-dashboard-button').addEventListener('click', () => dashboardManager.open());
 
         // --- DOM refs ---
         const startScreen = document.getElementById('start-screen');

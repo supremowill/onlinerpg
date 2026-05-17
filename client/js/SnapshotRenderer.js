@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 /**
  * SnapshotRenderer - Creates/updates Three.js meshes from server world snapshots
  * Maintains entity pools and interpolates positions for smooth rendering
@@ -15,6 +15,9 @@ export class SnapshotRenderer {
         this.currentSnapshot = null;
         this.interpolationAlpha = 0;
         this.singularityAura = null;
+        this.mixers = [];
+        this.faraoModelTemplate = null;
+        this.faraoAnimations = {};
 
         // Material caches
         this.materials = {
@@ -101,6 +104,15 @@ export class SnapshotRenderer {
                 headGeo: new THREE.BoxGeometry(0.7, 0.7, 0.7),
                 opacity: 0.7,
             },
+            EscaravelhoFarao: { geo: new THREE.SphereGeometry(0.6, 8, 8), color: 0xffd700, emissive: 0xffa500 },
+            // ─── FARAÓ (geometric low-poly) ───────────────────────────────────
+            Farao: {
+                geo: new THREE.BoxGeometry(2.2, 2.8, 1.4),  // body — golden prism
+                color: 0xc8a000,
+                emissive: 0xffd700,
+                emissiveIntensity: 0.5,
+                isFaraoGeometric: true,
+            },
         };
     }
 
@@ -112,6 +124,7 @@ export class SnapshotRenderer {
 
     update(dt, tickIntervalMs) {
         if (!this.currentSnapshot) return;
+        this.mixers.forEach(m => m.update(dt));
         this.interpolationAlpha += (dt * 1000) / tickIntervalMs;
         const snap = this.currentSnapshot;
         const prev = this.previousSnapshot;
@@ -233,25 +246,74 @@ export class SnapshotRenderer {
                 activeEnemyIds.add(es.id);
                 let entry = this.entityPool.get(es.id);
                 if (!entry) {
+                    let mesh;
+                    let mixer = null;
                     const visual = this.enemyVisuals[es.type] || { geo: new THREE.BoxGeometry(1, 1, 1), color: 0xffffff };
                     const mat = new THREE.MeshStandardMaterial({
                         color: visual.color,
-                        emissive: visual.color,
-                        emissiveIntensity: es.type === 'TheMightyOne' ? 1.0 : 0.2,
-                        metalness: 0.4, roughness: 0.5,
+                        emissive: visual.emissive || visual.color,
+                        emissiveIntensity: es.type === 'TheMightyOne' ? 1.0 : (visual.emissiveIntensity || 0.2),
+                        metalness: es.type === 'Farao' ? 0.7 : 0.4,
+                        roughness: es.type === 'Farao' ? 0.3 : 0.5,
                         transparent: es.type === 'SuperBoss' || es.type === 'FeiticeiroImortal' || es.type === 'EspectroSombrio' || es.type === 'EspectroDeRaziel' || es.type === 'Smith' || es.type === 'CloneSmith',
                         opacity: visual.opacity !== undefined ? visual.opacity : (es.type === 'SuperBoss' ? 0.8 : es.type === 'EspectroSombrio' ? 0.5 : es.type === 'EspectroDeRaziel' ? 0.7 : 1.0),
                     });
                     if (es.type === 'EspectroSombrio') mat.emissive.set(0x00aaff);
                     if (es.type === 'EspectroDeRaziel') mat.emissive.set(0x00CCFF);
                     if (es.type === 'Smith' || es.type === 'CloneSmith') mat.metalness = 0.8;
-                    const mesh = new THREE.Mesh(visual.geo.clone(), mat);
+                    mesh = new THREE.Mesh(visual.geo.clone(), mat);
                     mesh.castShadow = true;
+
+                    // ─── FARAÓ — geometric low-poly assembly ─────────────────
+                    if (es.type === 'Farao') {
+                        // Head — square pyramid (nemes headdress)
+                        const headGeo = new THREE.BoxGeometry(1.8, 1.2, 1.2);
+                        const headMat = new THREE.MeshStandardMaterial({ color: 0xd4a700, emissive: 0xffd700, emissiveIntensity: 0.4, metalness: 0.8, roughness: 0.2 });
+                        const headMesh = new THREE.Mesh(headGeo, headMat);
+                        headMesh.position.y = 2.0;
+                        mesh.add(headMesh);
+                        // Crown — pyramid atop head (uraeus)
+                        const crownGeo = new THREE.ConeGeometry(0.5, 1.2, 4);
+                        const crownMat = new THREE.MeshStandardMaterial({ color: 0xffd700, emissive: 0xffd700, emissiveIntensity: 1.0, metalness: 0.9, roughness: 0.1 });
+                        const crownMesh = new THREE.Mesh(crownGeo, crownMat);
+                        crownMesh.position.y = 3.2;
+                        crownMesh.rotation.y = Math.PI / 4;
+                        mesh.add(crownMesh);
+                        // Staff — vertical bar on right side
+                        const staffGeo = new THREE.BoxGeometry(0.15, 4.5, 0.15);
+                        const staffMat = new THREE.MeshStandardMaterial({ color: 0xb8860b, emissive: 0xdaa520, emissiveIntensity: 0.3, metalness: 0.6 });
+                        const staffMesh = new THREE.Mesh(staffGeo, staffMat);
+                        staffMesh.position.set(1.5, 0.8, 0);
+                        mesh.add(staffMesh);
+                        // Staff top — ankh cross piece
+                        const crossGeo = new THREE.BoxGeometry(0.8, 0.15, 0.15);
+                        const crossMesh = new THREE.Mesh(crossGeo, staffMat);
+                        crossMesh.position.set(1.5, 3.2, 0);
+                        mesh.add(crossMesh);
+                        // Scarab chest piece — glowing box
+                        const scarabGeo = new THREE.BoxGeometry(0.8, 0.5, 0.2);
+                        const scarabMat = new THREE.MeshStandardMaterial({ color: 0x00aaff, emissive: 0x00e5ff, emissiveIntensity: 1.2 });
+                        const scarabMesh = new THREE.Mesh(scarabGeo, scarabMat);
+                        scarabMesh.position.set(0, 0.4, 0.8);
+                        mesh.add(scarabMesh);
+                        // Eye of Ra — flat plane on face
+                        const eyeGeo = new THREE.BoxGeometry(0.35, 0.2, 0.05);
+                        const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff4400 });
+                        const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+                        const eyeR = eyeL.clone();
+                        eyeL.position.set(-0.4, 2.0, 0.65);
+                        eyeR.position.set(0.4, 2.0, 0.65);
+                        mesh.add(eyeL); mesh.add(eyeR);
+                        // Scale up — Faraó is a god-tier boss
+                        mesh.scale.set(1.4, 1.4, 1.4);
+                    }
+
                     this.scene.add(mesh);
                     // HP bar above enemy
                     const hpGroup = this.createHpBar();
+                    if (es.type === 'Farao') hpGroup.position.y += 3; // taller boss
                     mesh.add(hpGroup);
-                    entry = { mesh, type: 'enemy', hpBar: hpGroup, lastUpdate: Date.now(), orbitingSoulMeshes: [], cylinderMesh: null, auraMesh: null, headMesh: null, visorMesh: null, bsodMesh: null };
+                    entry = { mesh, type: 'enemy', hpBar: hpGroup, lastUpdate: Date.now(), mixer, orbitingSoulMeshes: [], cylinderMesh: null, auraMesh: null, headMesh: null, visorMesh: null, bsodMesh: null, isFarao: es.type === 'Farao' };
                     // Add head and visor for Smith / CloneSmith
                     if ((es.type === 'Smith' || es.type === 'CloneSmith') && visual.headGeo) {
                         const headMat = new THREE.MeshStandardMaterial({ color: visual.headColor, metalness: 0.6, roughness: 0.4 });
@@ -361,6 +423,65 @@ export class SnapshotRenderer {
                         }
                     }, 2000);
                 }
+                
+                // --- Farao specific visuals ---
+                if (entry.isFarao || es.type === 'Farao') {
+                    // Eclipse active (Global scene change)
+                    if (es.eclipseActive && !this.scene.eclipseDarkened) {
+                        this.scene.background = new THREE.Color(0x030005);
+                        this.scene.fog.color = new THREE.Color(0x030005);
+                        this.scene.eclipseDarkened = true;
+                    } else if (!es.eclipseActive && this.scene.eclipseDarkened) {
+                        this.scene.background = new THREE.Color(0x100018);
+                        this.scene.fog.color = new THREE.Color(0x100018);
+                        this.scene.eclipseDarkened = false;
+                    }
+
+                    // Raio Warning
+                    if (es.isRaioWarning && es.raioTargetX !== undefined && !entry.raioMesh) {
+                        const raioGeo = new THREE.CylinderGeometry(1.5, 1.5, 10, 16);
+                        const raioMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.3 });
+                        const raioMesh = new THREE.Mesh(raioGeo, raioMat);
+                        raioMesh.position.set(es.raioTargetX, 5, es.raioTargetZ);
+                        this.scene.add(raioMesh);
+                        entry.raioMesh = raioMesh;
+                    } else if (entry.raioMesh) {
+                        if (!es.isRaioWarning) {
+                            this.scene.remove(entry.raioMesh);
+                            entry.raioMesh.geometry.dispose();
+                            entry.raioMesh.material.dispose();
+                            entry.raioMesh = null;
+                        } else {
+                            // Update position if it tracks
+                            entry.raioMesh.position.x = es.raioTargetX;
+                            entry.raioMesh.position.z = es.raioTargetZ;
+                        }
+                    }
+
+                    // Julgamento Safe Zone visualization
+                    if (es.isJulgamentoActive && es.julgamentoSafeX !== undefined && !entry.julgamentoZone) {
+                        const zoneGeo = new THREE.PlaneGeometry(15, 15); // Large safe zone area
+                        const zoneMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+                        const zoneMesh = new THREE.Mesh(zoneGeo, zoneMat);
+                        zoneMesh.rotation.x = -Math.PI / 2;
+                        zoneMesh.position.set(es.julgamentoSafeX, 0.1, es.julgamentoSafeZ || 0); // Need safeZ if defined, else 0
+                        this.scene.add(zoneMesh);
+                        entry.julgamentoZone = zoneMesh;
+                    } else if (entry.julgamentoZone && !es.isJulgamentoActive) {
+                        this.scene.remove(entry.julgamentoZone);
+                        entry.julgamentoZone.geometry.dispose();
+                        entry.julgamentoZone.material.dispose();
+                        entry.julgamentoZone = null;
+                    }
+
+                    // Levitation (adjust Y)
+                    if (es.isLevitating) {
+                        entry.mesh.position.y = THREE.MathUtils.lerp(entry.mesh.position.y, 2.0, 0.1);
+                    } else {
+                        entry.mesh.position.y = THREE.MathUtils.lerp(entry.mesh.position.y, 0, 0.1);
+                    }
+                }
+
                 // Update orbiting souls for EspectroDeRaziel
                 if (es.type === 'EspectroDeRaziel' && es.orbitingSouls) {
                     // Remove old soul meshes
