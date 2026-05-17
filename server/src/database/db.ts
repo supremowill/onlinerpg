@@ -125,6 +125,41 @@ export async function initDatabase(): Promise<Pool> {
                 console.warn(`[DB] Schema statement failed: ${stmt.substring(0, 60)}... Error: ${e.message}`);
             }
         }
+
+        // Run migration checks to auto-align existing production/Render database columns
+        try {
+            console.log('[DB] Running schema migration checks...');
+            
+            // Alter ranking table to add missing columns in production if they don't exist
+            await pool.query('ALTER TABLE ranking ADD COLUMN IF NOT EXISTS deaths INTEGER DEFAULT 0');
+            await pool.query('ALTER TABLE ranking ADD COLUMN IF NOT EXISTS assists INTEGER DEFAULT 0');
+            console.log('[DB] Verified ranking table columns.');
+
+            // Check if match_history contains old schema (player_id column)
+            const schemaCheck = await pool.query(`
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'match_history' AND column_name = 'player_id'
+            `);
+            if (schemaCheck.rows.length > 0) {
+                console.log('[DB] Old match_history table detected. Rebuilding table for schema alignment...');
+                await pool.query('DROP TABLE IF EXISTS match_history CASCADE');
+                await pool.query(`
+                    CREATE TABLE match_history (
+                        id SERIAL PRIMARY KEY,
+                        room_id VARCHAR(36) NOT NULL,
+                        total_players INTEGER NOT NULL,
+                        total_time_seconds REAL NOT NULL,
+                        collapse_level INTEGER DEFAULT 0,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                    )
+                `);
+                await pool.query('CREATE INDEX idx_match_room ON match_history(room_id)');
+                console.log('[DB] match_history table recreated successfully.');
+            }
+        } catch (migrationErr: any) {
+            console.warn('[DB] Migration failed:', migrationErr.message);
+        }
+
         // Verify tables exist
         const verifyResult = await pool.query(`
             SELECT table_name FROM information_schema.tables
