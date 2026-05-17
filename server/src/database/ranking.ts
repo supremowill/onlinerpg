@@ -34,7 +34,7 @@ export class RankingService {
             await pool.query(
                 `INSERT INTO ranking (player_name, score, survival_time_seconds, collapse_level, kills, deaths, assists, room_id, players_in_room)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-                [playerName, score, survivalTime, collapseLevel, kills, deaths, assists, roomId, playersInRoom]
+                [playerName, score, Math.floor(survivalTime), collapseLevel, kills, deaths, assists, roomId, playersInRoom]
             );
             console.log(`[Ranking] Score posted: ${playerName} = ${score}`);
         } catch (err) {
