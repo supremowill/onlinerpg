@@ -113,21 +113,49 @@ export class RankingService {
         }
     }
 
-    /** Aggregated KDA for a player (from ranking table) */
-    async getPlayerStats(playerName: string): Promise<{totalKills:number;totalDeaths:number;totalAssists:number;totalMatches:number;totalScore:number;bestScore:number}> {
-        if (!this.isDbAvailable()) return {totalKills:0,totalDeaths:0,totalAssists:0,totalMatches:0,totalScore:0,bestScore:0};
+    /** Aggregated statistics for a player (from ranking table) */
+    async getPlayerStats(playerName: string): Promise<{
+        totalKills: number;
+        totalDeaths: number;
+        totalAssists: number;
+        totalMatches: number;
+        totalScore: number;
+        bestScore: number;
+        avgKills: number;
+        avgSurvivalTime: number;
+        avgCollapse: number;
+    }> {
+        if (!this.isDbAvailable()) {
+            return { totalKills: 0, totalDeaths: 0, totalAssists: 0, totalMatches: 0, totalScore: 0, bestScore: 0, avgKills: 0, avgSurvivalTime: 0, avgCollapse: 0 };
+        }
         try {
             const pool = getPool();
             const r = await pool.query(
-                `SELECT COALESCE(SUM(kills),0) AS tk, COALESCE(SUM(deaths),0) AS td,
-                        COALESCE(SUM(assists),0) AS ta, COUNT(*) AS tm,
-                        COALESCE(SUM(score),0) AS ts, COALESCE(MAX(score),0) AS bs
+                `SELECT COALESCE(SUM(kills),0) AS tk,
+                        COALESCE(SUM(deaths),0) AS td,
+                        COALESCE(SUM(assists),0) AS ta,
+                        COUNT(*) AS tm,
+                        COALESCE(SUM(score),0) AS ts,
+                        COALESCE(MAX(score),0) AS bs,
+                        COALESCE(AVG(kills),0) AS avg_k,
+                        COALESCE(AVG(survival_time_seconds),0) AS avg_t,
+                        COALESCE(AVG(collapse_level),0) AS avg_c
                  FROM ranking WHERE player_name=$1`, [playerName]);
             const row = r.rows[0];
-            return {totalKills:+row.tk,totalDeaths:+row.td,totalAssists:+row.ta,totalMatches:+row.tm,totalScore:+row.ts,bestScore:+row.bs};
+            return {
+                totalKills: +row.tk,
+                totalDeaths: +row.td,
+                totalAssists: +row.ta,
+                totalMatches: +row.tm,
+                totalScore: +row.ts,
+                bestScore: +row.bs,
+                avgKills: parseFloat(row.avg_k),
+                avgSurvivalTime: parseFloat(row.avg_t),
+                avgCollapse: parseFloat(row.avg_c)
+            };
         } catch (err) {
             console.warn('[Ranking] getPlayerStats failed:', (err as Error).message);
-            return {totalKills:0,totalDeaths:0,totalAssists:0,totalMatches:0,totalScore:0,bestScore:0};
+            return { totalKills: 0, totalDeaths: 0, totalAssists: 0, totalMatches: 0, totalScore: 0, bestScore: 0, avgKills: 0, avgSurvivalTime: 0, avgCollapse: 0 };
         }
     }
 

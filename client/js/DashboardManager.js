@@ -231,18 +231,18 @@ export class DashboardManager {
                     <button id="dash-close">✕ FECHAR</button>
                 </div>
                 <div id="dash-body">
-                    <!-- Left: Profile & KDA -->
+                    <!-- Left: Profile & Survival Stats -->
                     <div id="dash-profile">
                         <h3>JOGADOR</h3>
                         <div id="dash-playername">—</div>
-                        <h3>K / D / A</h3>
+                        <h3>MÉDIAS POR RUN</h3>
                         <div class="dash-kda-row">
-                            <div class="dash-kda-block k"><div class="kda-val" id="d-kills">0</div><div class="kda-lbl">KILLS</div></div>
-                            <div class="dash-kda-block d"><div class="kda-val" id="d-deaths">0</div><div class="kda-lbl">DEATHS</div></div>
-                            <div class="dash-kda-block a"><div class="kda-val" id="d-assists">0</div><div class="kda-lbl">ASSISTS</div></div>
+                            <div class="dash-kda-block k"><div class="kda-val" id="d-avg-kills">0.0</div><div class="kda-lbl">MÉDIA KILLS</div></div>
+                            <div class="dash-kda-block d"><div class="kda-val" id="d-avg-time">00:00</div><div class="kda-lbl">MÉDIA TEMPO</div></div>
+                            <div class="dash-kda-block a"><div class="kda-val" id="d-avg-collapse">Lv.0.0</div><div class="kda-lbl">MÉDIA COLAPSO</div></div>
                         </div>
-                        <div class="dash-stat-line"><span>RATIO K/D</span><span id="d-ratio">—</span></div>
-                        <div class="dash-stat-line"><span>PARTIDAS</span><span id="d-matches">0</span></div>
+                        <div class="dash-stat-line"><span>ASSISTÊNCIAS TOTAIS</span><span id="d-total-assists">—</span></div>
+                        <div class="dash-stat-line"><span>PARTIDAS JOGADAS</span><span id="d-matches">0</span></div>
                         <div class="dash-stat-line"><span>PONTOS TOTAIS</span><span id="d-total">0</span></div>
                         <div class="dash-stat-line"><span>MELHOR SCORE</span><span id="d-best">0</span></div>
                         <div class="dash-rank-badge">
@@ -337,14 +337,13 @@ export class DashboardManager {
 
     _renderProfile(data) {
         const k = data.kda;
-        document.getElementById('d-kills').textContent   = k.totalKills;
-        document.getElementById('d-deaths').textContent  = k.totalDeaths;
-        document.getElementById('d-assists').textContent = k.totalAssists;
-        const ratio = k.totalDeaths > 0 ? (k.totalKills / k.totalDeaths).toFixed(2) : k.totalKills.toFixed(2);
-        document.getElementById('d-ratio').textContent   = ratio;
-        document.getElementById('d-matches').textContent = k.totalMatches;
-        document.getElementById('d-total').textContent   = k.totalScore.toLocaleString();
-        document.getElementById('d-best').textContent    = k.bestScore.toLocaleString();
+        document.getElementById('d-avg-kills').textContent = k.avgKills ? k.avgKills.toFixed(1) : '0.0';
+        document.getElementById('d-avg-time').textContent  = k.avgSurvivalTime ? this._fmtTime(k.avgSurvivalTime) : '00:00';
+        document.getElementById('d-avg-collapse').textContent = k.avgCollapse ? `Lv. ${k.avgCollapse.toFixed(1)}` : 'Lv. 1.0';
+        document.getElementById('d-total-assists').textContent = k.totalAssists || '0';
+        document.getElementById('d-matches').textContent = k.totalMatches || '0';
+        document.getElementById('d-total').textContent   = k.totalScore ? k.totalScore.toLocaleString() : '0';
+        document.getElementById('d-best').textContent    = k.bestScore ? k.bestScore.toLocaleString() : '0';
         document.getElementById('d-rank-total').textContent = data.playerRankTotal > 0 ? `#${data.playerRankTotal}` : '#—';
         document.getElementById('d-rank-avg').textContent   = data.playerRankAvg > 0 ? `#${data.playerRankAvg}` : '#—';
         document.getElementById('d-rank-weekly').textContent = data.playerRankWeekly > 0 ? `#${data.playerRankWeekly}` : '#—';
