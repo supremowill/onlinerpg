@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Data Summary</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0; }
+        .container { padding: 20px; max-width: 900px; margin: auto; }
+        section { margin-bottom: 20px; }
+        h1, h2, h3 { color: #333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        table, th, td { border: 1px solid #ccc; }
+        th, td { padding: 8px; text-align: left; }
+        th { background-color: #f4f4f4; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Game Data Summary</h1>
+
+    <section id="player">
+        <h2>Player</h2>
+        <p><strong>Health:</strong> Defined by <code>PlayerDefinition.hp</code></p>
+        <p><strong>Skills:</strong> Q, W, E, R are configurable (<code>cooldowns</code> and <code>multipliers</code>).</p>
+        <p>Main configuration located in: <code>server/src/data/GameDataTypes.ts</code></p>
+    </section>
+
+    <section id="enemies">
+        <h2>Enemies</h2>
+
+        <h3>Key Enemies Examples:</h3>
+        <ul>
+            <li><strong>Bombardeiro Insano</strong>: Throws bombs and lays a minefield. <code>server/src/game/enemies/Defenders.ts</code></li>
+            <li><strong>Cão dos Infernos</strong>: Scales with player level (e.g., max HP and damage). Found in <code>AdvancedBosses.ts</code></li>
+            <li><strong>Minos, o Árbitro</strong>: Adjusts damage based on player's health (<code>LimboBosses.ts</code>).</li>
+        </ul>
+    </section>
+
+    <section id="passives">
+        <h2>Passive Definitions</h2>
+        <p>Passives affect bleeding, poison, and lifesteal. It’s part of <code>EnemyDefinition</code>.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Effect</th>
+                    <th>Duration</th>
+                    <th>Chance</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>bleed_on_hit</td>
+                    <td>Bleeding damage over time</td>
+                    <td>Optional</td>
+                    <td>0-1</td>
+                </tr>
+                <tr>
+                    <td>poison</td>
+                    <td>Applies poison</td>
+                    <td>Optional</td>
+                    <td>0-1</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section id="game-data">
+        <h2>Game Data Root</h2>
+        <p>The core schema <code>GameData</code> contains player configuration, enemy configurations, and versioning (<code>GameDataLoader.ts</code>).</p>
+    </section>
+</div>
+</body>
+</html>
