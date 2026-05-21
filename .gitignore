@@ -36,3 +36,6 @@ Thumbs.db
 faraó/
 client/assets/
 test-results/
+tools/balance-editor/dist/
+onlinerpg-key.pem
+onlinerpg.tar.gz

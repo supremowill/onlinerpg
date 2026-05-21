@@ -496,6 +496,9 @@ export class TheMightyOneEnemy extends ServerEnemy {
     public damageBonus = 1.0;
     public attackSpeedBonus = 1.0;
     public pendingAbilities: any[] = [];
+    public pendingProjectiles: { dir: Vec3; damage: number; specialEffect?: string; speed?: number }[] = [];
+    private lastAttackTime = 0;
+    private attackCooldown = 1500;
 
     constructor(pos: Vec3) {
         super(pos);
@@ -512,11 +515,33 @@ export class TheMightyOneEnemy extends ServerEnemy {
         this.pendingAbilities.push({ type: 'mightyOneInit' });
     }
 
+    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true): void {
+        if (Math.random() < 0.3) {
+            amount *= 0.4; // 60% reduction
+        }
+        super.takeDamage(amount, instigator, countsForPassive);
+    }
+
     update(dt: number, players: ServerPlayer[], gameTime: number): void {
-        if (this.isDestroyed) return;
+        if (this.isDestroyed || this.updateStatus(dt)) return;
         const target = this.getClosestPlayer(players);
         if (!target) return;
         this.moveTowards(target.position, dt);
+        this.lookAt(target.position);
+
+        const now = Date.now();
+        if (now > this.lastAttackTime + this.attackCooldown) {
+            this.lastAttackTime = now;
+            const dir = target.position.clone().sub(this.position);
+            dir.y = 0;
+            dir.normalize();
+            this.pendingProjectiles.push({
+                dir: dir,
+                damage: 0,
+                specialEffect: 'mighty_one_projectile',
+                speed: 14
+            });
+        }
     }
 }
 

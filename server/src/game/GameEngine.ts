@@ -48,8 +48,7 @@ export class GameEngine {
     private spawnInitialEntities(): void {
         // XP orbs
         for (let i = 0; i < CONFIG.XP_ORB.INITIAL_COUNT; i++) {
-            const half = CONFIG.GROUND_HALF - 5;
-            this.orbs.push({ id: `orb_${this.orbIdCounter++}`, type: 'xp', position: new Vec3((Math.random() * half * 2) - half, 0.5, (Math.random() * half * 2) - half), hitboxRadius: CONFIG.XP_ORB.HITBOX_RADIUS });
+            this.spawnXpOrb();
         }
         // Enemy towers
         for (const tp of CONFIG.TOWER_POSITIONS) {
@@ -79,6 +78,16 @@ export class GameEngine {
         }
     }
 
+    public spawnXpOrb(): void {
+        const half = CONFIG.GROUND_HALF - 5;
+        this.orbs.push({
+            id: `orb_${this.orbIdCounter++}`,
+            type: 'xp',
+            position: new Vec3((Math.random() * half * 2) - half, 0.5, (Math.random() * half * 2) - half),
+            hitboxRadius: CONFIG.XP_ORB.HITBOX_RADIUS
+        });
+    }
+
     addPlayer(id: string, name: string, platform: 'pc' | 'mobile' = 'pc'): ServerPlayer {
         const p = new ServerPlayer(id, name);
         p.platform = platform;
@@ -94,9 +103,9 @@ export class GameEngine {
         this.gameTime += dt;
         // Process rewind from Fragmento de Código-Fonte
         for (const p of [...this.players.values()]) {
-            if ((p as any).pendingRewindSeconds > 0) {
-                this.gameTime = Math.max(0, this.gameTime - (p as any).pendingRewindSeconds * 1000);
-                (p as any).pendingRewindSeconds = 0;
+            if (p.pendingRewindSeconds > 0) {
+                this.gameTime = Math.max(0, this.gameTime - p.pendingRewindSeconds);
+                p.pendingRewindSeconds = 0;
                 p.addXp(0);
             }
         }
@@ -113,9 +122,37 @@ export class GameEngine {
             if (!p.isDead && p.isAttacking && p.canAttack(now)) {
                 p.lastAttackTime = now;
                 const dir = p.getFacingDirection();
-                const proj = new ServerProjectile(p.position.clone().set(p.position.x, 0.5, p.position.z), dir, p.id, true, p.getDamage(), p.color);
-                proj.speed = CONFIG.PLAYER.PROJECTILE_SPEED;
-                this.playerProjectiles.push(proj);
+
+                if (p.activeBuff.type === 'mago') {
+                    p.activeBuff.attackCounter++;
+                    if (p.activeBuff.attackCounter >= 3) {
+                        p.activeBuff.attackCounter = 0;
+                        p.pendingZones.push({
+                            type: 'explosion',
+                            x: p.position.x,
+                            z: p.position.z,
+                            radius: 8,
+                            damage: p.getDamage(true) * 0.25
+                        });
+                    }
+                }
+
+                if (p.activeBuff.type === 'arqueiro') {
+                    const numProjectiles = 5;
+                    const coneAngle = Math.PI / 8;
+                    for (let i = 0; i < numProjectiles; i++) {
+                        const offset = (i - (numProjectiles - 1) / 2) * (coneAngle / (numProjectiles - 1));
+                        const pDir = dir.clone().applyAxisAngleY(offset);
+                        const proj = new ServerProjectile(p.position.clone().set(p.position.x, 0.5, p.position.z), pDir, p.id, true, p.getDamage(), p.color);
+                        proj.speed = CONFIG.PLAYER.PROJECTILE_SPEED;
+                        proj.isBuffed = 'arqueiro';
+                        this.playerProjectiles.push(proj);
+                    }
+                } else {
+                    const proj = new ServerProjectile(p.position.clone().set(p.position.x, 0.5, p.position.z), dir, p.id, true, p.getDamage(), p.color);
+                    proj.speed = CONFIG.PLAYER.PROJECTILE_SPEED;
+                    this.playerProjectiles.push(proj);
+                }
             }
         }
         // Spawns
@@ -196,7 +233,12 @@ export class GameEngine {
             case 'FeiticeiroImortal': enemy = new FeiticeiroImortalEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
             case 'LichKing': enemy = new LichKingEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
             case 'CaoDosInfernos': enemy = new CaoDosInfernosEnemy(ev.position, gm, avgLevel); break;
-            case 'TheMightyOne': enemy = new TheMightyOneEnemy(ev.position); break;
+            case 'TheMightyOne': {
+                const mighty = new TheMightyOneEnemy(ev.position);
+                mighty.init();
+                enemy = mighty;
+                break;
+            }
             // Novos bosses do Limbo (Círculos 1-9)
             case 'GuardiãoDoLimbo': enemy = new GuardiaoDoLimboEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
             case 'Minos': enemy = new MinosEnemy(ev.position, gm, avgLevel, avgMaxHp); this.spawnManager.activeBoss = enemy.id; break;
@@ -712,6 +754,37 @@ export class GameEngine {
                 // Broadcast eclipse event to clients
                 this.pendingEvents.push({ event: 'FARAO_ECLIPSE', data: { duration: ab.duration } });
                 break;
+            case 'mightyOneInit': {
+                this.pendingEvents.push({ event: 'MIGHTY_ONE_SPAWN', data: {} });
+                this.pendingEvents.push({ event: 'MESSAGE', data: { message: "⚠️ O Poderoso chegou… O mundo está colapsando!" } });
+                const boss = source as TheMightyOneEnemy;
+                if (boss) {
+                    const orbsToAbsorb = this.orbs.filter(o => o.type === 'xp');
+                    for (const orb of orbsToAbsorb) {
+                        boss.damageBonus += 0.005;
+                        boss.attackSpeedBonus += 0.005;
+                    }
+                    this.orbs = this.orbs.filter(o => o.type !== 'xp');
+                    console.log(`[TheMightyOne] Absorbed ${orbsToAbsorb.length} orbs. damageBonus=${boss.damageBonus}`);
+
+                    const spawnPos1 = this.spawnManager.getSpawnPosition();
+                    const spawnPos2 = this.spawnManager.getSpawnPosition();
+                    const spawnPos3 = this.spawnManager.getSpawnPosition();
+                    const spawnPos4 = this.spawnManager.getSpawnPosition();
+
+                    const superBoss = new SuperBossEnemy(spawnPos1, this.spawnManager.globalMultiplier);
+                    this.enemies.push(superBoss);
+                    this.spawnManager.activeBoss = superBoss.id;
+
+                    const g1 = new GuardianGuerreiroEnemy(spawnPos2, this.spawnManager.globalMultiplier, true);
+                    const g2 = new GuardianMagoEnemy(spawnPos3, this.spawnManager.globalMultiplier, true);
+                    const g3 = new GuardianArqueiroEnemy(spawnPos4, this.spawnManager.globalMultiplier, true);
+                    this.enemies.push(g1);
+                    this.enemies.push(g2);
+                    this.enemies.push(g3);
+                }
+                break;
+            }
         }
     }
 
@@ -737,7 +810,15 @@ export class GameEngine {
         for (const hit of playerHits) {
             const p = this.players.get(hit.playerId);
             if (!p) continue;
-            p.takeDamage(hit.damage);
+            let finalDamage = hit.damage;
+            if (hit.specialEffect === 'mighty_one_projectile') {
+                finalDamage = 500 * p.level + p.maxHp * 0.03;
+                if (Math.random() < 0.005) {
+                    finalDamage = p.maxHp * 2;
+                    this.pendingEvents.push({ event: 'MESSAGE', data: { message: `☠️ O Poderoso desferiu MORTE INSTANTÂNEA em ${p.name}! ☠️` } });
+                }
+            }
+            p.takeDamage(finalDamage);
             if (hit.specialEffect === 'freeze') p.applyFreeze(2000);
             if (hit.specialEffect === 'freezingCone') { p.statusEffects.freezingConeHits.count++; p.statusEffects.freezingConeHits.timer = 3000; if (p.statusEffects.freezingConeHits.count >= 3) { p.applyFreeze(2000); p.statusEffects.freezingConeHits.count = 0; } }
             if (hit.specialEffect === 'bleed') p.applyBleed(5000, 5);
@@ -751,7 +832,17 @@ export class GameEngine {
             const enemy = this.enemies.find(e => e.id === hit.enemyId);
             const instigator = this.players.get(hit.instigatorId);
             if (!enemy || !instigator) continue;
-            enemy.takeDamage(hit.damage, instigator);
+
+            const proj = this.playerProjectiles.find(p => p.id === hit.projectileId);
+            let totalDamage = hit.damage;
+            if (instigator.activeBuff.type === 'guerreiro' && enemy.maxHp) {
+                totalDamage += enemy.maxHp * 0.03;
+            }
+            if (proj && proj.isBuffed === 'arqueiro' && enemy.maxHp) {
+                totalDamage += enemy.maxHp * 0.03 * 2;
+            }
+
+            enemy.takeDamage(totalDamage, instigator);
             if (hit.bleedDamage > 0) enemy.status.isMarked = true;
             
             // Handle special effects from upgrades
@@ -776,7 +867,10 @@ export class GameEngine {
             const p = this.players.get(hit.playerId);
             const orb = this.orbs.find(o => o.id === hit.orbId);
             if (!p || !orb) continue;
-            if (orb.type === 'xp') { p.collectOrb(); }
+            if (orb.type === 'xp') {
+                p.collectOrb();
+                this.spawnXpOrb();
+            }
             else if (orb.type === 'buff' && orb.buffType) { p.applyTimedBuff(orb.buffType, (orb.buffDuration || 60000) / 1000, orb.buffEffects); }
             this.orbs = this.orbs.filter(o => o.id !== hit.orbId);
         }
@@ -802,10 +896,17 @@ export class GameEngine {
         if (t === 'Gangplank') { this.spawnManager.isGangplankAlive = false; this.spawnManager.activeBoss = null; this.spawnItemDrop(enemy.position, 'sabre_pirata', { physical_damage: 0.10 }, 120); }
         if (t === 'RainhaDasTrevas') { this.spawnManager.isRainhaAlive = false; this.spawnManager.activeBoss = null; this.spawnItemDrop(enemy.position, 'rainha_buff', { attack_speed: 1.25, ability_damage: 1.15 }, 30); }
         if (t === 'PlantaCarnivora') { this.spawnManager.isPlantaCarnivoraAlive = false; this.spawnManager.activeBoss = null; this.spawnItemDrop(enemy.position, 'planta_buff', { lifesteal: 0.05, move_speed: 1.15, damage: 1.10 }, 45); }
-        if (t === 'FeiticeiroImortal') { this.spawnManager.activeBoss = null; this.spawnItemDrop(enemy.position, 'essencia_negra', { magic_damage: 1.5, lifesteal: 0.03, cooldown_reduction: 0.15 }, 120); }
-        if (t === 'LichKing') { this.spawnManager.activeBoss = null; const items = ['coroa_lich_buff', 'lamina_geada_buff', 'fragmento_morte_buff', 'talisma_quebrado_buff']; const pick = items[Math.floor(Math.random() * items.length)]; const fx: any = { coroa_lich_buff: { ability_damage: 1.0, immunity_freeze: true }, lamina_geada_buff: { bonus_damage: 20, attack_speed: 0.1 }, fragmento_morte_buff: { chance: 0.25 }, talisma_quebrado_buff: { max_hp_bonus: 0.10, freeze_reduction: 0.50 } }; this.spawnItemDrop(enemy.position, pick, fx[pick], 120); }
-        if (t === 'SuperBoss') this.spawnManager.activeBoss = null;
-        if (t === 'TheMightyOne') { this.spawnManager.onMightyOneDefeated(); for (const e of this.enemies) if (!e.isDestroyed) e.applyGlobalBuff(CONFIG.COLLAPSE_MULTIPLIER); }
+        if (t === 'FeiticeiroImortal') { this.spawnManager.isFeiticeiroAlive = false; this.spawnManager.activeBoss = null; this.spawnItemDrop(enemy.position, 'essencia_negra', { magic_damage: 1.5, lifesteal: 0.03, cooldown_reduction: 0.15 }, 120); }
+        if (t === 'LichKing') { this.spawnManager.isLichKingAlive = false; this.spawnManager.activeBoss = null; const items = ['coroa_lich_buff', 'lamina_geada_buff', 'fragmento_morte_buff', 'talisma_quebrado_buff']; const pick = items[Math.floor(Math.random() * items.length)]; const fx: any = { coroa_lich_buff: { ability_damage: 1.0, immunity_freeze: true }, lamina_geada_buff: { bonus_damage: 20, attack_speed: 0.1 }, fragmento_morte_buff: { chance: 0.25 }, talisma_quebrado_buff: { max_hp_bonus: 0.10, freeze_reduction: 0.50 } }; this.spawnItemDrop(enemy.position, pick, fx[pick], 120); }
+        if (t === 'SuperBoss') { this.spawnManager.isSuperBossAlive = false; this.spawnManager.activeBoss = null; }
+        if (t === 'TheMightyOne') {
+            this.spawnManager.onMightyOneDefeated();
+            for (const e of this.enemies) {
+                if (!e.isDestroyed) e.applyGlobalBuff(CONFIG.COLLAPSE_MULTIPLIER);
+            }
+            this.pendingEvents.push({ event: 'MIGHTY_ONE_DEFEATED', data: {} });
+            this.pendingEvents.push({ event: 'MESSAGE', data: { message: "🌀 O Poderoso caiu… mas algo no mundo mudou para sempre…" } });
+        }
         // Novos bosses do Limbo - resetar flags ao morrer
         if (t === 'GuardiãoDoLimbo') { this.spawnManager.isGuardiãoDoLimboAlive = false; this.spawnManager.activeBoss = null; }
         if (t === 'Minos') { this.spawnManager.isMinosAlive = false; this.spawnManager.activeBoss = null; }
@@ -848,16 +949,16 @@ export class GameEngine {
                 if (!p.isDead) {
                     p.addXp(CONFIG.FARAO.XP);
                     p.score += CONFIG.FARAO.SCORE;
-                    // Bênção do Faraó: permanent stacking buff +50% all base stats
-                    const stacks = this.spawnManager.faraoSpawnCount; // already incremented
-                    const statMultiplier = 1 + (0.50 * stacks);
-                    p.maxHp *= 1.50;
-                    p.hp = p.maxHp;
-                    p.speed *= 1.50;
-                    p.originalSpeed = p.speed;
-                    p.applyTimedBuff('bencao_do_farao', 999999, {
-                        stacks: stacks,
-                        stat_multiplier: statMultiplier,
+                    // Bênção do Faraó: buff de 45 segundos +50% HP Máximo e Velocidade
+                    const hasBuff = p.timedBuffs.some(b => b.type === 'bencao_do_farao');
+                    if (!hasBuff) {
+                        p.maxHp *= 1.50;
+                        p.hp = p.maxHp;
+                        p.speed *= 1.50;
+                        p.originalSpeed = p.speed;
+                    }
+                    p.applyTimedBuff('bencao_do_farao', 45, {
+                        stat_multiplier: 1.50,
                     });
                 }
             }

@@ -19,6 +19,9 @@ export class SpawnManager {
     public isGangplankAlive = false;
     public activeBoss: string | null = null;
     public superBossTriggered = false;
+    public isSuperBossAlive = false;
+    public isFeiticeiroAlive = false;
+    public isLichKingAlive = false;
     public mightyOneAlive = false;
     public mightyOneNextSpawn = CONFIG.SPAWN_TIMERS.THE_MIGHTY_ONE_TIME;
 
@@ -69,6 +72,7 @@ export class SpawnManager {
             spawnEspectroDeRaziel: t.ESPECTRO_DE_RAZIEL,
             spawnSmith: t.SMITH,
             spawnFarao: t.FARAO,
+            spawnSuperBoss: t.SUPER_BOSS_TIME,
         };
     }
 
@@ -131,47 +135,63 @@ export class SpawnManager {
         }
 
         // RainhaDasTrevas - every 5 min (single active)
-        this.timers.spawnRainha -= dt;
-        if (!this.isRainhaAlive && this.timers.spawnRainha <= 0 && !this.activeBoss) {
-            this.timers.spawnRainha = CONFIG.SPAWN_TIMERS.RAINHA;
-            this.isRainhaAlive = true;
-            events.push({ type: 'RainhaDasTrevas', position: this.getSpawnPosition() });
+        if (!this.isRainhaAlive) {
+            this.timers.spawnRainha -= dt;
+            if (this.timers.spawnRainha <= 0 && !this.activeBoss) {
+                this.timers.spawnRainha = CONFIG.SPAWN_TIMERS.RAINHA;
+                this.isRainhaAlive = true;
+                events.push({ type: 'RainhaDasTrevas', position: this.getSpawnPosition() });
+            }
         }
 
         // PlantaCarnivora - every 3.5 min
-        this.timers.spawnPlantaCarnivora -= dt;
-        if (!this.isPlantaCarnivoraAlive && this.timers.spawnPlantaCarnivora <= 0 && !this.activeBoss) {
-            this.timers.spawnPlantaCarnivora = CONFIG.SPAWN_TIMERS.PLANTA_CARNIVORA;
-            this.isPlantaCarnivoraAlive = true;
-            events.push({ type: 'PlantaCarnivora', position: this.getSpawnPosition() });
+        if (!this.isPlantaCarnivoraAlive) {
+            this.timers.spawnPlantaCarnivora -= dt;
+            if (this.timers.spawnPlantaCarnivora <= 0 && !this.activeBoss) {
+                this.timers.spawnPlantaCarnivora = CONFIG.SPAWN_TIMERS.PLANTA_CARNIVORA;
+                this.isPlantaCarnivoraAlive = true;
+                events.push({ type: 'PlantaCarnivora', position: this.getSpawnPosition() });
+            }
         }
 
         // Gangplank - every 6 min
-        this.timers.spawnGangplank -= dt;
-        if (!this.isGangplankAlive && this.timers.spawnGangplank <= 0 && !this.activeBoss) {
-            this.timers.spawnGangplank = CONFIG.SPAWN_TIMERS.GANGPLANK;
-            this.isGangplankAlive = true;
-            events.push({ type: 'Gangplank', position: this.getSpawnPosition() });
+        if (!this.isGangplankAlive) {
+            this.timers.spawnGangplank -= dt;
+            if (this.timers.spawnGangplank <= 0 && !this.activeBoss) {
+                this.timers.spawnGangplank = CONFIG.SPAWN_TIMERS.GANGPLANK;
+                this.isGangplankAlive = true;
+                events.push({ type: 'Gangplank', position: this.getSpawnPosition() });
+            }
         }
 
         // FeiticeiroImortal - every 7 min
-        this.timers.spawnFeiticeiro -= dt;
-        if (this.timers.spawnFeiticeiro <= 0 && !this.activeBoss) {
-            this.timers.spawnFeiticeiro = CONFIG.SPAWN_TIMERS.FEITICEIRO;
-            events.push({ type: 'FeiticeiroImortal', position: this.getSpawnPosition() });
+        if (!this.isFeiticeiroAlive) {
+            this.timers.spawnFeiticeiro -= dt;
+            if (this.timers.spawnFeiticeiro <= 0 && !this.activeBoss) {
+                this.timers.spawnFeiticeiro = CONFIG.SPAWN_TIMERS.FEITICEIRO;
+                this.isFeiticeiroAlive = true;
+                events.push({ type: 'FeiticeiroImortal', position: this.getSpawnPosition() });
+            }
         }
 
         // LichKing - every 10 min
-        this.timers.spawnLichKing -= dt;
-        if (this.timers.spawnLichKing <= 0 && !this.activeBoss) {
-            this.timers.spawnLichKing = CONFIG.SPAWN_TIMERS.LICH_KING;
-            events.push({ type: 'LichKing', position: this.getSpawnPosition() });
+        if (!this.isLichKingAlive) {
+            this.timers.spawnLichKing -= dt;
+            if (this.timers.spawnLichKing <= 0 && !this.activeBoss) {
+                this.timers.spawnLichKing = CONFIG.SPAWN_TIMERS.LICH_KING;
+                this.isLichKingAlive = true;
+                events.push({ type: 'LichKing', position: this.getSpawnPosition() });
+            }
         }
 
-        // SuperBoss - at 3 min (once)
-        if (!this.superBossTriggered && this.gameTime >= CONFIG.SPAWN_TIMERS.SUPER_BOSS_TIME) {
-            this.superBossTriggered = true;
-            events.push({ type: 'SuperBoss', position: this.getSpawnPosition() });
+        // SuperBoss - every 3 min
+        if (!this.isSuperBossAlive) {
+            this.timers.spawnSuperBoss -= dt;
+            if (this.timers.spawnSuperBoss <= 0 && !this.activeBoss) {
+                this.timers.spawnSuperBoss = CONFIG.SPAWN_TIMERS.SUPER_BOSS_TIME;
+                this.isSuperBossAlive = true;
+                events.push({ type: 'SuperBoss', position: this.getSpawnPosition() });
+            }
         }
 
         // TheMightyOne - at 10 min, respawns
@@ -183,83 +203,103 @@ export class SpawnManager {
         // === NOVOS BOSSES DO LIMBO (Círculos 1-9) ===
 
         // Círculo 1 - Guardião do Limbo (60s)
-        this.timers.spawnGuardiãoDoLimbo -= dt;
-        if (!this.isGuardiãoDoLimboAlive && this.timers.spawnGuardiãoDoLimbo <= 0 && !this.activeBoss) {
-            this.timers.spawnGuardiãoDoLimbo = CONFIG.SPAWN_TIMERS.GUARDIAO_DO_LIMBO;
-            this.isGuardiãoDoLimboAlive = true;
-            events.push({ type: 'GuardiãoDoLimbo', position: this.getSpawnPosition() });
+        if (!this.isGuardiãoDoLimboAlive) {
+            this.timers.spawnGuardiãoDoLimbo -= dt;
+            if (this.timers.spawnGuardiãoDoLimbo <= 0 && !this.activeBoss) {
+                this.timers.spawnGuardiãoDoLimbo = CONFIG.SPAWN_TIMERS.GUARDIAO_DO_LIMBO;
+                this.isGuardiãoDoLimboAlive = true;
+                events.push({ type: 'GuardiãoDoLimbo', position: this.getSpawnPosition() });
+            }
         }
 
         // Círculo 2 - Minos (120s)
-        this.timers.spawnMinos -= dt;
-        if (!this.isMinosAlive && this.timers.spawnMinos <= 0 && !this.activeBoss) {
-            this.timers.spawnMinos = CONFIG.SPAWN_TIMERS.MINOS;
-            this.isMinosAlive = true;
-            events.push({ type: 'Minos', position: this.getSpawnPosition() });
+        if (!this.isMinosAlive) {
+            this.timers.spawnMinos -= dt;
+            if (this.timers.spawnMinos <= 0 && !this.activeBoss) {
+                this.timers.spawnMinos = CONFIG.SPAWN_TIMERS.MINOS;
+                this.isMinosAlive = true;
+                events.push({ type: 'Minos', position: this.getSpawnPosition() });
+            }
         }
 
         // Círculo 3 - Cerbero (180s)
-        this.timers.spawnCerbero -= dt;
-        if (!this.isCerberoAlive && this.timers.spawnCerbero <= 0 && !this.activeBoss) {
-            this.timers.spawnCerbero = CONFIG.SPAWN_TIMERS.CERBERO;
-            this.isCerberoAlive = true;
-            events.push({ type: 'Cerbero', position: this.getSpawnPosition() });
+        if (!this.isCerberoAlive) {
+            this.timers.spawnCerbero -= dt;
+            if (this.timers.spawnCerbero <= 0 && !this.activeBoss) {
+                this.timers.spawnCerbero = CONFIG.SPAWN_TIMERS.CERBERO;
+                this.isCerberoAlive = true;
+                events.push({ type: 'Cerbero', position: this.getSpawnPosition() });
+            }
         }
 
         // Círculo 4 - Plutão (240s)
-        this.timers.spawnPlutao -= dt;
-        if (!this.isPlutaoAlive && this.timers.spawnPlutao <= 0 && !this.activeBoss) {
-            this.timers.spawnPlutao = CONFIG.SPAWN_TIMERS.PLUTAO;
-            this.isPlutaoAlive = true;
-            events.push({ type: 'Plutão', position: this.getSpawnPosition() });
+        if (!this.isPlutaoAlive) {
+            this.timers.spawnPlutao -= dt;
+            if (this.timers.spawnPlutao <= 0 && !this.activeBoss) {
+                this.timers.spawnPlutao = CONFIG.SPAWN_TIMERS.PLUTAO;
+                this.isPlutaoAlive = true;
+                events.push({ type: 'Plutão', position: this.getSpawnPosition() });
+            }
         }
 
         // Círculo 5 - Fúria (300s)
-        this.timers.spawnFuria -= dt;
-        if (!this.isFuriaAlive && this.timers.spawnFuria <= 0 && !this.activeBoss) {
-            this.timers.spawnFuria = CONFIG.SPAWN_TIMERS.FURIA;
-            this.isFuriaAlive = true;
-            events.push({ type: 'Fúria', position: this.getSpawnPosition() });
+        if (!this.isFuriaAlive) {
+            this.timers.spawnFuria -= dt;
+            if (this.timers.spawnFuria <= 0 && !this.activeBoss) {
+                this.timers.spawnFuria = CONFIG.SPAWN_TIMERS.FURIA;
+                this.isFuriaAlive = true;
+                events.push({ type: 'Fúria', position: this.getSpawnPosition() });
+            }
         }
 
         // Círculo 6 - Megera (360s)
-        this.timers.spawnMegera -= dt;
-        if (!this.isMegeraAlive && this.timers.spawnMegera <= 0 && !this.activeBoss) {
-            this.timers.spawnMegera = CONFIG.SPAWN_TIMERS.MEGERA;
-            this.isMegeraAlive = true;
-            events.push({ type: 'Megera', position: this.getSpawnPosition() });
+        if (!this.isMegeraAlive) {
+            this.timers.spawnMegera -= dt;
+            if (this.timers.spawnMegera <= 0 && !this.activeBoss) {
+                this.timers.spawnMegera = CONFIG.SPAWN_TIMERS.MEGERA;
+                this.isMegeraAlive = true;
+                events.push({ type: 'Megera', position: this.getSpawnPosition() });
+            }
         }
 
         // Círculo 7 - Minotauro (420s)
-        this.timers.spawnMinotauro -= dt;
-        if (!this.isMinotauroAlive && this.timers.spawnMinotauro <= 0 && !this.activeBoss) {
-            this.timers.spawnMinotauro = CONFIG.SPAWN_TIMERS.MINOTAURO;
-            this.isMinotauroAlive = true;
-            events.push({ type: 'Minotauro', position: this.getSpawnPosition() });
+        if (!this.isMinotauroAlive) {
+            this.timers.spawnMinotauro -= dt;
+            if (this.timers.spawnMinotauro <= 0 && !this.activeBoss) {
+                this.timers.spawnMinotauro = CONFIG.SPAWN_TIMERS.MINOTAURO;
+                this.isMinotauroAlive = true;
+                events.push({ type: 'Minotauro', position: this.getSpawnPosition() });
+            }
         }
 
         // Círculo 8 - Geriao (480s)
-        this.timers.spawnGeriao -= dt;
-        if (!this.isGeriaoAlive && this.timers.spawnGeriao <= 0 && !this.activeBoss) {
-            this.timers.spawnGeriao = CONFIG.SPAWN_TIMERS.GERIAO;
-            this.isGeriaoAlive = true;
-            events.push({ type: 'Geriao', position: this.getSpawnPosition() });
+        if (!this.isGeriaoAlive) {
+            this.timers.spawnGeriao -= dt;
+            if (this.timers.spawnGeriao <= 0 && !this.activeBoss) {
+                this.timers.spawnGeriao = CONFIG.SPAWN_TIMERS.GERIAO;
+                this.isGeriaoAlive = true;
+                events.push({ type: 'Geriao', position: this.getSpawnPosition() });
+            }
         }
 
         // Círculo 9 - Lúcifer Cósmico (540s = 9 min)
-        this.timers.spawnLucifer -= dt;
-        if (!this.isLuciferAlive && this.timers.spawnLucifer <= 0 && !this.activeBoss) {
-            this.timers.spawnLucifer = CONFIG.SPAWN_TIMERS.LUCIFER;
-            this.isLuciferAlive = true;
-            events.push({ type: 'Lúcifer', position: this.getSpawnPosition() });
+        if (!this.isLuciferAlive) {
+            this.timers.spawnLucifer -= dt;
+            if (this.timers.spawnLucifer <= 0 && !this.activeBoss) {
+                this.timers.spawnLucifer = CONFIG.SPAWN_TIMERS.LUCIFER;
+                this.isLuciferAlive = true;
+                events.push({ type: 'Lúcifer', position: this.getSpawnPosition() });
+            }
         }
 
-        // Espectro de Raziel (480s = 8 min) - surge uma vez por partida
-        this.timers.spawnEspectroDeRaziel -= dt;
-        if (!this.isEspectroDeRazielAlive && this.timers.spawnEspectroDeRaziel <= 0 && !this.activeBoss) {
-            this.timers.spawnEspectroDeRaziel = CONFIG.SPAWN_TIMERS.ESPECTRO_DE_RAZIEL || 480;
-            this.isEspectroDeRazielAlive = true;
-            events.push({ type: 'EspectroDeRaziel', position: this.getSpawnPosition() });
+        // Espectro de Raziel (480s = 8 min)
+        if (!this.isEspectroDeRazielAlive) {
+            this.timers.spawnEspectroDeRaziel -= dt;
+            if (this.timers.spawnEspectroDeRaziel <= 0 && !this.activeBoss) {
+                this.timers.spawnEspectroDeRaziel = CONFIG.SPAWN_TIMERS.ESPECTRO_DE_RAZIEL || 480;
+                this.isEspectroDeRazielAlive = true;
+                events.push({ type: 'EspectroDeRaziel', position: this.getSpawnPosition() });
+            }
         }
 
         // Smith - O Agente Corruptor (150s = 2:30 min) - ciclo de invasão
@@ -279,12 +319,14 @@ export class SpawnManager {
         }
 
         // === O FARAÓ — Entidade Deus (12 min, respawns, independent of activeBoss) ===
-        this.timers.spawnFarao -= dt;
-        if (!this.isFaraoAlive && !this.faraoWarningActive && this.timers.spawnFarao <= 0) {
-            // Start 5s warning phase
-            this.faraoWarningActive = true;
-            this.faraoWarningTimer = CONFIG.FARAO.SPAWN_WARNING_DURATION / 1000; // 5s
-            events.push({ type: 'FaraoWarning', position: this.getSpawnPosition() });
+        if (!this.isFaraoAlive && !this.faraoWarningActive) {
+            this.timers.spawnFarao -= dt;
+            if (this.timers.spawnFarao <= 0) {
+                // Start 5s warning phase
+                this.faraoWarningActive = true;
+                this.faraoWarningTimer = CONFIG.FARAO.SPAWN_WARNING_DURATION / 1000; // 5s
+                events.push({ type: 'FaraoWarning', position: this.getSpawnPosition() });
+            }
         }
         if (this.faraoWarningActive) {
             this.faraoWarningTimer -= dt;

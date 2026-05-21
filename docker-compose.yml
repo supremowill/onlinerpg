@@ -16,12 +16,15 @@ services:
   app:
     build: .
     ports:
-      - "3000:3000"
+      - "80:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
       - DATABASE_URL=postgresql://survival:survival_secret@db:5432/survival_game?sslmode=disable
       - JWT_SECRET=sua_chave_jwt_super_secreta_123456
+    volumes:
+      - ./server/game_data.json:/app/game_data.json
+      - ./client:/app/public
     depends_on:
       db:
         condition: service_healthy

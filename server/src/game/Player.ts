@@ -58,6 +58,7 @@ export class ServerPlayer {
     public timedBuffs: { type: string; timer: number; effects: any }[] = [];
 
     public pendingProjectiles: { dir: Vec3, damage: number, fromOrbitalSoul?: boolean, fromPlayerId?: string, skillUpgrades?: any, trackHits?: boolean, specialEffect?: string, explosionRadius?: number }[] = [];
+    public pendingRewindSeconds: number = 0;
     public pendingZones: { type: string, x: number, z: number, radius: number, damage: number, extras?: any }[] = [];
     // Espectro de Raziel essence - orbital souls
     public orbitalSouls: { id: string; angle: number; orbitSpeed: number; radius: number; fireTimer: number }[] = [];
@@ -258,7 +259,21 @@ export class ServerPlayer {
         const ms = dt * 1000;
         if (this.activeBuff.type) { this.activeBuff.timer -= ms; if (this.activeBuff.timer <= 0) this.clearBuff(); }
         if (this.tempBuff.type) { this.tempBuff.timer -= ms; if (this.tempBuff.timer <= 0) { this.tempBuff.type = null; this.tempBuff.timer = 0; this.tempBuff.magnitude = 0; } }
-        for (let i = this.timedBuffs.length - 1; i >= 0; i--) { this.timedBuffs[i].timer -= ms; if (this.timedBuffs[i].timer <= 0) this.timedBuffs.splice(i, 1); }
+        for (let i = this.timedBuffs.length - 1; i >= 0; i--) {
+            this.timedBuffs[i].timer -= ms;
+            if (this.timedBuffs[i].timer <= 0) {
+                const type = this.timedBuffs[i].type;
+                if (type === 'bencao_do_farao') {
+                    const fx = this.timedBuffs[i].effects;
+                    const statMultiplier = fx.stat_multiplier || 1.50;
+                    this.maxHp = this.maxHp / statMultiplier;
+                    if (this.hp > this.maxHp) this.hp = this.maxHp;
+                    this.speed = this.speed / statMultiplier;
+                    this.originalSpeed = this.speed;
+                }
+                this.timedBuffs.splice(i, 1);
+            }
+        }
     }
 
     updateSkills(dt: number): void {
@@ -420,7 +435,7 @@ export class ServerPlayer {
 
     canUseSkill(key: 'q' | 'w' | 'e' | 'r', now: number): boolean { if (this.isDead || this.statusEffects.stunned.isActive || this.statusEffects.frozen.isActive || this.statusEffects.silenced.isActive || this.statusEffects.rooted.isActive) return false; return now > this.skills[key].lastUsed + this.getEffectiveSkillCooldown(key); }
     canAttack(now: number): boolean { if (this.isDead || this.statusEffects.stunned.isActive || this.statusEffects.frozen.isActive || this.statusEffects.rooted.isActive) return false; return now > this.lastAttackTime + this.getEffectiveAttackCooldown(); }
-    applyBuff(type: string): void { this.clearBuff(); this.activeBuff.type = type; this.activeBuff.timer = this.activeBuff.duration; if (type === 'guerreiro') { const b = this.maxHp * 0.20; this.maxHp += b; this.hp += b; } }
+    applyBuff(type: string): void { this.clearBuff(); this.activeBuff.type = type; this.activeBuff.timer = type === 'arqueiro' ? 35000 : this.activeBuff.duration; if (type === 'guerreiro') { const b = this.maxHp * 0.20; this.maxHp += b; this.hp += b; } }
     clearBuff(): void { if (this.activeBuff.type === 'guerreiro') { this.maxHp = this.maxHp / 1.20; if (this.hp > this.maxHp) this.hp = this.maxHp; } this.activeBuff.type = null; this.activeBuff.timer = 0; this.activeBuff.attackCounter = 0; }
     applyTimedBuff(type: string, durSec: number, effects: any): void {
         const ex = this.timedBuffs.find(b => b.type === type);
@@ -447,14 +462,14 @@ export class ServerPlayer {
         }
         // Fragmento de Código-Fonte: rewind game time
         if (type === 'fragmento_codigo_fonte') {
-            // Rewind não implementado na versão atual
+            this.pendingRewindSeconds = effects.rewind_time_seconds || 30;
         }
     }
     applyTemporaryBuff(type: string, durSec: number, mag: number): void { this.tempBuff.type = type; this.tempBuff.timer = durSec * 1000; this.tempBuff.magnitude = mag; }
-    applyStun(d: number): void { this.statusEffects.stunned.isActive = true; this.statusEffects.stunned.timer = Math.max(this.statusEffects.stunned.timer, d); }
-    applyFreeze(d: number): void { const c = this.timedBuffs.find(b => b.type === 'coroa_lich_buff'); if (c?.effects.immunity_freeze) return; const t = this.timedBuffs.find(b => b.type === 'talisma_quebrado_buff'); if (t) d *= (1 - t.effects.freeze_reduction); if (this.statusEffects.frozen.isActive) return; this.statusEffects.frozen.isActive = true; this.statusEffects.frozen.timer = d; }
+    applyStun(d: number): void { if (this.upgradeFlags.e_fortress && this.skills.e.isActive) return; this.statusEffects.stunned.isActive = true; this.statusEffects.stunned.timer = Math.max(this.statusEffects.stunned.timer, d); }
+    applyFreeze(d: number): void { if (this.upgradeFlags.e_fortress && this.skills.e.isActive) return; const c = this.timedBuffs.find(b => b.type === 'coroa_lich_buff'); if (c?.effects.immunity_freeze) return; const t = this.timedBuffs.find(b => b.type === 'talisma_quebrado_buff'); if (t) d *= (1 - t.effects.freeze_reduction); if (this.statusEffects.frozen.isActive) return; this.statusEffects.frozen.isActive = true; this.statusEffects.frozen.timer = d; }
     applySlow(d: number, a: number): void { this.statusEffects.slowed.isActive = true; this.statusEffects.slowed.timer = Math.max(this.statusEffects.slowed.timer, d); this.statusEffects.slowed.amount = Math.max(this.statusEffects.slowed.amount, a); }
-    applyRoot(d: number): void { this.statusEffects.rooted.isActive = true; this.statusEffects.rooted.timer = Math.max(this.statusEffects.rooted.timer, d); }
+    applyRoot(d: number): void { if (this.upgradeFlags.e_fortress && this.skills.e.isActive) return; this.statusEffects.rooted.isActive = true; this.statusEffects.rooted.timer = Math.max(this.statusEffects.rooted.timer, d); }
     applyBleed(d: number, dmg: number): void { const b = this.statusEffects.bleeding; b.isActive = true; b.timer = Math.max(b.timer, d); b.damage = dmg; b.lastTick = Date.now(); }
     applyBurn(d: number, dmg: number, s = 1): void { const b = this.statusEffects.burning; b.isActive = true; b.timer = Math.max(b.timer, d); b.damagePerTick = dmg; b.stacks = Math.min(b.stacks + s, 5); b.lastTick = Date.now(); }
     applyArmorFracture(d: number, a: number): void { const f = this.statusEffects.armorFracture; f.isActive = true; f.timer = Math.max(f.timer, d); f.amount = Math.max(f.amount, a); }

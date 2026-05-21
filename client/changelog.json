@@ -1,0 +1,302 @@
+[
+  {
+    "hash": "701e6e3",
+    "date": "2026-05-17T21:00:03-03:00",
+    "message": "style(ui): redesign player stats dashboard to premium glassmorphic cyber-rpg theme",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "82d538c",
+    "date": "2026-05-17T20:53:46-03:00",
+    "message": "Refactor player dashboard metrics to Survival RPG averages replacing generic KDA",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "ce26b52",
+    "date": "2026-05-17T20:17:07-03:00",
+    "message": "feat: implement dual 10-best average rankings (general & weekly)",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "33ce26e",
+    "date": "2026-05-17T19:44:37-03:00",
+    "message": "fix: adiciona migrações automáticas de banco para suporte ao Render em produção",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "f6af8dd",
+    "date": "2026-05-17T19:37:41-03:00",
+    "message": "fix: corrige salvamento de ranking, KDA e historico ao finalizar a partida",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "6c6fc8d",
+    "date": "2026-05-17T14:46:14-03:00",
+    "message": "feat: Add geometric player dashboard and restore low-poly Farao boss",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "fc4e704",
+    "date": "2026-05-10T14:01:26-03:00",
+    "message": "fix(ui): correct mobile skill cooldown overlay positioning on larger screens",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "e06de5b",
+    "date": "2026-05-10T13:56:15-03:00",
+    "message": "fix(docker): copy game_data.json to runtime stage",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "4f7764d",
+    "date": "2026-05-10T13:53:14-03:00",
+    "message": "feat(hud): simplify player HUD layout and improve mobile responsiveness",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "0f39ab6",
+    "date": "2026-05-09T21:09:58-03:00",
+    "message": "Adjust UI for mobile and complete player balance editor",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "e665273",
+    "date": "2026-05-09T21:02:15-03:00",
+    "message": "chore(balance): auto-save balance tweaks from editor",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "78c63cd",
+    "date": "2026-05-09T21:01:53-03:00",
+    "message": "chore(balance): auto-save balance tweaks from editor",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "51bbe79",
+    "date": "2026-05-09T21:00:49-03:00",
+    "message": "chore(balance): auto-save balance tweaks from editor",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "45303a6",
+    "date": "2026-05-09T20:55:21-03:00",
+    "message": "chore(balance): auto-save balance tweaks from editor",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "ff27c20",
+    "date": "2026-05-08T22:26:50-03:00",
+    "message": "feat: Pipeline Master Data-Driven + Rework Cao dos Infernos",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "6675bfe",
+    "date": "2026-05-06T21:35:32-03:00",
+    "message": "fix: limpar resíduos do sistema de upgrade para Docker build",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "7a0f440",
+    "date": "2026-05-06T21:12:30-03:00",
+    "message": "feat: finalizar rework Cão dos Infernos - Naafiri-inspired",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "1f92322",
+    "date": "2026-05-04T22:52:27-03:00",
+    "message": "fix: corrigir Room.ts - usar player.ws para send e corrigir skillUpgrades",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "ec240e7",
+    "date": "2026-05-04T22:49:06-03:00",
+    "message": "fix: corrigir erros de TypeScript no Protocol.ts e Room.ts",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "06889bd",
+    "date": "2026-05-04T22:43:42-03:00",
+    "message": "feat: implementar sistema de upgrade de habilidades (níveis 5,10,15,20)",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "b1e635e",
+    "date": "2026-05-04T22:15:20-03:00",
+    "message": "fix: adicionar CORS middleware para permitir requisições do browser",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "d1288eb",
+    "date": "2026-05-03T22:00:32-03:00",
+    "message": "fix: corrigir Boss Smith - habilidades e passiva funcionais",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "665bae5",
+    "date": "2026-05-03T20:25:40-03:00",
+    "message": "feat: implementar Boss Smith - O Agente Corruptor",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "ea721ca",
+    "date": "2026-05-03T17:23:57-03:00",
+    "message": "fix: corrigir passivas do Espectro de Raziel e bosses do Limbo",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "a4488f3",
+    "date": "2026-05-03T16:47:27-03:00",
+    "message": "feat: impedir multi-login (mesma conta em multiplos navegadores)",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "5725100",
+    "date": "2026-05-03T16:27:12-03:00",
+    "message": "fix: corrigir nome undefined no ranking (playerName camelCase)",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "92c4735",
+    "date": "2026-05-03T16:25:03-03:00",
+    "message": "fix: corrigir ranking com nomes e botao jogar novamente",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "b3ac051",
+    "date": "2026-05-03T15:59:24-03:00",
+    "message": "fix: corrigir selecao de plataforma e inicio de partida",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "b104610",
+    "date": "2026-05-03T15:42:59-03:00",
+    "message": "fix: corrigir schema SQL e inicialização de tabelas no Render",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "713e632",
+    "date": "2026-05-03T15:26:15-03:00",
+    "message": "fix: tornar initDatabase() assíncrono para aguardar schema",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "cd6659f",
+    "date": "2026-05-03T15:23:34-03:00",
+    "message": "fix: executar SQL do schema imediatamente (não lazy) no Render",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "8ad8564",
+    "date": "2026-05-03T15:22:29-03:00",
+    "message": "fix: adicionar endpoint /api/debug para verificar tabelas no Render",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "ce30c23",
+    "date": "2026-05-03T14:21:57-03:00",
+    "message": "fix: adicionar SQL fallback para Render (init.sql embutido)",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "5468d38",
+    "date": "2026-05-03T14:20:35-03:00",
+    "message": "fix: adicionar logs de erro detalhados no registro/login",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "21a81e7",
+    "date": "2026-05-03T13:46:01-03:00",
+    "message": "fix: corrigir sistema de contas (registro/login) para produção",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "72aaad7",
+    "date": "2026-05-03T11:20:44-03:00",
+    "message": "chore: adicionar jsonwebtoken e bcryptjs nas dependencias",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "805f4db",
+    "date": "2026-05-03T11:07:17-03:00",
+    "message": "feat: sistema de contas com autenticação JWT",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "323a3d3",
+    "date": "2026-05-03T10:31:55-03:00",
+    "message": "feat: adicionar Espectro de Raziel (boss) + skill /newboss",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "6d8d122",
+    "date": "2026-05-02T22:51:17-03:00",
+    "message": "fix: corrigir configurações dos bosses do Limbo e erros de build (CONFIG.GUARDIAO_DO_LIMBO etc.)",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "f0bb72c",
+    "date": "2026-05-02T22:46:45-03:00",
+    "message": "fix: tornar banco opcional no startup para evitar crash no Render",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "89f1366",
+    "date": "2026-05-02T22:38:00-03:00",
+    "message": "fix: usar Node.js 22 no Dockerfile para compatibilidade com dependências",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "bc27c30",
+    "date": "2026-05-02T22:35:57-03:00",
+    "message": "fix: exigir DATABASE_URL e tratar erros de conexão com PostgreSQL no Render",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "593ff15",
+    "date": "2026-05-02T22:34:10-03:00",
+    "message": "fix: usar npm install em vez de npm ci no Dockerfile para maior compatibilidade",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "ac8ea8f",
+    "date": "2026-05-02T22:33:24-03:00",
+    "message": "fix: pular inicialização do DB se DATABASE_URL não fornecida (Render)",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "81a2d43",
+    "date": "2026-05-02T22:31:09-03:00",
+    "message": "fix: remover HEALTHCHECK do Dockerfile e tornar falha de DB não-fatal para deploy no Render",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "23424d5",
+    "date": "2026-05-02T22:29:14-03:00",
+    "message": "fix: habilitar novos bosses do Limbo (Círculos 1-9) e preparar deploy no Render",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "5dbed23",
+    "date": "2026-05-02T21:01:16-03:00",
+    "message": "feat: add configs for 9 new bosses (Círculos 1-9)",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "2703c3c",
+    "date": "2026-05-02T19:30:12-03:00",
+    "message": "fix: replace clone spawning with CloneIlusorio and limit to 1",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "c88ab02",
+    "date": "2026-05-02T18:57:07-03:00",
+    "message": "fix: remove volume mounts in docker-compose for production",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "4cc9515",
+    "date": "2026-05-02T18:55:13-03:00",
+    "message": "fix: set NODE_ENV=production in Dockerfile and docker-compose",
+    "author": "williamdouglasmsouza"
+  }
+]

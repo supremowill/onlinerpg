@@ -222,7 +222,7 @@ export class PlutaoEnemy extends ServerEnemy {
 
     constructor(pos: Vec3, globalMult: number, playerLevel: number, playerMaxHp: number) {
         super(pos);
-        this.type = 'Plutao';
+        this.type = 'Plutão';
         this.name = 'Plutão, o Dourado';
         const c = CONFIG.PLUTAO;
         this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
@@ -304,7 +304,7 @@ export class FuriaEnemy extends ServerEnemy {
 
     constructor(pos: Vec3, globalMult: number, playerLevel: number, playerMaxHp: number) {
         super(pos);
-        this.type = 'Furia';
+        this.type = 'Fúria';
         this.name = 'Fúria, o Furioso';
         const c = CONFIG.FURIA;
         this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
@@ -588,7 +588,7 @@ export class LuciferEnemy extends ServerEnemy {
 
     constructor(pos: Vec3, globalMult: number, playerLevel: number, playerMaxHp: number) {
         super(pos);
-        this.type = 'Lucifer';
+        this.type = 'Lúcifer';
         this.name = 'Lúcifer Cósmico';
         const c = CONFIG.LUCIFER;
         this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;

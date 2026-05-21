@@ -4,11 +4,23 @@
   "description": "Desktop app to edit game balance and auto-commit to GitHub",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder --win"
   },
   "author": "",
   "license": "ISC",
-  "dependencies": {
-    "electron": "^28.0.0"
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.rpg.balance-editor",
+    "win": {
+      "target": "portable"
+    },
+    "directories": {
+      "output": "dist"
+    }
   }
 }

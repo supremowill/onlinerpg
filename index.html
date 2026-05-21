@@ -693,7 +693,7 @@
                         }
                     }
                     if (this.activeBuff.type === 'arqueiro') {
-                        const numProjectiles = 10;
+                        const numProjectiles = 5;
                         const coneAngle = Math.PI / 8;
                         const dir = new THREE.Vector3(); this.mesh.getWorldDirection(dir);
                         for (let i = 0; i < numProjectiles; i++) {
@@ -912,7 +912,7 @@
             collectOrb(orb) { this.orbsCollected++; this.score += 10; const bonusTier = Math.floor(this.orbsCollected / 5); this.addXp(1 + bonusTier); }
             heal(amount) { this.hp = Math.min(this.maxHp, this.hp + amount); }
             die() { isGameOver = true; this.mesh.material.color.set(0x555555); gameManager.endGame(); }
-            applyBuff(type) { this.clearBuff(); this.activeBuff.type = type; this.activeBuff.timer = this.activeBuff.duration; if (type === 'guerreiro') { const hpBonus = this.maxHp * 0.20; this.maxHp += hpBonus; this.hp += hpBonus; } }
+            applyBuff(type) { this.clearBuff(); this.activeBuff.type = type; this.activeBuff.timer = type === 'arqueiro' ? 35000 : this.activeBuff.duration; if (type === 'guerreiro') { const hpBonus = this.maxHp * 0.20; this.maxHp += hpBonus; this.hp += hpBonus; } }
             clearBuff() { if (this.activeBuff.type === 'guerreiro') { const originalMaxHp = this.maxHp / 1.20; this.maxHp = originalMaxHp; if (this.hp > this.maxHp) this.hp = this.maxHp; } this.activeBuff.type = null; this.activeBuff.timer = 0; this.activeBuff.attackCounter = 0; }
             applyRoot(duration) { this.statusEffects.rooted.isActive = true; this.statusEffects.rooted.timer = Math.max(this.statusEffects.rooted.timer, duration); }
             applyAttackSpeedSlow(duration, amount) { this.statusEffects.attackSpeedSlow.isActive = true; this.statusEffects.attackSpeedSlow.timer = Math.max(this.statusEffects.attackSpeedSlow.timer, duration); this.statusEffects.attackSpeedSlow.amount = Math.max(this.statusEffects.attackSpeedSlow.amount, amount); }
@@ -1993,7 +1993,151 @@
         
         class AuraDeRecompensa { constructor(position, buffType, effects, duration, color) { this.radius = 2.5; this.duration = 5000; this.lifeTimer = this.duration; this.isConsumed = false; this.buffInfo = { type: buffType, effects: effects, duration: duration }; const geo = new THREE.TorusGeometry(this.radius - 0.5, 0.2, 16, 100); const mat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.8 }); this.mesh = new THREE.Mesh(geo, mat); this.mesh.position.copy(position); this.mesh.position.y = 0.5; this.mesh.rotation.x = -Math.PI / 2; } update(dt, player) { this.lifeTimer -= dt * 1000; this.mesh.rotation.z += dt * 2; if (this.lifeTimer <= 0) { this.destroy(); return; } const dist = this.mesh.position.distanceTo(player.mesh.position); if (!this.isConsumed && dist < this.radius) { player.applyTimedBuff(this.buffInfo.type, this.buffInfo.duration/1000, this.buffInfo.effects); this.isConsumed = true; this.destroy(); } } destroy() { if(this.mesh.parent) scene.remove(this.mesh); removeFromArray(dynamicEntities, this); } }
         
-        class TheMightyOne extends Enemy { constructor(position) { super(position); this.name = "O Poderoso"; this.maxHp = 100000; this.hp = this.maxHp; this.speed = 0.3; this.originalSpeed = 0.3; this.xp = 30000; this.score = 50000; this.hitboxRadius = 4.0; this.auraRadius = 25.0; this.damageBonus = 1.0; this.attackSpeedBonus = 1.0; this.isTheMightyOne = true; const geo = new THREE.BoxGeometry(this.hitboxRadius * 2, this.hitboxRadius * 2, this.hitboxRadius * 2); const mat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, emissive: new THREE.Color("var(--poderoso-color)"), emissiveIntensity: 1, metalness: 0.9, roughness: 0.2 }); this.mesh = new THREE.Mesh(geo, mat); this.mesh.position.copy(position); this.mesh.position.y = this.hitboxRadius; this.mesh.castShadow = true; const auraGeo = new THREE.SphereGeometry(this.auraRadius, 32, 32); const auraMat = new THREE.MeshBasicMaterial({ color: new THREE.Color("var(--poderoso-color)"), transparent: true, opacity: 0.1, wireframe: true }); this.auraMesh = new THREE.Mesh(auraGeo, auraMat); this.mesh.add(this.auraMesh); this.unstableParticles = []; for (let i = 0; i < 50; i++) { const pGeo = new THREE.SphereGeometry(0.2, 4, 4); const pMat = new THREE.MeshBasicMaterial({ color: new THREE.Color("var(--poderoso-color)")}); const pMesh = new THREE.Mesh(pGeo, pMat); this.mesh.add(pMesh); this.unstableParticles.push({mesh: pMesh, angle: Math.random() * Math.PI * 2, speed: Math.random() * 0.5 + 0.2, distance: this.hitboxRadius + Math.random() * 2}); } } init() { uiManager.showEventMessage("⚠️ O Poderoso chegou… O mundo está colapsando!"); this.triggerWorldCollapseVisuals(true); this.absorbAllOrbs(); this.spawnMinions(); } triggerWorldCollapseVisuals(isStarting) { if (isStarting) { scene.background.set(0x050008); scene.fog.color.set(0x050008); gameManager.shakeCamera = { duration: 3, intensity: 0.3 }; } else { scene.background.set(originalSceneColors.bg); scene.fog.color.set(originalSceneColors.fog); } } absorbAllOrbs() { const orbsToAbsorb = orbs.filter(o => o instanceof XpOrb); orbsToAbsorb.forEach(orb => { this.damageBonus += 0.005; this.attackSpeedBonus += 0.005; const flyTime = 0.5; let elapsed = 0; const startPos = orb.mesh.position.clone(); const flyAnim = () => { elapsed += clock.getDelta(); const t = Math.min(1, elapsed / flyTime); if(!orb.mesh) return; orb.mesh.position.lerpVectors(startPos, this.mesh.position, t); if (t < 1) requestAnimationFrame(flyAnim); else orb.destroy(); }; flyAnim(); }); } spawnMinions() { const superBoss = new SuperBoss(getSpawnPosition(), 20000, 5); enemies.push(superBoss); scene.add(superBoss.mesh); gameManager.activeBoss = superBoss; const g1 = new GuardianGuerreiro(getSpawnPosition(), true); enemies.push(g1); scene.add(g1.mesh); const g2 = new GuardianMago(getSpawnPosition(), true); enemies.push(g2); scene.add(g2.mesh); const g3 = new GuardianArqueiro(getSpawnPosition(), true); enemies.push(g3); scene.add(g3.mesh); } update(dt, player) { if(this.isDestroyed) return; this.mesh.rotation.x += dt * 0.1; this.mesh.rotation.y += dt * 0.1; this.unstableParticles.forEach(p => { p.angle += p.speed * dt; p.mesh.position.set( Math.cos(p.angle) * p.distance, Math.sin(p.angle * 2) * p.distance / 2, Math.sin(p.angle) * p.distance ); }); playerProjectiles.forEach(p => { if (p.mesh.position.distanceTo(this.mesh.position) < this.auraRadius) { p.direction.reflect(this.mesh.position.clone().sub(p.mesh.position).normalize()).negate(); } }); const dir = player.mesh.position.clone().sub(this.mesh.position).normalize(); this.mesh.position.add(dir.multiplyScalar(this.speed * dt)); } destroy(instigator) { this.triggerWorldCollapseVisuals(false); createExplosion(this.mesh.position, 200, new THREE.Color("var(--poderoso-color)")); if (instigator?.isPlayer) { instigator.addXp(this.xp); instigator.score += this.score; } gameManager.onTheMightyOneDefeated(); super.destroy(instigator); } }
+        class TheMightyOne extends Enemy {
+            constructor(position) {
+                super(position);
+                this.name = "O Poderoso";
+                this.maxHp = 100000;
+                this.hp = this.maxHp;
+                this.speed = 0.3;
+                this.originalSpeed = 0.3;
+                this.xp = 30000;
+                this.score = 50000;
+                this.hitboxRadius = 4.0;
+                this.auraRadius = 25.0;
+                this.damageBonus = 1.0;
+                this.attackSpeedBonus = 1.0;
+                this.isTheMightyOne = true;
+                this.lastAttackTime = 0;
+                this.attackCooldown = 1500;
+                const geo = new THREE.BoxGeometry(this.hitboxRadius * 2, this.hitboxRadius * 2, this.hitboxRadius * 2);
+                const mat = new THREE.MeshStandardMaterial({
+                    color: 0x0a0a0a,
+                    emissive: new THREE.Color("var(--poderoso-color)"),
+                    emissiveIntensity: 1,
+                    metalness: 0.9,
+                    roughness: 0.2
+                });
+                this.mesh = new THREE.Mesh(geo, mat);
+                this.mesh.position.copy(position);
+                this.mesh.position.y = this.hitboxRadius;
+                this.mesh.castShadow = true;
+                const auraGeo = new THREE.SphereGeometry(this.auraRadius, 32, 32);
+                const auraMat = new THREE.MeshBasicMaterial({
+                    color: new THREE.Color("var(--poderoso-color)"),
+                    transparent: true,
+                    opacity: 0.1,
+                    wireframe: true
+                });
+                this.auraMesh = new THREE.Mesh(auraGeo, auraMat);
+                this.mesh.add(this.auraMesh);
+                this.unstableParticles = [];
+                for (let i = 0; i < 50; i++) {
+                    const pGeo = new THREE.SphereGeometry(0.2, 4, 4);
+                    const pMat = new THREE.MeshBasicMaterial({ color: new THREE.Color("var(--poderoso-color)")});
+                    const pMesh = new THREE.Mesh(pGeo, pMat);
+                    this.mesh.add(pMesh);
+                    this.unstableParticles.push({
+                        mesh: pMesh,
+                        angle: Math.random() * Math.PI * 2,
+                        speed: Math.random() * 0.5 + 0.2,
+                        distance: this.hitboxRadius + Math.random() * 2
+                    });
+                }
+            }
+            init() {
+                uiManager.showEventMessage("⚠️ O Poderoso chegou… O mundo está colapsando!");
+                this.triggerWorldCollapseVisuals(true);
+                this.absorbAllOrbs();
+                this.spawnMinions();
+            }
+            triggerWorldCollapseVisuals(isStarting) {
+                if (isStarting) {
+                    scene.background.set(0x050008);
+                    scene.fog.color.set(0x050008);
+                    gameManager.shakeCamera = { duration: 3, intensity: 0.3 };
+                } else {
+                    scene.background.set(originalSceneColors.bg);
+                    scene.fog.color.set(originalSceneColors.fog);
+                }
+            }
+            absorbAllOrbs() {
+                const orbsToAbsorb = orbs.filter(o => o instanceof XpOrb);
+                orbsToAbsorb.forEach(orb => {
+                    this.damageBonus += 0.005;
+                    this.attackSpeedBonus += 0.005;
+                    const flyTime = 0.5;
+                    let elapsed = 0;
+                    const startPos = orb.mesh.position.clone();
+                    const flyAnim = () => {
+                        elapsed += clock.getDelta();
+                        const t = Math.min(1, elapsed / flyTime);
+                        if(!orb.mesh) return;
+                        orb.mesh.position.lerpVectors(startPos, this.mesh.position, t);
+                        if (t < 1) requestAnimationFrame(flyAnim);
+                        else orb.destroy();
+                    };
+                    flyAnim();
+                });
+            }
+            spawnMinions() {
+                const superBoss = new SuperBoss(getSpawnPosition(), 20000, 5);
+                enemies.push(superBoss);
+                scene.add(superBoss.mesh);
+                gameManager.activeBoss = superBoss;
+                const g1 = new GuardianGuerreiro(getSpawnPosition(), true);
+                enemies.push(g1);
+                scene.add(g1.mesh);
+                const g2 = new GuardianMago(getSpawnPosition(), true);
+                enemies.push(g2);
+                scene.add(g2.mesh);
+                const g3 = new GuardianArqueiro(getSpawnPosition(), true);
+                enemies.push(g3);
+                scene.add(g3.mesh);
+            }
+            takeDamage(amount, instigator, countsForPassive = true) {
+                if (Math.random() < 0.3) {
+                    amount *= 0.4; // 60% reduction
+                }
+                super.takeDamage(amount, instigator, countsForPassive);
+            }
+            update(dt, player) {
+                if(this.isDestroyed) return;
+                this.mesh.rotation.x += dt * 0.1;
+                this.mesh.rotation.y += dt * 0.1;
+                this.unstableParticles.forEach(p => {
+                    p.angle += p.speed * dt;
+                    p.mesh.position.set(
+                        Math.cos(p.angle) * p.distance,
+                        Math.sin(p.angle * 2) * p.distance / 2,
+                        Math.sin(p.angle) * p.distance
+                    );
+                });
+                const dir = player.mesh.position.clone().sub(this.mesh.position).normalize();
+                this.mesh.position.add(dir.multiplyScalar(this.speed * dt));
+
+                const now = Date.now();
+                if (now > this.lastAttackTime + this.attackCooldown) {
+                    this.lastAttackTime = now;
+                    const dirToPlayer = player.mesh.position.clone().sub(this.mesh.position).normalize();
+                    const p = new Projectile(this.mesh.position.clone(), dirToPlayer, this);
+                    p.specialEffect = 'mighty_one_projectile';
+                    p.speed = 14;
+                    enemyProjectiles.push(p);
+                    scene.add(p.mesh);
+                }
+            }
+            destroy(instigator) {
+                this.triggerWorldCollapseVisuals(false);
+                createExplosion(this.mesh.position, 200, new THREE.Color("var(--poderoso-color)"));
+                if (instigator?.isPlayer) {
+                    instigator.addXp(this.xp);
+                    instigator.score += this.score;
+                }
+                gameManager.onTheMightyOneDefeated();
+                super.destroy(instigator);
+            }
+        }
         
         // --- FIM DA REORDENAÇÃO ---
 
@@ -2236,7 +2380,14 @@
                 const p = enemyProjectiles[i]; if (!p?.mesh) continue; if (isGameOver) break; const dist = p.mesh.position.distanceTo(player.mesh.position);
                 if (dist < (p.hitboxRadius + player.hitboxRadius)) {
                     if (p.specialEffect !== 'reflectedOrb') {
-                        if (p.explosionRadius === 0) { player.takeDamage(p.damage); }
+                        if (p.specialEffect === 'mighty_one_projectile') {
+                            let dmg = 500 * player.level + player.maxHp * 0.03;
+                            if (Math.random() < 0.005) {
+                                dmg = player.maxHp * 2;
+                                uiManager.showEventMessage("☠️ O Poderoso desferiu MORTE INSTANTÂNEA! ☠️");
+                            }
+                            player.takeDamage(dmg);
+                        } else if (p.explosionRadius === 0) { player.takeDamage(p.damage); }
                         if (p.specialEffect === 'freeze') player.applyFreeze(3000);
                         else if (p.specialEffect === 'bleed') player.applyBleed(5000, p.bleedDamage || p.damage * 0.2);
                         else if (p.specialEffect === 'prisao') player.applyStun(2000);

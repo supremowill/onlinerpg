@@ -1,0 +1,23 @@
+[
+  {
+    "id": "1",
+    "date": "2026-05-21T20:00:00.000Z",
+    "type": "Buff",
+    "target": "Player",
+    "description": "Velocidade do projétil aumentada em 15%."
+  },
+  {
+    "id": "2",
+    "date": "2026-05-21T19:30:00.000Z",
+    "type": "Nerf",
+    "target": "Faraó",
+    "description": "Vida máxima reduzida para equilibrar o early game."
+  },
+  {
+    "id": "3",
+    "date": "2026-05-21T18:00:00.000Z",
+    "type": "Ajuste",
+    "target": "SuperBoss",
+    "description": "Intervalo de respawn ajustado para 3 minutos pós-derrota."
+  }
+]

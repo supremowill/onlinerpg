@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enciclopédia de Entidades & Bestiário - Sobrevivência 3D</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <style>
+        :root {
+            --bg-dark: #070509;
+            --bg-panel: #0d0a14;
+            --bg-card: #15111f;
+            --bg-card-hover: #1f1a2e;
+            --text-primary: #ffffff;
+            --text-secondary: #9c92ac;
+            --border-glow: #381e59;
+            
+            --tag-basic: #4caf50;
+            --tag-defender: #0288d1;
+            --tag-limbo: #9c27b0;
+            --tag-elite: #e65100;
+            --tag-god: #ffd700;
+
+            --font-display: 'Orbitron', sans-serif;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            /* Cyberpunk scanline look */
+            background-image: radial-gradient(circle at 50% 50%, #150f24 0%, #070509 100%);
+        }
+
+        /* HEADER */
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.5rem 2rem;
+            background: rgba(13, 10, 20, 0.85);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-glow);
+            z-index: 10;
+        }
+
+        header h1 {
+            font-family: var(--font-display);
+            font-size: 1.6rem;
+            letter-spacing: 2px;
+            color: var(--text-primary);
+            text-shadow: 0 0 10px rgba(156, 39, 176, 0.6);
+        }
+
+        header h1 span {
+            color: var(--tag-god);
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.6);
+        }
+
+        .search-filter-container {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .search-bar {
+            background: rgba(21, 17, 31, 0.7);
+            border: 1px solid var(--border-glow);
+            border-radius: 4px;
+            padding: 0.6rem 1rem;
+            color: white;
+            font-family: var(--font-body);
+            width: 250px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .search-bar:focus {
+            border-color: var(--tag-god);
+            box-shadow: 0 0 8px rgba(255, 215, 0, 0.3);
+        }
+
+        /* MAIN SECTION Split View */
+        main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* SIDEBAR / ENEMY LIST */
+        .sidebar {
+            width: 55%;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-glow);
+            overflow: hidden;
+        }
+
+        .filter-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            padding: 1rem 1.5rem;
+            background: rgba(13, 10, 20, 0.4);
+            border-bottom: 1px solid rgba(56, 30, 89, 0.4);
+        }
+
+        .tab-btn {
+            background: rgba(21, 17, 31, 0.8);
+            border: 1px solid var(--border-glow);
+            border-radius: 4px;
+            padding: 0.4rem 0.8rem;
+            color: var(--text-secondary);
+            font-family: var(--font-body);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn:hover {
+            border-color: var(--text-primary);
+            color: var(--text-primary);
+        }
+
+        .tab-btn.active {
+            background: var(--border-glow);
+            border-color: var(--tag-limbo);
+            color: white;
+            box-shadow: 0 0 8px rgba(156, 39, 176, 0.4);
+        }
+
+        .list-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 1rem;
+            align-content: start;
+        }
+
+        /* SCROLLBARS */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-dark);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-glow);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--tag-limbo);
+        }
+
+        /* CARDS */
+        .enemy-card {
+            background-color: var(--bg-card);
+            border: 1px solid rgba(56, 30, 89, 0.5);
+            border-radius: 6px;
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 140px;
+        }
+
+        .enemy-card:hover {
+            background-color: var(--bg-card-hover);
+            border-color: var(--tag-limbo);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(156, 39, 176, 0.25);
+        }
+
+        .enemy-card.selected {
+            background-color: var(--bg-card-hover);
+            border-color: var(--tag-god);
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.25);
+        }
+
+        .enemy-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 3px;
+            height: 100%;
+            background-color: var(--card-color, var(--text-secondary));
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 0.5rem;
+        }
+
+        .card-title {
+            font-family: var(--font-display);
+            font-size: 0.95rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            color: var(--text-primary);
+        }
+
+        .card-difficulty {
+            font-family: var(--font-display);
+            font-size: 0.75rem;
+            padding: 0.1rem 0.35rem;
+            border-radius: 3px;
+            font-weight: bold;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--card-color);
+            color: var(--card-color);
+        }
+
+        .card-category {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            margin-bottom: auto;
+        }
+
+        .card-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            border-top: 1px solid rgba(255,255,255,0.05);
+            padding-top: 0.4rem;
+            margin-top: 0.5rem;
+        }
+
+        .card-stats span strong {
+            color: var(--text-primary);
+        }
+
+        /* DOSSIER PANEL (RIGHT VIEW) */
+        .dossier {
+            width: 45%;
+            background-color: var(--bg-panel);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        /* Holographic model viewport */
+        .dossier-viewport {
+            height: 250px;
+            position: relative;
+            background: radial-gradient(circle at 50% 70%, rgba(56, 30, 89, 0.4) 0%, rgba(7, 5, 9, 0) 70%);
+            border-bottom: 1px solid rgba(56, 30, 89, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            cursor: grab;
+        }
+
+        #canvas-container:active {
+            cursor: grabbing;
+        }
+
+        .viewport-hud {
+            position: absolute;
+            bottom: 10px;
+            left: 15px;
+            right: 15px;
+            z-index: 2;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+            font-family: var(--font-display);
+            font-size: 0.65rem;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        .scanner-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--tag-limbo), transparent);
+            animation: scan 3s linear infinite;
+            z-index: 2;
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
+        @keyframes scan {
+            0% { top: 0%; }
+            50% { top: 100%; }
+            100% { top: 0%; }
+        }
+
+        /* Dossier Content */
+        .dossier-body {
+            padding: 1.5rem;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .dossier-title-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding-bottom: 0.8rem;
+        }
+
+        .dossier-name {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            font-weight: 900;
+            letter-spacing: 1px;
+            text-shadow: 0 0 10px var(--dossier-color-alpha);
+        }
+
+        .dossier-lore {
+            font-size: 0.85rem;
+            line-height: 1.5;
+            color: var(--text-secondary);
+            font-style: italic;
+            background: rgba(255,255,255,0.02);
+            padding: 0.8rem 1rem;
+            border-left: 2px solid var(--dossier-color);
+            border-radius: 0 4px 4px 0;
+        }
+
+        .dossier-subtitle {
+            font-family: var(--font-display);
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            margin-bottom: 0.6rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        /* Stat Bars */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .stat-box {
+            background: rgba(21, 17, 31, 0.4);
+            border: 1px solid rgba(56, 30, 89, 0.3);
+            border-radius: 4px;
+            padding: 0.6rem;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            margin-bottom: 0.2rem;
+        }
+
+        .stat-val {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        .stat-bar-container {
+            width: 100%;
+            height: 4px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 2px;
+            margin-top: 0.4rem;
+            overflow: hidden;
+        }
+
+        .stat-bar-fill {
+            height: 100%;
+            background: var(--dossier-color);
+            border-radius: 2px;
+            width: 0%;
+            transition: width 0.8s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        /* Tabs inside dossier */
+        .dossier-tabs {
+            display: flex;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            margin-bottom: 0.5rem;
+        }
+
+        .dossier-tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            padding: 0.5rem 1rem;
+            font-family: var(--font-display);
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .dossier-tab-btn.active {
+            color: var(--text-primary);
+            border-bottom-color: var(--dossier-color);
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+            animation: fadeIn 0.4s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Skills Lists */
+        .skill-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 4px;
+            padding: 0.8rem;
+            margin-bottom: 0.6rem;
+        }
+
+        .skill-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.3rem;
+        }
+
+        .skill-name {
+            font-family: var(--font-display);
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .skill-tag {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            background: rgba(156, 39, 176, 0.2);
+            border: 1px solid var(--tag-limbo);
+            color: var(--text-primary);
+            padding: 0.1rem 0.3rem;
+            border-radius: 2px;
+        }
+
+        .skill-tag.passive {
+            background: rgba(2, 136, 209, 0.2);
+            border-color: var(--tag-defender);
+        }
+
+        .skill-desc {
+            font-size: 0.8rem;
+            line-height: 1.4;
+            color: var(--text-secondary);
+        }
+
+        /* Spawning details info box */
+        .info-box {
+            background: rgba(255, 215, 0, 0.05);
+            border: 1px solid rgba(255, 215, 0, 0.2);
+            border-radius: 4px;
+            padding: 0.8rem 1rem;
+            font-size: 0.8rem;
+            line-height: 1.5;
+            color: var(--text-secondary);
+        }
+
+        .info-box strong {
+            color: var(--text-primary);
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 900px) {
+            body {
+                overflow-y: auto;
+                height: auto;
+            }
+            main {
+                flex-direction: column;
+                height: auto;
+                overflow: visible;
+            }
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--border-glow);
+                height: 500px;
+            }
+            .dossier {
+                width: 100%;
+                height: auto;
+                overflow: visible;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>BESTIÁRIO & <span>ENCICLOPÉDIA</span></h1>
+        <div class="search-filter-container">
+            <input type="text" class="search-bar" id="search-input" placeholder="Pesquisar entidade...">
+        </div>
+    </header>
+
+    <main>
+        <!-- ESQUERDA: LISTA DE ENTIDADES -->
+        <div class="sidebar">
+            <div class="filter-tabs" id="filter-tabs">
+                <button class="tab-btn active" data-filter="all">Todos</button>
+                <button class="tab-btn" data-filter="comum">Comuns</button>
+                <button class="tab-btn" data-filter="guardião">Guardiões</button>
+                <button class="tab-btn" data-filter="limbo">Bosses do Limbo</button>
+                <button class="tab-btn" data-filter="elite">Chefes de Elite</button>
+                <button class="tab-btn" data-filter="deus">Deuses</button>
+            </div>
+            
+            <div class="list-container" id="list-container">
+                <!-- Preenchido dinamicamente por JS -->
+            </div>
+        </div>
+
+        <!-- DIREITA: DOSSIER DE DETALHES -->
+        <div class="dossier" id="dossier-panel">
+            <!-- Port de visualização 3D -->
+            <div class="dossier-viewport">
+                <div class="scanner-line"></div>
+                <div id="canvas-container"></div>
+                <div class="viewport-hud">
+                    <span>Holographic Scanner [Active]</span>
+                    <span id="shape-info">Octahedron</span>
+                </div>
+            </div>
+
+            <!-- Dados do Boss -->
+            <div class="dossier-body">
+                <div class="dossier-title-section">
+                    <div>
+                        <h2 class="dossier-name" id="dossier-name">O Faraó</h2>
+                        <span id="dossier-category" style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-secondary);">Deus</span>
+                    </div>
+                    <span class="card-difficulty" id="dossier-difficulty" style="font-size: 1.1rem; padding: 0.2rem 0.6rem;">SS</span>
+                </div>
+
+                <p class="dossier-lore" id="dossier-lore">A entidade suprema e governante das areias do Limbo. O Faraó flutua silenciosamente na arena e se move apenas por teletransporte...</p>
+
+                <!-- Atributos -->
+                <div>
+                    <h3 class="dossier-subtitle">⚡ Atributos Básicos</h3>
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <div class="stat-label">Vida Máxima</div>
+                            <div class="stat-val" id="stat-hp">150.000</div>
+                            <div class="stat-bar-container">
+                                <div class="stat-bar-fill" id="bar-hp"></div>
+                            </div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">Velocidade</div>
+                            <div class="stat-val" id="stat-speed">0</div>
+                            <div class="stat-bar-container">
+                                <div class="stat-bar-fill" id="bar-speed"></div>
+                            </div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">Pontuação</div>
+                            <div class="stat-val" id="stat-score">100.000</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">XP Concedida</div>
+                            <div class="stat-val" id="stat-xp">1.000.000</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabs de Infos Extras -->
+                <div>
+                    <div class="dossier-tabs">
+                        <button class="dossier-tab-btn active" data-tab="skills">Habilidades</button>
+                        <button class="dossier-tab-btn" data-tab="spawn">Spawn & Mecânicas</button>
+                    </div>
+
+                    <!-- Painel Habilidades -->
+                    <div class="tab-panel active" id="panel-skills">
+                        <div id="skills-list">
+                            <!-- Preenchido dinamicamente por JS -->
+                        </div>
+                    </div>
+
+                    <!-- Painel Spawn -->
+                    <div class="tab-panel" id="panel-spawn">
+                        <div class="info-box" id="spawn-info-box">
+                            <!-- Preenchido dinamicamente por JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // BANCO DE DADOS DOS INIMIGOS
+        const bestiary = [
+            {
+                id: 'farao',
+                name: 'O Faraó',
+                category: 'deus',
+                difficulty: 'SS',
+                color: '#ffd700',
+                shape: 'farao',
+                hp: 150000,
+                speed: 0,
+                xp: 1000000,
+                score: 100000,
+                spawn: 'Spawn único global que se manifesta após 5 minutos (300 segundos) de partida.',
+                lore: 'A entidade suprema e governante das areias do Limbo. O Faraó flutua silenciosamente na arena e se move apenas por teletransporte, canalizando as forças cósmicas e antigas pragas para expurgar quem ousar entrar em sua tumba.',
+                skills: [
+                    { name: 'Divindade Intocável (Passiva)', type: 'passive', desc: 'Imunidade total contra qualquer tipo de lentidão, enraizamento, sangramento, silenciamento ou debuff.' },
+                    { name: 'Maldição Dourada (Passiva)', type: 'passive', desc: 'Reflete 10% de todo dano recebido diretamente de volta para o atacante.' },
+                    { name: 'Areias do Tempo (Passiva)', type: 'passive', desc: 'Jogadores que ficam parados acumulam lentidão de 1% por segundo (limite de 70% slow). Voltar a se mover limpa o acúmulo.' },
+                    { name: 'Escaravelhos da Tumba (Passiva)', type: 'passive', desc: 'A cada 12 segundos, invoca 3 Escaravelhos guiados de 200 HP que perseguem o jogador mais próximo e explodem causando 50 de dano.' },
+                    { name: 'Raio de Rá (Ativa)', type: 'active', desc: 'Cooldown 15s. Sinaliza uma área por 1.5s e dispara um feixe de luz divina que causa 30% da vida máxima como dano real e inflige queimadura de 20 DPS por 5s.' },
+                    { name: 'Prisão de Gizé (Ativa)', type: 'active', desc: 'Cooldown 25s. Envolve o jogador e dá apenas 1 segundo para escapar de seu raio. Caso contrário, enraíza o alvo por 3 segundos.' },
+                    { name: 'Julgamento de Osíris (Ativa)', type: 'active', desc: 'Cooldown 45s. Limita a zona segura verde a uma metade aleatória da arena por 4s. Quem estiver fora dela ao fim do temporizador sofre 99% da vida máxima como dano verdadeiro.' },
+                    { name: 'Praga de Gafanhotos (Ativa)', type: 'active', desc: 'Cooldown 20s. Dispara nuvem de insetos guiados que causam cegueira por 4s e 10 de dano por segundo.' },
+                    { name: 'Colapso Monumental (Ativa)', type: 'active', desc: 'Cooldown 65s (apenas abaixo de 50% HP). Levita no céu por 3s e faz chover 8 colossais blocos de templo que causam 500 de dano e barram o mapa por 10s.' }
+                ]
+            },
+            {
+                id: 'smith',
+                name: 'Agent Smith',
+                category: 'elite',
+                difficulty: 'S',
+                color: '#00ff00',
+                shape: 'smith',
+                hp: 3500,
+                speed: 1.2,
+                xp: 6000,
+                score: 5000,
+                spawn: 'Spawn periódico ocorrendo a cada 2:30 minutos (150 segundos).',
+                lore: 'Uma anomalia de sistema na forma de uma inteligência artificial autogerida e altamente invasiva. Ele se replica continuamente, infectando e substituindo dados na matriz de simulação para sobrecarregar a memória dos desafiantes.',
+                skills: [
+                    { name: 'Sobrescrita Global (Ativa)', type: 'active', desc: 'Inicia ciclos de multiplicação, criando clones exatos de si mesmo que perseguem o jogador.' },
+                    { name: 'Contaminação Metódica (Passiva)', type: 'passive', desc: 'Cada golpe desferido por seus clones rouba 1% da experiência (XP) do jogador, impedindo sua progressão.' },
+                    { name: 'Protocolo de Resiliência (Passiva)', type: 'passive', desc: 'Cada clone ativo em batalha aumenta o dano bruto do Agent Smith original em 2% de forma cumulativa.' },
+                    { name: 'Salto de Protocolo (Ativa)', type: 'active', desc: 'Teleporta-se em distâncias de até 15 metros se for cercado ou receber muito dano concentrado.' },
+                    { name: 'Tela Azul de Erro (Passiva)', type: 'passive', desc: 'Ao ser eliminado, aciona um dump de tela azul no visor que simula travamento do sistema por alguns segundos.' }
+                ]
+            },
+            {
+                id: 'cao_infernos',
+                name: 'Cão dos Infernos',
+                category: 'elite',
+                difficulty: 'A',
+                color: '#8B0000',
+                shape: 'cao',
+                hp: 1000,
+                speed: 7.5,
+                xp: 1500,
+                score: 500,
+                spawn: 'Spawn agendado a cada 3 minutos (180 segundos). Aumenta seus atributos com base no nível da partida.',
+                lore: 'Um predador implacável forjado na essência das chamas cúbicas. Ele lidera uma matilha assassina e caça ativamente o jogador com velocidade formidável, tirando proveito de efeitos de sangramento e ataques velozes em área.',
+                skills: [
+                    { name: 'Matilha Geométrica (Passiva)', type: 'passive', desc: 'Invoca e mantém até 4 lobos menores que auxiliam nos ataques físicos (HP e Dano escalam com o nível).' },
+                    { name: 'Investida Implacável (Ativa)', type: 'active', desc: 'Cooldown 12s. Mira por 1s e realiza uma investida rápida a velocidade 25, causando 50 de dano e atordoando por 0.5s quem estiver no caminho.' },
+                    { name: 'Prismas Sombrios (Ativa)', type: 'active', desc: 'Cooldown 6s. Morde o alvo aplicando sangramento de 10 de dano por segundo por 4s e curando o Cão em 15% do dano causado.' },
+                    { name: 'Evisceração Cúbica (Ativa)', type: 'active', desc: 'Cooldown 8s. Causa 40 de dano em área (raio 6m) e regenera a vida de toda a matilha aliada próxima.' },
+                    { name: 'Chamado do Abismo (Ativa)', type: 'active', desc: 'Cooldown 60s. Entra em frenesi por 15s: aumenta 1.2x de tamanho, duplica sua velocidade, ganha um escudo de 2000 HP e invoca instantaneamente a matilha máxima.' }
+                ]
+            },
+            {
+                id: 'espectro_raziel',
+                name: 'Espectro de Raziel',
+                category: 'elite',
+                difficulty: 'A',
+                color: '#00CCFF',
+                shape: 'octahedron',
+                hp: 3000,
+                speed: 2.0,
+                xp: 1500,
+                score: 3000,
+                spawn: 'Manifesta-se aos 8 minutos (480 segundos) de combate.',
+                lore: 'Um fantasma ancestral que flutua cercado por almas torturadas. Ele manipula a energia espiritual dos jogadores, roubando seus atributos com o toque e canalizando rajadas de esferas fantasmagóricas.',
+                skills: [
+                    { name: 'Roubo de Alma (Passiva)', type: 'passive', desc: 'Seus ataques roubam permanentemente do jogador: 5% de dano, 1% de velocidade e 2% de tamanho, aumentando o próprio poder.' },
+                    { name: 'Aura do Medo (Passiva)', type: 'passive', desc: 'Cria um anel mágico de 15 metros ao seu redor. Jogadores dentro do anel têm sua defesa drenada continuamente.' },
+                    { name: 'Rajada de Almas (Ativa)', type: 'active', desc: 'Lança projéteis rápidos na direção dos jogadores que causam dano moderado.' },
+                    { name: 'Lentidão Sombria (Ativa)', type: 'active', desc: 'Evoca um poço de trevas que desacelera os alvos atingidos de forma drástica.' }
+                ]
+            },
+            {
+                id: 'the_mighty_one',
+                name: 'The Mighty One',
+                category: 'elite',
+                difficulty: 'S',
+                color: '#1a1a1a',
+                shape: 'box',
+                hp: 100000,
+                speed: 0.3,
+                xp: 30000,
+                score: 50000,
+                spawn: 'Chefe titânico que desperta aos 10 minutos (600s) de jogo.',
+                lore: 'Um colosso maciço de granito escuro que se move a passos lentos, mas exerce uma força gravitacional gigantesca na arena, puxando todos os oponentes para si.',
+                skills: [
+                    { name: 'Aura Gravitacional (Passiva)', type: 'passive', desc: 'Exerce uma força de atração em uma área de 25m, puxando jogadores para perto de seu corpo massivo.' },
+                    { name: 'Esmagamento Cúbico (Ativa)', type: 'active', desc: 'Descarrega um golpe de 100 de dano instantâneo na área de sua hitbox colossal de 4 metros.' }
+                ]
+            },
+            {
+                id: 'lucifer',
+                name: 'Lúcifer',
+                category: 'limbo',
+                difficulty: 'A',
+                color: '#FF0000',
+                shape: 'sphere',
+                hp: 10000,
+                speed: 3.5,
+                xp: 5000,
+                score: 7000,
+                spawn: 'Guardião do 9º Círculo do Limbo (Traição). Surge aos 9 minutos (540s).',
+                lore: 'O soberano do abismo congelado. Uma esfera de pura energia flamejante que persegue os invasores com fúria implacável e grande velocidade física.',
+                skills: [
+                    { name: 'Incinerar (Passiva)', type: 'passive', desc: 'Deixa um rastro de fogo que inflige dano contínuo a quem cruzar o caminho.' }
+                ]
+            },
+            {
+                id: 'geriao',
+                name: 'Gerião',
+                category: 'limbo',
+                difficulty: 'B',
+                color: '#004D40',
+                shape: 'cylinder',
+                hp: 7000,
+                speed: 3.0,
+                xp: 3000,
+                score: 4000,
+                spawn: 'Guardião do 8º Círculo do Limbo (Fraude). Surge aos 8 minutos (480s).',
+                lore: 'O monstro tríplice de escamas escuras. Ele engana os aventureiros com sua velocidade astuta e golpes perfurantes rápidos.',
+                skills: []
+            },
+            {
+                id: 'minotauro',
+                name: 'Minotauro',
+                category: 'limbo',
+                difficulty: 'B',
+                color: '#4E342E',
+                shape: 'box',
+                hp: 5000,
+                speed: 2.8,
+                xp: 2000,
+                score: 2500,
+                spawn: 'Guardião do 7º Círculo do Limbo (Violência). Surge aos 7 minutos (420s).',
+                lore: 'Uma besta enfurecida que patrulha as ruínas de pedra. Ele arremete com força bruta contra qualquer um que cause distúrbios em seu labirinto.',
+                skills: []
+            },
+            {
+                id: 'megera',
+                name: 'Megera',
+                category: 'limbo',
+                difficulty: 'B',
+                color: '#880E4F',
+                shape: 'octahedron',
+                hp: 3500,
+                speed: 2.6,
+                xp: 1300,
+                score: 1600,
+                spawn: 'Guardiã do 6º Círculo do Limbo (Heresia). Surge aos 6 minutos (360s).',
+                lore: 'Uma das fúrias infernais. Ela ataca a mente dos guerreiros, espalhando discórdia e confusão pela arena.',
+                skills: []
+            },
+            {
+                id: 'furia',
+                name: 'Fúria',
+                category: 'limbo',
+                difficulty: 'C',
+                color: '#E65100',
+                shape: 'cone',
+                hp: 2500,
+                speed: 2.4,
+                xp: 900,
+                score: 1100,
+                spawn: 'Guardiã do 5º Círculo do Limbo (Ira). Surge aos 5 minutos (300s).',
+                lore: 'O espírito da vingança que canaliza chamas laranja para assolar o local do combate.',
+                skills: []
+            },
+            {
+                id: 'plutao',
+                name: 'Plutão',
+                category: 'limbo',
+                difficulty: 'C',
+                color: '#1A237E',
+                shape: 'sphere',
+                hp: 1800,
+                speed: 2.2,
+                xp: 600,
+                score: 750,
+                spawn: 'Guardião do 4º Círculo do Limbo (Ganância). Surge aos 4 minutos (240s).',
+                lore: 'O deus da riqueza mineral transformado em um lacaio das profundezas. Ele atrai orbes de energia em sua defesa.',
+                skills: []
+            },
+            {
+                id: 'cerbero',
+                name: 'Cérbero',
+                category: 'limbo',
+                difficulty: 'C',
+                color: '#5D4037',
+                shape: 'box',
+                hp: 1200,
+                speed: 2.0,
+                xp: 400,
+                score: 500,
+                spawn: 'Guardião do 3º Círculo do Limbo (Gula). Surge aos 3 minutos (180s).',
+                lore: 'A representação em menor escala do cão de guarda infernal. Devora a determinação dos jogadores na proximidade.',
+                skills: []
+            },
+            {
+                id: 'minos',
+                name: 'Minos',
+                category: 'limbo',
+                difficulty: 'D',
+                color: '#BF360C',
+                shape: 'cylinder',
+                hp: 800,
+                speed: 1.8,
+                xp: 250,
+                score: 350,
+                spawn: 'Guardião do 2º Círculo do Limbo (Luxúria). Surge aos 2 minutos (120s).',
+                lore: 'O julgador das almas pecadoras. Condena os desafiantes com seu chicote de cauda geométrica.',
+                skills: []
+            },
+            {
+                id: 'guardiao_limbo',
+                name: 'Guardião do Limbo',
+                category: 'limbo',
+                difficulty: 'D',
+                color: '#4A148C',
+                shape: 'octahedron',
+                hp: 500,
+                speed: 1.5,
+                xp: 150,
+                score: 200,
+                spawn: 'Guardião do 1º Círculo do Limbo (Limbo). Surge a cada 1 minuto (60s).',
+                lore: 'O sentinela da entrada. Uma forma geométrica púrpura encarregada de filtrar as almas não batizadas na simulação.',
+                skills: []
+            },
+            {
+                id: 'gangplank',
+                name: 'Gangplank',
+                category: 'elite',
+                difficulty: 'A',
+                color: '#8D6E63',
+                shape: 'box',
+                hp: 120000,
+                speed: 2.0,
+                xp: 30000,
+                score: 4500,
+                spawn: 'Chefe pirata que aparece aos 6 minutos (360s).',
+                lore: 'O flagelo dos mares cúbicos. Ele possui alta defesa natural de 10% e dispara barris de pólvora explosivos que causam enorme dano em área.',
+                skills: [
+                    { name: 'Barril de Pólvora (Ativa)', type: 'active', desc: 'Coloca barris explosivos na arena que explodem em cadeia se forem atingidos.' },
+                    { name: 'Determinação Ferrosa (Passiva)', type: 'passive', desc: 'Reduz todo dano recebido em 10% através de sua blindagem natural.' }
+                ]
+            },
+            {
+                id: 'lich_king',
+                name: 'Lich King',
+                category: 'elite',
+                difficulty: 'S',
+                color: '#ADD8E6',
+                shape: 'box',
+                hp: 32000,
+                speed: 0.7,
+                xp: 50000,
+                score: 25000,
+                spawn: 'Chefe gélido que surge aos 10 minutos (600s).',
+                lore: 'O soberano da morte e do gelo. Ele caminha de forma lenta, mas gera uma aura de congelamento mortal de 4m ao seu redor que pune jogadores desavisados.',
+                skills: [
+                    { name: 'Geada do Necro (Passiva)', type: 'passive', desc: 'Congela jogadores que entrarem em sua aura gélida por muito tempo.' }
+                ]
+            },
+            {
+                id: 'feiticeiro_imortal',
+                name: 'Feiticeiro Imortal',
+                category: 'elite',
+                difficulty: 'A',
+                color: '#4B0082',
+                shape: 'sphere',
+                hp: 50000,
+                speed: 1.2,
+                xp: 50000,
+                score: 10000,
+                spawn: 'Feiticeiro que aparece aos 7 minutos (420s).',
+                lore: 'Um mestre das artes sombrias que transcendeu a morte física através de rituais proibidos. Ele flutua como uma esfera índigo.',
+                skills: []
+            },
+            {
+                id: 'planta_carnivora',
+                name: 'Planta Carnívora',
+                category: 'elite',
+                difficulty: 'B',
+                color: '#588157',
+                shape: 'cylinder',
+                hp: 2500,
+                speed: 0,
+                xp: 3000,
+                score: 6000,
+                spawn: 'Chefe enraizado que brota aos 3:30 minutos (210s).',
+                lore: 'Um organismo vegetal hostil gigante. Embora estática, sua mordida causa danos enormes a curta distância.',
+                skills: []
+            },
+            {
+                id: 'rainha_trevas',
+                name: 'Rainha das Trevas',
+                category: 'elite',
+                difficulty: 'S',
+                color: '#3a0ca3',
+                shape: 'cylinder',
+                hp: 70000,
+                speed: 2.8,
+                xp: 25000,
+                score: 5000,
+                spawn: 'Entidade das sombras que surge aos 5 minutos (300s).',
+                lore: 'A soberana da escuridão absoluta. Ela flutua a altas velocidades cortando a luz da arena com seu corpo cilíndrico de energia escura.',
+                skills: []
+            },
+            {
+                id: 'super_boss',
+                name: 'Super Boss',
+                category: 'elite',
+                difficulty: 'B',
+                color: '#ff00ff',
+                shape: 'sphere',
+                hp: 5000,
+                speed: 1.0,
+                xp: 2000,
+                score: 7500,
+                spawn: 'O primeiro chefe de elite do jogo, surgindo aos 3 minutos (180s).',
+                lore: 'Uma anomalia esférica violeta gigante que atrai gravitacionalmente os jogadores para perto, drenando suas vidas.',
+                skills: [
+                    { name: 'Sucção de Matéria (Passiva)', type: 'passive', desc: 'Atrai jogadores em um raio de 8 metros com força gravitacional contínua.' }
+                ]
+            },
+            {
+                id: 'guardian_guerreiro',
+                name: 'Guardião Guerreiro',
+                category: 'guardião',
+                difficulty: 'C',
+                color: '#8B0000',
+                shape: 'box',
+                hp: 800,
+                speed: 2.0,
+                xp: 500,
+                score: 1000,
+                spawn: 'Guardião de Elite que protege as torres de cura. Spawna a cada 4 minutos.',
+                lore: 'Um soldado de infantaria pesado de cor vermelha escura que usa escudo de energia para atordoar invasores.',
+                skills: [
+                    { name: 'Golpe Impactante (Ativa)', type: 'active', desc: 'Desfere um golpe frontal que atordoa o jogador afetado por 1.5s.' }
+                ]
+            },
+            {
+                id: 'guardian_mago',
+                name: 'Guardião Mago',
+                category: 'guardião',
+                difficulty: 'C',
+                color: '#00008B',
+                shape: 'octahedron',
+                hp: 600,
+                speed: 2.5,
+                xp: 600,
+                score: 1200,
+                spawn: 'Guardião de Elite que protege as torres de cura. Spawna a cada 4 minutos.',
+                lore: 'Um canalizador octaédrico de cor azul escura que ataca a longas distâncias usando magias de congelamento.',
+                skills: [
+                    { name: 'Estase de Gelo (Ativa)', type: 'active', desc: 'Atira um projétil de gelo que congela o jogador por 2 segundos ao impacto.' }
+                ]
+            },
+            {
+                id: 'guardian_arqueiro',
+                name: 'Guardião Arqueiro',
+                category: 'guardião',
+                difficulty: 'C',
+                color: '#006400',
+                shape: 'cone',
+                hp: 500,
+                speed: 3.0,
+                xp: 700,
+                score: 1500,
+                spawn: 'Guardião de Elite que protege as torres de cura. Spawna a cada 4 minutos.',
+                lore: 'Um batedor cônico verde escuro extremamente veloz. Ele tenta manter distância segura do jogador e disparar flechas de precisão.',
+                skills: [
+                    { name: 'Disparo de Retirada (Passiva)', type: 'passive', desc: 'Corre para trás se o jogador se aproximar a menos de 6 metros.' }
+                ]
+            },
+            {
+                id: 'purple_cube',
+                name: 'Cubo Roxo',
+                category: 'comum',
+                difficulty: 'E',
+                color: '#6a1b9a',
+                shape: 'box',
+                hp: 300,
+                speed: 2.5,
+                xp: 250,
+                score: 50,
+                spawn: 'Inimigo padrão da arena. Spawna continuamente a cada 5s de jogo.',
+                lore: 'A unidade básica da infestação geométrica. Move-se de forma errática em direção ao jogador e ataca à curta distância.',
+                skills: []
+            },
+            {
+                id: 'red_cone',
+                name: 'Cone Vermelho',
+                category: 'comum',
+                difficulty: 'D',
+                color: '#d32f2f',
+                shape: 'cone',
+                hp: 900,
+                speed: 0,
+                xp: 1000,
+                score: 150,
+                spawn: 'Spawna a cada 30 segundos nas bordas da arena.',
+                lore: 'Uma sentinela defensiva imóvel de alta resistência que dispara projéteis lineares rápidos em qualquer um em sua linha de visão.',
+                skills: []
+            },
+            {
+                id: 'enemy_tower',
+                name: 'Torre Inimiga',
+                category: 'comum',
+                difficulty: 'D',
+                color: '#c0392b',
+                shape: 'cylinder',
+                hp: 500,
+                speed: 0,
+                xp: 100,
+                score: 150,
+                spawn: 'Localizada permanentemente em pontos estratégicos, com atraso de respawn de 60s.',
+                lore: 'Estruturas cilíndricas que disparam feixes defensivos de longo alcance para afastar os jogadores de áreas seguras.',
+                skills: []
+            }
+        ];
+
+        // 3D VIEWER LOGIC (THREE.JS)
+        let scene, camera, renderer, currentMesh;
+
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            
+            scene = new THREE.Scene();
+            
+            // Perspective Camera
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+            camera.position.set(0, 1.8, 6.5);
+            camera.lookAt(0, 0.5, 0);
+
+            // WebGL Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambient = new THREE.AmbientLight(0xffffff, 0.45);
+            scene.add(ambient);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+            dirLight.position.set(4, 8, 5);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+
+            // Point Light for emissive glow
+            const glowLight = new THREE.PointLight(0xff00ff, 0.8, 8);
+            glowLight.position.set(0, 1.5, 1.5);
+            scene.add(glowLight);
+
+            // Tech Grid Helper
+            const gridHelper = new THREE.GridHelper(8, 12, 0x5c2b8c, 0x1f1430);
+            gridHelper.position.y = -0.8;
+            scene.add(gridHelper);
+
+            // Hologram Ring
+            const ringGeo = new THREE.RingGeometry(1.6, 1.65, 32);
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0x9c27b0, side: THREE.DoubleSide, transparent: true, opacity: 0.4 });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.rotation.x = Math.PI / 2;
+            ring.position.y = -0.79;
+            scene.add(ring);
+
+            // Interaction
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+
+            container.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            container.addEventListener('mousemove', (e) => {
+                if (!isDragging || !currentMesh) return;
+                const deltaMove = {
+                    x: e.clientX - previousMousePosition.x,
+                    y: e.clientY - previousMousePosition.y
+                };
+                currentMesh.rotation.y += deltaMove.x * 0.005;
+                currentMesh.rotation.x += deltaMove.y * 0.005;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            window.addEventListener('mouseup', () => { isDragging = false; });
+
+            // Touch interaction
+            container.addEventListener('touchstart', (e) => {
+                isDragging = true;
+                previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            });
+            container.addEventListener('touchmove', (e) => {
+                if (!isDragging || !currentMesh) return;
+                const deltaMove = {
+                    x: e.touches[0].clientX - previousMousePosition.x,
+                    y: e.touches[0].clientY - previousMousePosition.y
+                };
+                currentMesh.rotation.y += deltaMove.x * 0.008;
+                currentMesh.rotation.x += deltaMove.y * 0.008;
+                previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            });
+            container.addEventListener('touchend', () => { isDragging = false; });
+
+            // Render loop
+            function animate() {
+                requestAnimationFrame(animate);
+                if (currentMesh && !isDragging) {
+                    currentMesh.rotation.y += 0.006;
+                }
+                ring.rotation.z += 0.002;
+                renderer.render(scene, camera);
+            }
+            animate();
+        }
+
+        // COMPILE 3D MODEL CORRESPONDING TO BESTIARY DATA
+        function update3DModel(shapeType, colorHex) {
+            if (!scene) return;
+            if (currentMesh) scene.remove(currentMesh);
+
+            const group = new THREE.Group();
+            const colorVal = parseInt(colorHex.replace('#', '0x'));
+            
+            const mat = new THREE.MeshStandardMaterial({
+                color: colorVal,
+                emissive: colorVal,
+                emissiveIntensity: shapeType === 'farao' ? 0.4 : 0.2,
+                metalness: shapeType === 'smith' || shapeType === 'farao' ? 0.8 : 0.4,
+                roughness: shapeType === 'smith' || shapeType === 'farao' ? 0.2 : 0.5,
+            });
+
+            document.getElementById('shape-info').textContent = shapeType;
+
+            if (shapeType === 'farao') {
+                // Farao Special Geometric Mesh
+                const bodyGeo = new THREE.BoxGeometry(1.2, 1.6, 0.8);
+                const body = new THREE.Mesh(bodyGeo, mat);
+                body.position.y = 0.8;
+                group.add(body);
+
+                const headGeo = new THREE.BoxGeometry(0.9, 0.6, 0.6);
+                const headMat = new THREE.MeshStandardMaterial({ color: 0xd4a700, metalness: 0.8, roughness: 0.2 });
+                const head = new THREE.Mesh(headGeo, headMat);
+                head.position.y = 1.9;
+                group.add(head);
+
+                const crownGeo = new THREE.ConeGeometry(0.3, 0.8, 4);
+                const crownMat = new THREE.MeshStandardMaterial({ color: 0xffd700, emissive: 0xffd700, metalness: 0.9 });
+                const crown = new THREE.Mesh(crownGeo, crownMat);
+                crown.position.y = 2.6;
+                crown.rotation.y = Math.PI / 4;
+                group.add(crown);
+
+                const staffGeo = new THREE.BoxGeometry(0.08, 2.5, 0.08);
+                const staff = new THREE.Mesh(staffGeo, mat);
+                staff.position.set(0.9, 0.8, 0);
+                group.add(staff);
+
+                const crossGeo = new THREE.BoxGeometry(0.4, 0.08, 0.08);
+                const cross = new THREE.Mesh(crossGeo, mat);
+                cross.position.set(0.9, 2.0, 0);
+                group.add(cross);
+
+                const scarabGeo = new THREE.BoxGeometry(0.4, 0.25, 0.1);
+                const scarabMat = new THREE.MeshStandardMaterial({ color: 0x00aaff, emissive: 0x00e5ff, emissiveIntensity: 1.2 });
+                const scarab = new THREE.Mesh(scarabGeo, scarabMat);
+                scarab.position.set(0, 0.8, 0.45);
+                group.add(scarab);
+
+            } else if (shapeType === 'smith') {
+                // Agent Smith Special Mesh
+                const bodyGeo = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+                const body = new THREE.Mesh(bodyGeo, mat);
+                body.position.y = 0.6;
+                group.add(body);
+
+                const headGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+                const headMat = new THREE.MeshStandardMaterial({ color: 0x808080, metalness: 0.5 });
+                const head = new THREE.Mesh(headGeo, headMat);
+                head.position.y = 1.5;
+                group.add(head);
+
+                const visorGeo = new THREE.BoxGeometry(0.5, 0.12, 0.08);
+                const visorMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+                const visor = new THREE.Mesh(visorGeo, visorMat);
+                visor.position.set(0, 1.5, 0.31);
+                group.add(visor);
+
+            } else if (shapeType === 'cao') {
+                // Cao Dos Infernos Mesh
+                const bodyGeo = new THREE.BoxGeometry(1.6, 0.8, 0.8);
+                const body = new THREE.Mesh(bodyGeo, mat);
+                body.position.y = 0.4;
+                group.add(body);
+
+                const headGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+                const head = new THREE.Mesh(headGeo, mat);
+                head.position.set(0.9, 0.6, 0);
+                group.add(head);
+
+                const spikeGeo = new THREE.ConeGeometry(0.2, 0.5, 4);
+                const spikeMat = new THREE.MeshStandardMaterial({ color: 0x8b0000 });
+                const spike1 = new THREE.Mesh(spikeGeo, spikeMat);
+                spike1.position.set(-0.3, 0.8, 0);
+                const spike2 = spike1.clone();
+                spike2.position.x = 0.3;
+                group.add(spike1);
+                group.add(spike2);
+
+            } else if (shapeType === 'box') {
+                const geo = new THREE.BoxGeometry(1.3, 1.3, 1.3);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 0.65;
+                group.add(mesh);
+                
+            } else if (shapeType === 'cone') {
+                const geo = new THREE.ConeGeometry(1, 2.2, 8);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 1.1;
+                group.add(mesh);
+                
+            } else if (shapeType === 'cylinder') {
+                const geo = new THREE.CylinderGeometry(0.8, 1, 2, 12);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 1;
+                group.add(mesh);
+                
+            } else if (shapeType === 'sphere') {
+                const geo = new THREE.SphereGeometry(1, 24, 24);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 1;
+                group.add(mesh);
+                
+            } else if (shapeType === 'octahedron') {
+                const geo = new THREE.OctahedronGeometry(1.1, 0);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 1.1;
+                group.add(mesh);
+            }
+
+            currentMesh = group;
+            scene.add(currentMesh);
+        }
+
+        // WINDOW RESIZE
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            if (!container || !renderer || !camera) return;
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+        window.addEventListener('resize', onWindowResize);
+
+        // UI RENDER AND EVENT BINDING
+        const searchInput = document.getElementById('search-input');
+        const filterTabs = document.getElementById('filter-tabs');
+        const listContainer = document.getElementById('list-container');
+
+        let currentFilter = 'all';
+        let currentSearchQuery = '';
+        let selectedEnemyId = 'farao';
+
+        // Filter and Search logic
+        function filterEntities() {
+            return bestiary.filter(enemy => {
+                const matchesFilter = currentFilter === 'all' || enemy.category === currentFilter;
+                const matchesSearch = enemy.name.toLowerCase().includes(currentSearchQuery.toLowerCase());
+                return matchesFilter && matchesSearch;
+            });
+        }
+
+        // Render Entity Cards Grid
+        function renderCards() {
+            listContainer.innerHTML = '';
+            const filtered = filterEntities();
+
+            if (filtered.length === 0) {
+                listContainer.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: 2rem;">Nenhuma entidade encontrada.</div>';
+                return;
+            }
+
+            filtered.forEach(enemy => {
+                const card = document.createElement('div');
+                card.className = `enemy-card ${enemy.id === selectedEnemyId ? 'selected' : ''}`;
+                card.style.setProperty('--card-color', enemy.color);
+                
+                const categoryNames = {
+                    comum: 'Comum',
+                    guardião: 'Guardião',
+                    limbo: 'Limbo',
+                    elite: 'Chefe Elite',
+                    deus: 'Deus'
+                };
+
+                card.innerHTML = `
+                    <div class="card-header">
+                        <span class="card-title">${enemy.name}</span>
+                        <span class="card-difficulty" style="--card-color: ${enemy.color}">${enemy.difficulty}</span>
+                    </div>
+                    <div class="card-category">${categoryNames[enemy.category]}</div>
+                    <div class="card-stats">
+                        <span>HP: <strong>${enemy.hp.toLocaleString()}</strong></span>
+                        <span>Veloc: <strong>${enemy.speed}</strong></span>
+                    </div>
+                `;
+
+                card.addEventListener('click', () => {
+                    selectEntity(enemy.id);
+                });
+
+                listContainer.appendChild(card);
+            });
+        }
+
+        // Select Entity & Update Dossier
+        function selectEntity(id) {
+            selectedEnemyId = id;
+            
+            // Highlight selected card
+            document.querySelectorAll('.enemy-card').forEach(card => card.classList.remove('selected'));
+            renderCards(); // Re-render to update classes easily
+
+            const enemy = bestiary.find(e => e.id === id);
+            if (!enemy) return;
+
+            // Apply Dossier colors
+            document.documentElement.style.setProperty('--dossier-color', enemy.color);
+            document.documentElement.style.setProperty('--dossier-color-alpha', `${enemy.color}40`);
+
+            // Populate text
+            document.getElementById('dossier-name').textContent = enemy.name;
+            document.getElementById('dossier-lore').textContent = enemy.lore;
+            
+            const categoryNames = {
+                comum: 'Comum (Sentinela)',
+                guardião: 'Guardião de Elite',
+                limbo: 'Boss de Limbo (Círculo)',
+                elite: 'Chefe de Simulação',
+                deus: 'Entidade Deus (Final)'
+            };
+            document.getElementById('dossier-category').textContent = categoryNames[enemy.category];
+            document.getElementById('dossier-difficulty').textContent = enemy.difficulty;
+
+            // Stats
+            document.getElementById('stat-hp').textContent = enemy.hp.toLocaleString();
+            document.getElementById('stat-speed').textContent = enemy.speed === 0 ? 'Teleporte' : enemy.speed.toFixed(1);
+            document.getElementById('stat-score').textContent = enemy.score.toLocaleString();
+            document.getElementById('stat-xp').textContent = enemy.xp.toLocaleString();
+
+            // Progress bars
+            const hpPct = Math.min((enemy.hp / 150000) * 100, 100);
+            const speedPct = Math.min((enemy.speed / 8) * 100, 100);
+            
+            document.getElementById('bar-hp').style.width = `${hpPct}%`;
+            document.getElementById('bar-speed').style.width = `${speedPct}%`;
+
+            // Skills tab list
+            const skillsList = document.getElementById('skills-list');
+            skillsList.innerHTML = '';
+            
+            if (enemy.skills && enemy.skills.length > 0) {
+                enemy.skills.forEach(skill => {
+                    const item = document.createElement('div');
+                    item.className = 'skill-item';
+                    item.innerHTML = `
+                        <div class="skill-header">
+                            <span class="skill-name">${skill.name}</span>
+                            <span class="skill-tag ${skill.type}">${skill.type === 'passive' ? 'Passiva' : 'Ativa'}</span>
+                        </div>
+                        <p class="skill-desc">${skill.desc}</p>
+                    `;
+                    skillsList.appendChild(item);
+                });
+            } else {
+                skillsList.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 1.5rem 0; font-size: 0.85rem;">Esta entidade não possui habilidades especiais registradas. Causa dano físico padrão de colisão.</div>';
+            }
+
+            // Spawn tab list
+            const spawnBox = document.getElementById('spawn-info-box');
+            spawnBox.innerHTML = `
+                <p style="margin-bottom: 0.6rem;"><strong>Localizador e Gatilho:</strong></p>
+                <p style="margin-bottom: 1rem;">${enemy.spawn}</p>
+                <p style="margin-bottom: 0.6rem;"><strong>Recompensa de Derrota:</strong></p>
+                <p>Ao ser destruído, concede <strong>${enemy.xp.toLocaleString()} XP</strong> e adiciona <strong>${enemy.score.toLocaleString()} pontos</strong> ao painel da partida dos jogadores sobreviventes.</p>
+            `;
+
+            // Update 3D model
+            update3DModel(enemy.shape, enemy.color);
+        }
+
+        // Bind filter tabs click events
+        filterTabs.addEventListener('click', (e) => {
+            if (!e.target.classList.contains('tab-btn')) return;
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            e.target.classList.add('active');
+
+            currentFilter = e.target.dataset.filter;
+            renderCards();
+        });
+
+        // Bind search input events
+        searchInput.addEventListener('input', (e) => {
+            currentSearchQuery = e.target.value;
+            renderCards();
+        });
+
+        // Tab views inside dossier
+        document.querySelectorAll('.dossier-tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.dossier-tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+
+                e.target.classList.add('active');
+                const targetPanel = document.getElementById(`panel-${e.target.dataset.tab}`);
+                if (targetPanel) targetPanel.classList.add('active');
+            });
+        });
+
+        // INIT EXECUTION
+        window.addEventListener('DOMContentLoaded', () => {
+            init3D();
+            renderCards();
+            selectEntity(selectedEnemyId);
+        });
+    </script>
+</body>
+</html>

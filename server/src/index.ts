@@ -32,7 +32,11 @@ const playerSockets = new Map<string, WebSocket>();
 const publicDir = process.env.NODE_ENV === 'production'
     ? path.join(__dirname, '../public')
     : path.join(__dirname, '../../client');
-app.use(express.static(publicDir));
+app.use(express.static(publicDir, {
+    maxAge: '1y',
+    etag: true,
+    lastModified: true
+}));
 // CORS middleware - allow browser requests
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
