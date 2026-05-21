@@ -19,5 +19,12 @@
     "type": "Ajuste",
     "target": "SuperBoss",
     "description": "Intervalo de respawn ajustado para 3 minutos pós-derrota."
+  },
+  {
+    "id": "1779407503251",
+    "date": "2026-05-21T23:50:15.602Z",
+    "type": "Correção",
+    "target": "correção ",
+    "description": "Aqui estão todas as correções e ajustes que foram feitos nos bosses e nos inimigos no servidor. Você pode copiar e colar essas descrições no formulário de atualizações do aplicativo:\n\n1. Sistema de Spawn e Respawn (Correções)\nRespawn Consistente de Bosses: Corrigido o temporizador de respawn de todos os chefes (Megera, Minotauro, Gerião, Lúcifer, Espectro de Raziel e Faraó). O tempo de recarga agora só começa a contar após o chefe atual ser derrotado, evitando que múltiplos chefes acumulem ou nasçam de uma vez só.\nMorte de Chefes: Corrigido o registro de morte para chefes como Feiticeiro Imortal, Lich King e Super Boss, garantindo que as flags de estado sejam redefinidas no servidor para permitir o próximo ciclo de spawn corretamente.\nRenascimento de Orbs de XP: Implementado o respawn automático e imediato das Orbs de XP após serem coletadas, sincronizando a lógica do servidor com o comportamento esperado do cliente.\n2. O Poderoso (Ajustes e Buffs)\nRedução de Dano Passiva: Adicionada 30% de chance de reduzir em 60% qualquer dano recebido.\nAtaque de Projétil Cósmico: Dispara um projétil cósmico veloz a cada 1.5 segundos em direção ao jogador mais próximo.\nAtaque Crítico (Morte Instantânea): O projétil cósmico tem uma chance rara (0.5%) de desferir morte instantânea, enviando uma mensagem global para todos na partida.\nEventos Mundiais: Adicionado aviso global no servidor ao derrotar O Poderoso: \"🌀 O Poderoso caiu… mas algo no mundo mudou para sempre...\"\n3. O Faraó (Ajuste de Buff)\nBênção do Faraó Temporária: O buff obtido ao derrotar o Faraó foi rebalanceado de permanente (infinito) para uma duração de 45 segundos, mantendo o ganho de +50% de HP Máximo e Velocidade para evitar que o personagem fique invencível indefinidamente.\n4. Correções de Textos e Visual\nAcentuação dos Chefes do Limbo: Corrigido os nomes dos chefes no servidor para baterem exatamente com a interface do cliente (Plutao ➔ Plutão, Furia ➔ Fúria, Lucifer ➔ Lúcifer), corrigindo bugs visuais de exibição de nomes e contadores de conquistas.\nVocê pode cadastrar estes tópicos como atualizações do tipo \"Correção\", \"Ajuste\", \"Buff\" ou \"Novidade\" na interface do aplicativo que está aberta na sua tela!"
   }
 ]
