@@ -33,5 +33,12 @@
     "type": "Ajuste",
     "target": "ajuste no ranked",
     "description": "o player Supremowill abusou de um bug detectado pelo sistema as pontuação detectados forão excluidas"
+  },
+  {
+    "id": "1779497677792",
+    "date": "2026-05-23T00:54:02.130Z",
+    "type": "Novidade",
+    "target": "Dano mostrando em Hit Box",
+    "description": "🎯 Sistema de Dano Flutuante\n\nAgora você verá números de dano aparecendo na tela durante o combate! Ao atacar inimigos, receber dano ou se curar, textos numéricos sobem acima das entidades com animação suave, estilo Ragnarok Online.\n\n• ⚪ Dano Normal — números brancos ao atingir inimigos ou ao ser atingido • 🟡 Escudo — números amarelos quando o dano é absorvido pelo escudo (E) • 🟢 Cura — números verdes ao receber cura da torre central\n\nNúmeros grandes são formatados automaticamente (ex: 15K, 1.2M). O sistema é otimizado para não causar lag mesmo em combates intensos contra bosses."
   }
 ]
