@@ -55,7 +55,7 @@
         "attackRange": 12,
         "attackCooldown": 2000,
         "hitboxRadius": 0.6,
-        "xp": 150,
+        "xp": 250,
         "score": 50
       },
       "passives": [],
@@ -106,9 +106,9 @@
         "scale": 1.5
       },
       "stats": {
-        "hp": 5000,
+        "hp": 500,
         "speed": 0,
-        "damage": 40,
+        "damage": 20,
         "attackRange": 30,
         "attackCooldown": 1500,
         "hitboxRadius": 1.2,
@@ -530,7 +530,7 @@
         "emissive": "#ADD8E6"
       },
       "stats": {
-        "hp": 80000,
+        "hp": 32000,
         "speed": 0.7,
         "damage": 350,
         "attackRange": 15,
@@ -569,7 +569,7 @@
         "emissive": "#FFA500"
       },
       "stats": {
-        "hp": 150000,
+        "hp": 100000,
         "speed": 0.3,
         "damage": 100,
         "attackRange": 25,
@@ -1129,7 +1129,7 @@
       "stats": {
         "hp": 3500,
         "speed": 1.2,
-        "damage": 50,
+        "damage": 25,
         "attackRange": 10,
         "attackCooldown": 6000,
         "hitboxRadius": 1.5,
