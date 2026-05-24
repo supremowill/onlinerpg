@@ -2843,6 +2843,8 @@ if ($subtopic === 'player_builds') {
             $gameData['player']['xpToFirstLevel'] = intval($_POST['xpToFirstLevel']);
             $gameData['player']['xpMultiplier'] = floatval($_POST['xpMultiplier']);
             $gameData['player']['levelHpMultiplier'] = floatval($_POST['levelHpMultiplier']);
+            $gameData['player']['baseDamage'] = intval($_POST['baseDamage'] ?? 40);
+            $gameData['player']['levelDamageMultiplier'] = floatval($_POST['levelDamageMultiplier'] ?? 2.0);
         } else {
             // Edit Enemy
             if (isset($gameData['enemies'][$entity])) {
@@ -2944,15 +2946,23 @@ if ($subtopic === 'player_builds') {
                 </tr>
                 <tr bgcolor="#D4C0A1" style="color:#000;">
                     <td><b>XP para Level 2 (Primeiro Level):</b></td>
-                    <td><input type="number" name="xpToFirstLevel" value="' . intval($pStats['xpToFirstLevel'] ?? 10) . '" style="width:90%;" required /></td>
+                    <td><input type="number" name="xpToFirstLevel" value="' . intval($pStats['xpToFirstLevel'] ?? 10) . '" style="width:90%;" required /> <span style="font-size:9px; color:#555;">(Aumentar dificulta o Up inicial)</span></td>
                 </tr>
                 <tr bgcolor="#F1E0C6" style="color:#000;">
-                    <td><b>Multiplicador de XP por Level:</b></td>
-                    <td><input type="number" step="0.1" name="xpMultiplier" value="' . floatval($pStats['xpMultiplier'] ?? 1.8) . '" style="width:90%;" required /></td>
+                    <td><b>Multiplicador de XP por Level (xp/lv):</b></td>
+                    <td><input type="number" step="0.1" name="xpMultiplier" value="' . floatval($pStats['xpMultiplier'] ?? 1.8) . '" style="width:90%;" required /> <span style="font-size:9px; color:#555;">(Aumentar dificulta o Up; diminuir facilita. Ex: 1.8 = +80% XP por nível)</span></td>
                 </tr>
                 <tr bgcolor="#D4C0A1" style="color:#000;">
-                    <td><b>Multiplicador de HP por Level:</b></td>
-                    <td><input type="number" step="0.1" name="levelHpMultiplier" value="' . floatval($pStats['levelHpMultiplier'] ?? 1.5) . '" style="width:90%;" required /></td>
+                    <td><b>Multiplicador de HP por Level (hp/lv):</b></td>
+                    <td><input type="number" step="0.1" name="levelHpMultiplier" value="' . floatval($pStats['levelHpMultiplier'] ?? 1.5) . '" style="width:90%;" required /> <span style="font-size:9px; color:#555;">(Ex: 1.3 = +30% HP por nível)</span></td>
+                </tr>
+                <tr bgcolor="#F1E0C6" style="color:#000;">
+                    <td><b>Ataque Base (Dano):</b></td>
+                    <td><input type="number" name="baseDamage" value="' . intval($pStats['baseDamage'] ?? 40) . '" style="width:90%;" required /></td>
+                </tr>
+                <tr bgcolor="#D4C0A1" style="color:#000;">
+                    <td><b>Multiplicador de Ataque por Level (atq/lv):</b></td>
+                    <td><input type="number" step="0.1" name="levelDamageMultiplier" value="' . floatval($pStats['levelDamageMultiplier'] ?? 2.0) . '" style="width:90%;" required /> <span style="font-size:9px; color:#555;">(Ex: 2.0 = dobra o dano a cada nível base)</span></td>
                 </tr>
             </table>
             <br/>

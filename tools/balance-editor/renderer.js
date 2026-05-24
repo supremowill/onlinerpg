@@ -75,8 +75,14 @@ function renderEditor() {
     if (gameData.player.defense === undefined) {
       gameData.player.defense = 100;
     }
-    container.appendChild(buildFormSection('Base Stats', gameData.player, ['hp', 'speed', 'defense', 'attackCooldownMs', 'projectileSpeed', 'projectileLifetime', 'hitboxRadius']));
-    container.appendChild(buildFormSection('Leveling', gameData.player, ['xpToFirstLevel', 'xpMultiplier', 'levelHpMultiplier', 'upgradeLevels']));
+    if (gameData.player.baseDamage === undefined) {
+      gameData.player.baseDamage = 40;
+    }
+    if (gameData.player.levelDamageMultiplier === undefined) {
+      gameData.player.levelDamageMultiplier = 2.0;
+    }
+    container.appendChild(buildFormSection('Base Stats', gameData.player, ['hp', 'speed', 'defense', 'baseDamage', 'attackCooldownMs', 'projectileSpeed', 'projectileLifetime', 'hitboxRadius']));
+    container.appendChild(buildFormSection('Leveling', gameData.player, ['xpToFirstLevel', 'xpMultiplier', 'levelHpMultiplier', 'levelDamageMultiplier', 'upgradeLevels']));
     
     if (gameData.player.skills) {
       container.appendChild(buildNestedObjectForm('Skills', gameData.player.skills));

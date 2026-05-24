@@ -287,7 +287,9 @@ export class ServerPlayer {
     getDamage(isAbility = false): number {
         const pConf = getGameData().player || CONFIG.PLAYER as any;
         const sr = pConf.skills?.r || CONFIG.PLAYER.SKILL_R;
-        let base = 40 * (this.level * 2.0);
+        const dmgBase = pConf.baseDamage !== undefined ? pConf.baseDamage : (CONFIG.PLAYER as any).BASE_DAMAGE || 40;
+        const dmgMult = pConf.levelDamageMultiplier !== undefined ? pConf.levelDamageMultiplier : (CONFIG.PLAYER as any).LEVEL_DAMAGE_MULTIPLIER || 2.0;
+        let base = dmgBase * (this.level * dmgMult);
         if (this.activeBuff.type === 'guerreiro') base *= 1.70;
         if (this.skills.r.isActive) base *= sr.damageMultiplier || 4.0;
         if (this.tempBuff.type === 'damage') base *= this.tempBuff.magnitude;
