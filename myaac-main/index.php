@@ -109,9 +109,8 @@ class MockTwig {
         global $template_path;
         if ($template === 'highscores.html.twig') {
             echo '
-            <div class="Themebox" id="Themebox_Highscores">
-              <div class="ThemeboxTitle" style="background-image:url(' . $template_path . '/images/themeboxes/title-highscores.gif);"></div>
-              <div class="ThemeboxContent" style="background-image:url(' . $template_path . '/images/themeboxes/themebox-content.gif);">
+            <div class="Themebox" id="Themebox_Highscores" style="background-image:url(' . $template_path . '/images/themeboxes/highscores/highscores.png);">
+              <div style="padding-top:35px; padding-left:10px; padding-right:10px;">
                 <table style="width:100%; border:0; font-size:10px; color:#F1E0C6;">';
             if (isset($data['topPlayers'])) {
                 $rank = 1;
@@ -127,51 +126,47 @@ class MockTwig {
                 </table>
                 <div style="text-align:center; margin-top:5px;"><a href="?subtopic=highscores" style="color:#FFF;">Ver Rankings</a></div>
               </div>
-              <div class="ThemeboxBottom" style="background-image:url(' . $template_path . '/images/themeboxes/themebox-bottom.gif);"></div>
+              <div class="Bottom" style="background-image:url(' . $template_path . '/images/general/box-bottom.gif);"></div>
             </div>';
         } else if ($template === 'newcomer.html.twig') {
             echo '
-            <div class="Themebox" id="Themebox_Newcomer">
-              <div class="ThemeboxTitle" style="background-image:url(' . $template_path . '/images/themeboxes/title-newcomer.gif);"></div>
-              <div class="ThemeboxContent" style="background-image:url(' . $template_path . '/images/themeboxes/themebox-content.gif); color:#F1E0C6; font-size:10px; text-align:center;">
+            <div class="Themebox" id="Themebox_Newcomer" style="background-image:url(' . $template_path . '/images/themeboxes/newcomer/newcomerbox.gif);">
+              <div style="padding-top:50px; padding-left:10px; padding-right:10px; color:#F1E0C6; font-size:10px; text-align:center;">
                 Novo no Survival 3D?<br/>
                 <a href="?subtopic=account/create" style="color:#FFF; font-weight:bold;">Criar Conta Agora!</a>
               </div>
-              <div class="ThemeboxBottom" style="background-image:url(' . $template_path . '/images/themeboxes/themebox-bottom.gif);"></div>
+              <div class="Bottom" style="background-image:url(' . $template_path . '/images/general/box-bottom.gif);"></div>
             </div>';
         } else if ($template === 'networks.html.twig') {
             echo '
-            <div class="Themebox" id="Themebox_Networks">
-              <div class="ThemeboxTitle" style="background-image:url(' . $template_path . '/images/themeboxes/title-networks.gif);"></div>
-              <div class="ThemeboxContent" style="background-image:url(' . $template_path . '/images/themeboxes/themebox-content.gif); text-align:center;">
+            <div class="Themebox" id="Themebox_Networks" style="background-image:url(' . $template_path . '/images/themeboxes/networks/networksbox.png);">
+              <div style="padding-top:50px; padding-left:10px; padding-right:10px; text-align:center;">
                 <a href="https://facebook.com" target="_blank" style="color:#F1E0C6; font-size:10px;"><img src="images/facebook_16x16.png" style="vertical-align:middle; margin-right:5px; border:0;"/>Facebook</a><br/><br/>
                 <a href="https://instagram.com" target="_blank" style="color:#F1E0C6; font-size:10px;"><img src="images/instagram_16x16.png" style="vertical-align:middle; margin-right:5px; border:0;"/>Instagram</a>
               </div>
-              <div class="ThemeboxBottom" style="background-image:url(' . $template_path . '/images/themeboxes/themebox-bottom.gif);"></div>
+              <div class="Bottom" style="background-image:url(' . $template_path . '/images/general/box-bottom.gif);"></div>
             </div>';
         } else if ($template === 'poll.html.twig') {
             echo '
-            <div class="Themebox" id="Themebox_Poll">
-              <div class="ThemeboxTitle" style="background-image:url(' . $template_path . '/images/themeboxes/title-poll.gif);"></div>
-              <div class="ThemeboxContent" style="background-image:url(' . $template_path . '/images/themeboxes/themebox-content.gif); color:#F1E0C6; font-size:10px; text-align:center;">
+            <div class="Themebox" id="Themebox_Poll" style="background-image:url(' . $template_path . '/images/themeboxes/current-poll/currentpollbox.gif);">
+              <div style="padding-top:45px; padding-left:10px; padding-right:10px; color:#F1E0C6; font-size:10px; text-align:center;">
                 <strong>Qual a sua Torre favorita?</strong><br/><br/>
                 <form method="post" action="?subtopic=news" style="margin:0; padding:0;">
-                  <input type="radio" name="vote" value="red"/> Vermelha (Dano)<br/>
-                  <input type="radio" name="vote" value="green"/> Verde (Tank)<br/>
-                  <input type="radio" name="vote" value="purple"/> Roxa (Mágica)<br/><br/>
-                  <input type="submit" value="Votar" style="background:#505050; color:#FFF; border:1px solid #000; font-size:9px; cursor:pointer; padding:2px 5px;"/>
+                  <input type="radio" name="vote" value="red"/> Vermelha<br/>
+                  <input type="radio" name="vote" value="green"/> Verde<br/>
+                  <input type="radio" name="vote" value="purple"/> Roxa<br/>
+                  <input type="submit" value="Votar" style="background:#505050; color:#FFF; border:1px solid #000; font-size:9px; cursor:pointer; padding:2px 5px; margin-top:5px;"/>
                 </form>
               </div>
-              <div class="ThemeboxBottom" style="background-image:url(' . $template_path . '/images/themeboxes/themebox-bottom.gif);"></div>
+              <div class="Bottom" style="background-image:url(' . $template_path . '/images/general/box-bottom.gif);"></div>
             </div>';
         } else if ($template === 'gallery.html.twig') {
             echo '
-            <div class="Themebox" id="Themebox_Gallery">
-              <div class="ThemeboxTitle" style="background-image:url(' . $template_path . '/images/themeboxes/title-gallery.gif);"></div>
-              <div class="ThemeboxContent" style="background-image:url(' . $template_path . '/images/themeboxes/themebox-content.gif); text-align:center;">
+            <div class="Themebox" id="Themebox_Gallery" style="background-image:url(' . $template_path . '/images/themeboxes/gallery/gallerybox.gif);">
+              <div style="padding-top:50px; text-align:center;">
                 <a href="?subtopic=play"><img src="' . $template_path . '/images/header/tibia-logo-artwork-top.gif" style="width:100px; border:1px solid #000;"/></a>
               </div>
-              <div class="ThemeboxBottom" style="background-image:url(' . $template_path . '/images/themeboxes/themebox-bottom.gif);"></div>
+              <div class="Bottom" style="background-image:url(' . $template_path . '/images/general/box-bottom.gif);"></div>
             </div>';
         }
     }
