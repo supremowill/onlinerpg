@@ -11,9 +11,9 @@
     "xpMultiplier": 1.5,
     "levelHpMultiplier": 1.3,
     "baseDamage": 40,
-    "levelDamageMultiplier": 2.0,
+    "levelDamageMultiplier": 2,
     "critChance": 0.05,
-    "critDamageMultiplier": 2.0,
+    "critDamageMultiplier": 2,
     "upgradeLevels": [
       5,
       10,
@@ -320,7 +320,8 @@
         "attackCooldown": 1500,
         "hitboxRadius": 3,
         "xp": 2000,
-        "score": 7500
+        "score": 7500,
+        "defense": 0
       },
       "passives": [],
       "ai": {
@@ -581,7 +582,8 @@
         "attackCooldown": 5000,
         "hitboxRadius": 4,
         "xp": 30000,
-        "score": 50000
+        "score": 50000,
+        "defense": 0
       },
       "passives": [],
       "ai": {
@@ -706,13 +708,13 @@
       "stats": {
         "hp": 10000,
         "speed": 1.8,
-        "damage": 35,
-        "attackRange": 18,
-        "attackCooldown": 3000,
+        "damage": 95,
+        "attackRange": 15,
+        "attackCooldown": 1500,
         "hitboxRadius": 1.2,
-        "xp": 750,
+        "xp": 1500,
         "score": 2500,
-        "defense": 0
+        "defense": 25
       },
       "passives": [
         {
@@ -1140,7 +1142,8 @@
         "attackCooldown": 6000,
         "hitboxRadius": 1.5,
         "xp": 6000,
-        "score": 5000
+        "score": 5000,
+        "defense": 0
       },
       "passives": [],
       "ai": {
