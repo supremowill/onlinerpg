@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "player": {
-    "hp": 100,
+    "hp": 120,
     "speed": 5,
     "attackCooldownMs": 500,
     "projectileSpeed": 15,
@@ -36,7 +36,8 @@
         "duration": 25000,
         "damageMultiplier": 4
       }
-    }
+    },
+    "defense": 90
   },
   "enemies": {
     "PurpleCube": {
@@ -1152,7 +1153,7 @@
       "visuals": {
         "shape": "sphere",
         "color": "#FFD700",
-        "scale": 2.0
+        "scale": 2
       },
       "stats": {
         "hp": 150000,
