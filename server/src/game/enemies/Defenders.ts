@@ -19,13 +19,13 @@ export class BruxaDoGeloEnemy extends ServerEnemy {
         this.type = 'BruxaDoGelo';
         this.name = 'Bruxa do Gelo';
         const c = CONFIG.BRUXA_DO_GELO;
-        this.maxHp = c.BASE_HP * globalMultiplier;
+        this.maxHp = this.getRegHp(c.BASE_HP) * globalMultiplier;
         this.hp = this.maxHp;
-        this.speed = c.SPEED;
-        this.originalSpeed = c.SPEED;
-        this.xp = c.XP;
-        this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.speed = this.getRegSpeed(c.SPEED);
+        this.originalSpeed = this.getRegSpeed(c.SPEED);
+        this.xp = this.getRegXp(c.XP);
+        this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.damage = 15 * globalMultiplier;
         this.position.y = 1.0;
     }
@@ -87,13 +87,13 @@ export class MestraDaIlusaoEnemy extends ServerEnemy {
         this.type = 'MestraDaIlusao';
         this.name = 'Mestra da Ilusão';
         const c = CONFIG.MESTRA_DA_ILUSAO;
-        this.maxHp = c.BASE_HP * globalMultiplier;
+        this.maxHp = this.getRegHp(c.BASE_HP) * globalMultiplier;
         this.hp = this.maxHp;
-        this.speed = c.SPEED;
-        this.originalSpeed = c.SPEED;
-        this.xp = c.XP;
-        this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.speed = this.getRegSpeed(c.SPEED);
+        this.originalSpeed = this.getRegSpeed(c.SPEED);
+        this.xp = this.getRegXp(c.XP);
+        this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.damage = 12 * globalMultiplier;
         this.position.y = 1.0;
     }
@@ -198,13 +198,13 @@ export class BombardeiroInsanoEnemy extends ServerEnemy {
         this.type = 'BombardeiroInsano';
         this.name = 'Bombardeiro Insano';
         const c = CONFIG.BOMBARDEIRO_INSANO;
-        this.maxHp = c.BASE_HP * globalMultiplier;
+        this.maxHp = this.getRegHp(c.BASE_HP) * globalMultiplier;
         this.hp = this.maxHp;
-        this.speed = c.SPEED;
-        this.originalSpeed = c.SPEED;
-        this.xp = c.XP;
-        this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.speed = this.getRegSpeed(c.SPEED);
+        this.originalSpeed = this.getRegSpeed(c.SPEED);
+        this.xp = this.getRegXp(c.XP);
+        this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.damage = 35 * globalMultiplier;
         this.position.y = 1.0;
     }

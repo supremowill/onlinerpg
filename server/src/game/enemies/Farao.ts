@@ -32,14 +32,14 @@ export class EscaravelhoFaraoEnemy extends ServerEnemy {
             this.xp = s.xp;
             this.score = s.score;
         } else {
-            this.maxHp = c.BASE_HP;
+            this.maxHp = this.getRegHp(c.BASE_HP);
             this.hp = this.maxHp;
-            this.damage = c.BASE_DAMAGE;
-            this.speed = c.SPEED;
-            this.originalSpeed = c.SPEED;
-            this.hitboxRadius = c.HITBOX_RADIUS;
-            this.xp = c.XP;
-            this.score = c.SCORE;
+            this.damage = this.getRegDamage(c.BASE_DAMAGE);
+            this.speed = this.getRegSpeed(c.SPEED);
+            this.originalSpeed = this.getRegSpeed(c.SPEED);
+            this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
+            this.xp = this.getRegXp(c.XP);
+            this.score = this.getRegScore(c.SCORE);
         }
         this.position.y = 0.3;
     }
@@ -115,10 +115,10 @@ export class FaraoEnemy extends ServerEnemy {
         const def = EnemyRegistry.get('Farao');
         const c = CONFIG.FARAO;
 
-        let baseHp = c.BASE_HP;
-        let hitboxRadius = c.HITBOX_RADIUS;
-        let xp = c.XP;
-        let score = c.SCORE;
+        let baseHp = this.getRegHp(c.BASE_HP);
+        let hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
+        let xp = this.getRegXp(c.XP);
+        let score = this.getRegScore(c.SCORE);
 
         if (def) {
             const s = def.stats;

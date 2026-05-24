@@ -26,8 +26,8 @@ export class FeiticeiroImortalEnemy extends ServerEnemy {
         this.maxHp = 50000 + (1000 * playerLevel); this.hp = this.maxHp;
         this.baseDamage = 500 + (playerMaxHp * 0.8);
         this.speed = 1.2; this.originalSpeed = 1.2;
-        this.xp = CONFIG.FEITICEIRO_IMORTAL.XP; this.score = CONFIG.FEITICEIRO_IMORTAL.SCORE;
-        this.hitboxRadius = CONFIG.FEITICEIRO_IMORTAL.HITBOX_RADIUS;
+        this.xp = this.getRegXp(CONFIG.FEITICEIRO_IMORTAL.XP); this.score = this.getRegScore(CONFIG.FEITICEIRO_IMORTAL.SCORE);
+        this.hitboxRadius = this.getRegHitbox(CONFIG.FEITICEIRO_IMORTAL.HITBOX_RADIUS);
         this.position.y = 1.75;
     }
 
@@ -119,9 +119,9 @@ export class LichKingEnemy extends ServerEnemy {
         const c = CONFIG.LICH_KING;
         this.maxHp = 32000 + (450 * playerLevel) + (playerMaxHp * 0.7); this.hp = this.maxHp;
         this.damage = 350 + (playerMaxHp * 0.15);
-        this.speed = c.SPEED; this.originalSpeed = c.SPEED;
+        this.speed = this.getRegSpeed(c.SPEED); this.originalSpeed = this.getRegSpeed(c.SPEED);
         this.auraRadius = c.AURA_RADIUS;
-        this.xp = c.XP; this.score = c.SCORE; this.hitboxRadius = c.HITBOX_RADIUS;
+        this.xp = this.getRegXp(c.XP); this.score = this.getRegScore(c.SCORE); this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
     }
 
     addToRevivalQueue(position: Vec3, originalType: string): void {
@@ -207,9 +207,9 @@ export class PlantaCarnivoraEnemy extends ServerEnemy {
         super(pos);
         this.type = 'PlantaCarnivora'; this.name = 'Planta Carnívora Rainha';
         const c = CONFIG.PLANTA_CARNIVORA;
-        this.maxHp = c.BASE_HP + (playerMaxHp * 0.8); this.hp = this.maxHp;
+        this.maxHp = this.getRegHp(c.BASE_HP) + (playerMaxHp * 0.8); this.hp = this.maxHp;
         this.speed = 0; this.originalSpeed = 0;
-        this.xp = c.XP; this.score = c.SCORE; this.hitboxRadius = c.HITBOX_RADIUS;
+        this.xp = this.getRegXp(c.XP); this.score = this.getRegScore(c.SCORE); this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
     }
 
     update(dt: number, players: ServerPlayer[], gameTime: number): void {
@@ -298,13 +298,13 @@ export class CaoDosInfernosEnemy extends ServerEnemy {
         this.playerLevel = playerLevel;
         this.type = 'CaoDosInfernos'; this.name = 'Cão dos Infernos';
         const c = CONFIG.CAO_DOS_INFERNOS;
-        this.maxHp = c.BASE_HP + (playerLevel * c.HP_PER_LEVEL); this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE + (playerLevel * c.DAMAGE_PER_LEVEL);
-        const playerBaseSpeed = CONFIG.PLAYER.SPEED;
+        this.maxHp = this.getRegHp(c.BASE_HP) + (playerLevel * c.HP_PER_LEVEL); this.hp = this.maxHp;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) + (playerLevel * c.DAMAGE_PER_LEVEL);
+        const playerBaseSpeed = this.getRegSpeed(CONFIG.PLAYER.SPEED);
         this.speed = playerBaseSpeed * c.SPEED_BASE_MULT * (1 + playerLevel * c.SPEED_PER_LEVEL);
         this.originalSpeed = this.speed;
-        this.xp = c.XP_PER_LEVEL * playerLevel; this.score = c.SCORE + (playerLevel * 20);
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.xp = this.getRegXp(c.XP_PER_LEVEL) * playerLevel; this.score = this.getRegScore(c.SCORE) + (playerLevel * 20);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.attackCooldown = 1200;
         this.detectionRadius = 40 * (1 + (playerLevel * 0.02));
 
@@ -515,10 +515,10 @@ export class TheMightyOneEnemy extends ServerEnemy {
         super(pos);
         this.type = 'TheMightyOne'; this.name = 'O Poderoso';
         const c = CONFIG.THE_MIGHTY_ONE;
-        this.maxHp = c.HP; this.hp = this.maxHp;
-        this.speed = c.SPEED; this.originalSpeed = c.SPEED;
-        this.auraRadius = c.AURA_RADIUS; this.hitboxRadius = c.HITBOX_RADIUS;
-        this.xp = c.XP; this.score = c.SCORE;
+        this.maxHp = this.getRegHp(c.HP); this.hp = this.maxHp;
+        this.speed = this.getRegSpeed(c.SPEED); this.originalSpeed = this.getRegSpeed(c.SPEED);
+        this.auraRadius = c.AURA_RADIUS; this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
+        this.xp = this.getRegXp(c.XP); this.score = this.getRegScore(c.SCORE);
         this.position.y = this.hitboxRadius;
     }
 
@@ -574,12 +574,12 @@ export class MatilhaGeometraEnemy extends ServerEnemy {
         this.playerLevel = playerLevel;
         this.type = 'MatilhaGeometra'; this.name = 'Matilha Geométrica';
         const c = CONFIG.MATILHA_GEOMETRICA;
-        this.maxHp = c.BASE_HP + (playerLevel * c.HP_PER_LEVEL); this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE + (playerLevel * c.DAMAGE_PER_LEVEL);
-        this.speed = CONFIG.PLAYER.SPEED * (1 + 0.3 * (1 + playerLevel * 0.02));
+        this.maxHp = this.getRegHp(c.BASE_HP) + (playerLevel * c.HP_PER_LEVEL); this.hp = this.maxHp;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) + (playerLevel * c.DAMAGE_PER_LEVEL);
+        this.speed = this.getRegSpeed(CONFIG.PLAYER.SPEED) * (1 + 0.3 * (1 + playerLevel * 0.02));
         this.originalSpeed = this.speed;
         this.xp = 0; this.score = 0;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.attackCooldown = 1000;
         this.position.y = 0.6;
     }

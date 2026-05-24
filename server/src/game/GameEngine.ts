@@ -1350,6 +1350,9 @@ export class GameEngine {
     }
 
     private onEnemyKilled(enemy: ServerEnemy, killer: ServerEnemy | ServerPlayer | null): void {
+        if (enemy.deathProcessed) return;
+        enemy.deathProcessed = true;
+
         const killerPlayer = killer instanceof ServerPlayer ? killer : null;
         if (killerPlayer) {
             killerPlayer.addXp(enemy.xp);
@@ -1647,6 +1650,13 @@ export class GameEngine {
     }
 
     private cleanup(): void {
+        // Process any destroyed enemies whose death hasn't been processed yet (e.g. from zone or passive ticks)
+        for (const e of this.enemies) {
+            if (e.isDestroyed && !e.deathProcessed) {
+                this.onEnemyKilled(e, e.killer);
+            }
+        }
+
         // Only remove enemies that have been dead for more than 10 seconds (gives Espectro de Raziel time to absorb)
         const now = Date.now();
         this.enemies = this.enemies.filter(e => {

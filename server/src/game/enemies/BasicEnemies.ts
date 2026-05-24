@@ -33,16 +33,16 @@ export class PurpleCubeEnemy extends ServerEnemy {
         } else {
             // Fallback: CONFIG legado (será removido após migração completa)
             const c = CONFIG.PURPLE_CUBE;
-            this.maxHp = c.BASE_HP * globalMultiplier;
+            this.maxHp = this.getRegHp(c.BASE_HP) * globalMultiplier;
             this.hp = this.maxHp;
-            this.damage = c.BASE_DAMAGE * globalMultiplier;
-            this.speed = c.SPEED;
-            this.originalSpeed = c.SPEED;
+            this.damage = this.getRegDamage(c.BASE_DAMAGE) * globalMultiplier;
+            this.speed = this.getRegSpeed(c.SPEED);
+            this.originalSpeed = this.getRegSpeed(c.SPEED);
             this.attackRange = c.ATTACK_RANGE;
             this.attackCooldown = c.ATTACK_COOLDOWN;
-            this.xp = c.XP;
-            this.score = c.SCORE;
-            this.hitboxRadius = c.HITBOX_RADIUS;
+            this.xp = this.getRegXp(c.XP);
+            this.score = this.getRegScore(c.SCORE);
+            this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         }
         this.position.y = 0.4;
     }
@@ -82,16 +82,16 @@ export class RedConeEnemy extends ServerEnemy {
         this.type = 'RedCone';
         this.name = 'Red Cone';
         const c = CONFIG.RED_CONE;
-        this.maxHp = c.BASE_HP * globalMultiplier;
+        this.maxHp = this.getRegHp(c.BASE_HP) * globalMultiplier;
         this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE * globalMultiplier;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) * globalMultiplier;
         this.speed = 0;
         this.originalSpeed = 0;
         this.attackRange = c.ATTACK_RANGE;
         this.attackCooldown = c.ATTACK_COOLDOWN;
-        this.xp = c.XP;
-        this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.xp = this.getRegXp(c.XP);
+        this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 0.75;
     }
 
@@ -139,16 +139,16 @@ export class EnemyTowerEnemy extends ServerEnemy {
         this.type = 'EnemyTower';
         this.name = 'Enemy Tower';
         const c = CONFIG.ENEMY_TOWER;
-        this.maxHp = c.BASE_HP * globalMultiplier;
+        this.maxHp = this.getRegHp(c.BASE_HP) * globalMultiplier;
         this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE * globalMultiplier;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) * globalMultiplier;
         this.speed = 0;
         this.originalSpeed = 0;
         this.attackRange = c.ATTACK_RANGE;
         this.attackCooldown = c.ATTACK_COOLDOWN;
-        this.xp = c.XP;
-        this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.xp = this.getRegXp(c.XP);
+        this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 2;
     }
 
@@ -197,17 +197,17 @@ export class GuardianGuerreiroEnemy extends ServerEnemy {
         this.type = 'GuardianGuerreiro';
         this.name = (isElite ? 'Guardião de Elite' : 'Guardião') + ' Guerreiro';
         const c = CONFIG.GUARDIAN_GUERREIRO;
-        this.maxHp = c.BASE_HP * globalMultiplier * (isElite ? 20 : 1);
+        this.maxHp = this.getRegHp(c.BASE_HP) * globalMultiplier * (isElite ? 20 : 1);
         this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE * globalMultiplier;
-        this.speed = c.SPEED;
-        this.originalSpeed = c.SPEED;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) * globalMultiplier;
+        this.speed = this.getRegSpeed(c.SPEED);
+        this.originalSpeed = this.getRegSpeed(c.SPEED);
         this.attackRange = c.ATTACK_RANGE;
         this.attackCooldown = c.ATTACK_COOLDOWN;
         this.stunCooldown = c.STUN_COOLDOWN;
-        this.xp = c.XP;
-        this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.xp = this.getRegXp(c.XP);
+        this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 0.75;
     }
 
@@ -257,18 +257,18 @@ export class GuardianMagoEnemy extends ServerEnemy {
         this.type = 'GuardianMago';
         this.name = (isElite ? 'Guardião de Elite' : 'Guardião') + ' Mago';
         const c = CONFIG.GUARDIAN_MAGO;
-        this.maxHp = c.BASE_HP * globalMultiplier * (isElite ? 20 : 1);
+        this.maxHp = this.getRegHp(c.BASE_HP) * globalMultiplier * (isElite ? 20 : 1);
         this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE * globalMultiplier;
-        this.speed = c.SPEED;
-        this.originalSpeed = c.SPEED;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) * globalMultiplier;
+        this.speed = this.getRegSpeed(c.SPEED);
+        this.originalSpeed = this.getRegSpeed(c.SPEED);
         this.attackRange = c.ATTACK_RANGE;
         this.minAttackRange = c.MIN_ATTACK_RANGE;
         this.attackCooldown = c.ATTACK_COOLDOWN;
         this.freezeCooldown = c.FREEZE_COOLDOWN;
-        this.xp = c.XP;
-        this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.xp = this.getRegXp(c.XP);
+        this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.stateTimer = 2000 + Math.random() * 2000;
         this.position.y = 1.25;
     }
@@ -329,18 +329,18 @@ export class GuardianArqueiroEnemy extends ServerEnemy {
         this.type = 'GuardianArqueiro';
         this.name = (isElite ? 'Guardião de Elite' : 'Guardião') + ' Arqueiro';
         const c = CONFIG.GUARDIAN_ARQUEIRO;
-        this.maxHp = c.BASE_HP * globalMultiplier * (isElite ? 20 : 1);
+        this.maxHp = this.getRegHp(c.BASE_HP) * globalMultiplier * (isElite ? 20 : 1);
         this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE * globalMultiplier;
-        this.speed = c.SPEED;
-        this.originalSpeed = c.SPEED;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) * globalMultiplier;
+        this.speed = this.getRegSpeed(c.SPEED);
+        this.originalSpeed = this.getRegSpeed(c.SPEED);
         this.attackRange = c.ATTACK_RANGE;
         this.attackCooldown = c.ATTACK_COOLDOWN;
         this.idealDistance = c.IDEAL_DISTANCE;
         this.retreatDistance = c.RETREAT_DISTANCE;
-        this.xp = c.XP;
-        this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.xp = this.getRegXp(c.XP);
+        this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 1.25;
     }
 

@@ -42,14 +42,14 @@ export class EspectroDeRazielEnemy extends ServerEnemy {
         this.type = 'EspectroDeRaziel';
         this.name = 'Espectro de Raziel';
         const c = CONFIG.ESPECTRO_DE_RAZIEL;
-        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.maxHp = (this.getRegHp(c.BASE_HP) + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE * globalMult;
-        this.speed = c.SPEED;
-        this.originalSpeed = c.SPEED;
-        this.xp = c.XP;
-        this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) * globalMult;
+        this.speed = this.getRegSpeed(c.SPEED);
+        this.originalSpeed = this.getRegSpeed(c.SPEED);
+        this.xp = this.getRegXp(c.XP);
+        this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 1.5; // Octahedron height
     }
 
@@ -135,7 +135,7 @@ export class EspectroDeRazielEnemy extends ServerEnemy {
 
                 // Update actual stats
                 this.speed = this.originalSpeed * this.speedMultiplier;
-                this.hitboxRadius = CONFIG.ESPECTRO_DE_RAZIEL.HITBOX_RADIUS * this.sizeMultiplier;
+                this.hitboxRadius = this.getRegHitbox(CONFIG.ESPECTRO_DE_RAZIEL.HITBOX_RADIUS) * this.sizeMultiplier;
 
                 // Add orbiting soul visual
                 this.orbitingSouls.push({

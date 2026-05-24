@@ -26,6 +26,9 @@ export class ServerEnemy {
     public sizeMultiplier: number = 1.0;
     public damageMultiplier: number = 1.0;
     public lastDamageTaken: number = 0;
+    public killer: ServerPlayer | null = null;
+    public lastDamagedBy: ServerPlayer | null = null;
+    public deathProcessed: boolean = false;
     protected _defense: number = 0;
 
     get defense(): number {
@@ -45,6 +48,25 @@ export class ServerEnemy {
 
     set defense(val: number) {
         this._defense = val;
+    }
+
+    getRegHp(fallback: number): number {
+        return EnemyRegistry.get(this.type)?.stats.hp ?? fallback;
+    }
+    getRegDamage(fallback: number): number {
+        return EnemyRegistry.get(this.type)?.stats.damage ?? fallback;
+    }
+    getRegSpeed(fallback: number): number {
+        return EnemyRegistry.get(this.type)?.stats.speed ?? fallback;
+    }
+    getRegXp(fallback: number): number {
+        return EnemyRegistry.get(this.type)?.stats.xp ?? fallback;
+    }
+    getRegScore(fallback: number): number {
+        return EnemyRegistry.get(this.type)?.stats.score ?? fallback;
+    }
+    getRegHitbox(fallback: number): number {
+        return EnemyRegistry.get(this.type)?.stats.hitboxRadius ?? fallback;
     }
 
     // Status
@@ -122,6 +144,8 @@ export class ServerEnemy {
             // Lâmina da Geada bonus
             const lamina = instigator.timedBuffs.find(b => b.type === 'lamina_geada_buff');
             if (lamina && amount > 0) { amount += lamina.effects.bonus_damage; this.applySlow(500, 0.5); }
+
+            this.lastDamagedBy = instigator;
         }
 
         // Step 1 - Dano Base
@@ -154,7 +178,13 @@ export class ServerEnemy {
         this.lastDamageTaken = finalDamage;
 
         this.hp -= finalDamage;
-        if (this.hp <= 0) { this.hp = 0; this.isDestroyed = true; }
+        if (this.hp <= 0) {
+            this.hp = 0;
+            if (!this.isDestroyed) {
+                this.isDestroyed = true;
+                this.killer = instigator || this.lastDamagedBy;
+            }
+        }
 
         if (instigator && countsForPassive) {
             instigator.attackHitCounter++;

@@ -1160,7 +1160,7 @@
         "hp": 150000,
         "speed": 0,
         "damage": 500,
-        "defense": 0,
+        "defense": 120,
         "attackRange": 20,
         "attackCooldown": 15000,
         "hitboxRadius": 2.5,

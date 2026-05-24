@@ -22,14 +22,14 @@ export class SmithEnemy extends ServerEnemy {
         this.name = 'Smith - O Agente Corruptor';
         const c = CONFIG.SMITH;
         this.playerTotalScore = playerTotalScore;
-        this.maxHp = (c.BASE_HP + playerTotalScore * 0.15) * globalMult;
+        this.maxHp = (this.getRegHp(c.BASE_HP) + playerTotalScore * 0.15) * globalMult;
         this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE * globalMult;
-        this.speed = c.SPEED;
-        this.originalSpeed = c.SPEED;
-        this.xp = c.XP;
-        this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) * globalMult;
+        this.speed = this.getRegSpeed(c.SPEED);
+        this.originalSpeed = this.getRegSpeed(c.SPEED);
+        this.xp = this.getRegXp(c.XP);
+        this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 1.0;
         this.skill1Next = Date.now() + 2000;
         this.skill2Next = Date.now() + 4000;
@@ -44,7 +44,7 @@ export class SmithEnemy extends ServerEnemy {
         const c = CONFIG.SMITH;
         const activeClones = this.cloneIds.size;
         this.damageMultiplier = 1.0 + (activeClones * c.CLONE_DAMAGE_PERCENT);
-        this.damage = c.BASE_DAMAGE * this.damageMultiplier;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) * this.damageMultiplier;
 
         // Speed reduction based on recently destroyed clones
         this.destroyedCloneTimestamps = this.destroyedCloneTimestamps.filter(t => now - t < 10000);

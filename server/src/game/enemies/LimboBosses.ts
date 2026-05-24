@@ -24,12 +24,12 @@ export class GuardiaoDoLimboEnemy extends ServerEnemy {
         this.type = 'GuardiãoDoLimbo';
         this.name = 'Guardião do Limbo';
         const c = CONFIG.GUARDIAO_DO_LIMBO;
-        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.maxHp = (this.getRegHp(c.BASE_HP) + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.015);
-        this.speed = c.SPEED; this.originalSpeed = c.SPEED;
-        this.xp = c.XP; this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) + (playerMaxHp * 0.015);
+        this.speed = this.getRegSpeed(c.SPEED); this.originalSpeed = this.getRegSpeed(c.SPEED);
+        this.xp = this.getRegXp(c.XP); this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 1.5;
     }
 
@@ -104,12 +104,12 @@ export class MinosEnemy extends ServerEnemy {
         this.type = 'Minos';
         this.name = 'Minos, o Árbitro';
         const c = CONFIG.MINOS;
-        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.maxHp = (this.getRegHp(c.BASE_HP) + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.02);
-        this.speed = c.SPEED; this.originalSpeed = c.SPEED;
-        this.xp = c.XP; this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) + (playerMaxHp * 0.02);
+        this.speed = this.getRegSpeed(c.SPEED); this.originalSpeed = this.getRegSpeed(c.SPEED);
+        this.xp = this.getRegXp(c.XP); this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 2.0;
     }
 
@@ -167,12 +167,12 @@ export class CerberoEnemy extends ServerEnemy {
         this.type = 'Cerbero';
         this.name = 'Cérbero Geométrico';
         const c = CONFIG.CERBERO;
-        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.maxHp = (this.getRegHp(c.BASE_HP) + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.02);
-        this.speed = c.SPEED; this.originalSpeed = c.SPEED;
-        this.xp = c.XP; this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) + (playerMaxHp * 0.02);
+        this.speed = this.getRegSpeed(c.SPEED); this.originalSpeed = this.getRegSpeed(c.SPEED);
+        this.xp = this.getRegXp(c.XP); this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 1.5;
     }
 
@@ -225,12 +225,12 @@ export class PlutaoEnemy extends ServerEnemy {
         this.type = 'Plutão';
         this.name = 'Plutão, o Dourado';
         const c = CONFIG.PLUTAO;
-        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.maxHp = (this.getRegHp(c.BASE_HP) + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.03);
-        this.speed = c.SPEED; this.originalSpeed = c.SPEED;
-        this.xp = c.XP; this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) + (playerMaxHp * 0.03);
+        this.speed = this.getRegSpeed(c.SPEED); this.originalSpeed = this.getRegSpeed(c.SPEED);
+        this.xp = this.getRegXp(c.XP); this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 2.0;
     }
 
@@ -307,12 +307,12 @@ export class FuriaEnemy extends ServerEnemy {
         this.type = 'Fúria';
         this.name = 'Fúria, o Furioso';
         const c = CONFIG.FURIA;
-        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.maxHp = (this.getRegHp(c.BASE_HP) + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE + (playerMaxHp * (1 - this.hp / this.maxHp) * 0.01);
-        this.speed = c.SPEED; this.originalSpeed = c.SPEED;
-        this.xp = c.XP; this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) + (playerMaxHp * (1 - this.hp / this.maxHp) * 0.01);
+        this.speed = this.getRegSpeed(c.SPEED); this.originalSpeed = this.getRegSpeed(c.SPEED);
+        this.xp = this.getRegXp(c.XP); this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 1.25;
     }
 
@@ -376,12 +376,12 @@ export class MegeraEnemy extends ServerEnemy {
         this.type = 'Megera';
         this.name = 'Megera das Chamas';
         const c = CONFIG.MEGERA;
-        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.maxHp = (this.getRegHp(c.BASE_HP) + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.03);
-        this.speed = c.SPEED; this.originalSpeed = c.SPEED;
-        this.xp = c.XP; this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) + (playerMaxHp * 0.03);
+        this.speed = this.getRegSpeed(c.SPEED); this.originalSpeed = this.getRegSpeed(c.SPEED);
+        this.xp = this.getRegXp(c.XP); this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 1.5;
     }
 
@@ -447,12 +447,12 @@ export class MinotauroEnemy extends ServerEnemy {
         this.type = 'Minotauro';
         this.name = 'Minotauro de Sangue';
         const c = CONFIG.MINOTAURO;
-        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.maxHp = (this.getRegHp(c.BASE_HP) + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.04);
-        this.speed = c.SPEED; this.originalSpeed = c.SPEED;
-        this.xp = c.XP; this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) + (playerMaxHp * 0.04);
+        this.speed = this.getRegSpeed(c.SPEED); this.originalSpeed = this.getRegSpeed(c.SPEED);
+        this.xp = this.getRegXp(c.XP); this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 1.0;
     }
 
@@ -527,12 +527,12 @@ export class GeriaoEnemy extends ServerEnemy {
         this.type = 'Geriao';
         this.name = 'Gerião, a Ilusão';
         const c = CONFIG.GERIAO;
-        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.maxHp = (this.getRegHp(c.BASE_HP) + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.02); // Veneno
-        this.speed = c.SPEED; this.originalSpeed = c.SPEED;
-        this.xp = c.XP; this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) + (playerMaxHp * 0.02); // Veneno
+        this.speed = this.getRegSpeed(c.SPEED); this.originalSpeed = this.getRegSpeed(c.SPEED);
+        this.xp = this.getRegXp(c.XP); this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 1.5;
     }
 
@@ -591,12 +591,12 @@ export class LuciferEnemy extends ServerEnemy {
         this.type = 'Lúcifer';
         this.name = 'Lúcifer Cósmico';
         const c = CONFIG.LUCIFER;
-        this.maxHp = (c.BASE_HP + playerLevel * c.HP_PER_LEVEL) * globalMult;
+        this.maxHp = (this.getRegHp(c.BASE_HP) + playerLevel * c.HP_PER_LEVEL) * globalMult;
         this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE + (playerMaxHp * 0.05);
-        this.speed = c.SPEED; this.originalSpeed = c.SPEED;
-        this.xp = c.XP; this.score = c.SCORE;
-        this.hitboxRadius = c.HITBOX_RADIUS;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) + (playerMaxHp * 0.05);
+        this.speed = this.getRegSpeed(c.SPEED); this.originalSpeed = this.getRegSpeed(c.SPEED);
+        this.xp = this.getRegXp(c.XP); this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 2.0;
         // Imóvel no centro do mapa
         this.position.x = 0; this.position.z = 0;

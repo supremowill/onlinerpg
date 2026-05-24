@@ -19,10 +19,10 @@ export class SuperBossEnemy extends ServerEnemy {
         super(pos);
         this.type = 'SuperBoss'; this.name = 'Super Boss';
         const c = CONFIG.SUPER_BOSS;
-        this.maxHp = (hpOverride || c.BASE_HP) * globalMult; this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE * globalMult * damageMult;
-        this.speed = c.SPEED; this.originalSpeed = c.SPEED;
-        this.xp = c.XP; this.score = c.SCORE; this.hitboxRadius = c.HITBOX_RADIUS;
+        this.maxHp = (hpOverride || this.getRegHp(c.BASE_HP)) * globalMult; this.hp = this.maxHp;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) * globalMult * damageMult;
+        this.speed = this.getRegSpeed(c.SPEED); this.originalSpeed = this.getRegSpeed(c.SPEED);
+        this.xp = this.getRegXp(c.XP); this.score = this.getRegScore(c.SCORE); this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 3;
     }
 
@@ -84,10 +84,10 @@ export class GangplankEnemy extends ServerEnemy {
         super(pos);
         this.type = 'Gangplank'; this.name = 'Gangplank';
         const c = CONFIG.GANGPLANK;
-        this.baseMaxHp = c.BASE_HP; this.maxHp = c.BASE_HP * globalMult; this.hp = this.maxHp;
-        this.baseDamage = c.BASE_DAMAGE * globalMult; this.damage = this.baseDamage;
-        this.speed = c.SPEED; this.originalSpeed = c.SPEED;
-        this.xp = c.XP; this.score = c.SCORE; this.hitboxRadius = c.HITBOX_RADIUS;
+        this.baseMaxHp = this.getRegHp(c.BASE_HP); this.maxHp = this.getRegHp(c.BASE_HP) * globalMult; this.hp = this.maxHp;
+        this.baseDamage = this.getRegDamage(c.BASE_DAMAGE) * globalMult; this.damage = this.baseDamage;
+        this.speed = this.getRegSpeed(c.SPEED); this.originalSpeed = this.getRegSpeed(c.SPEED);
+        this.xp = this.getRegXp(c.XP); this.score = this.getRegScore(c.SCORE); this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 1.25;
     }
 
@@ -172,10 +172,10 @@ export class RainhaDasTrevasEnemy extends ServerEnemy {
         super(pos);
         this.type = 'RainhaDasTrevas'; this.name = 'Rainha das Trevas';
         const c = CONFIG.RAINHA_DAS_TREVAS;
-        this.maxHp = c.BASE_HP + (playerMaxHp * 0.5); this.hp = this.maxHp;
-        this.baseDamage = 75 + (playerMaxHp * 0.1); this.damage = c.BASE_DAMAGE;
-        this.speed = c.SPEED; this.originalSpeed = c.SPEED;
-        this.xp = c.XP; this.score = c.SCORE; this.hitboxRadius = c.HITBOX_RADIUS;
+        this.maxHp = this.getRegHp(c.BASE_HP) + (playerMaxHp * 0.5); this.hp = this.maxHp;
+        this.baseDamage = 75 + (playerMaxHp * 0.1); this.damage = this.getRegDamage(c.BASE_DAMAGE);
+        this.speed = this.getRegSpeed(c.SPEED); this.originalSpeed = this.getRegSpeed(c.SPEED);
+        this.xp = this.getRegXp(c.XP); this.score = this.getRegScore(c.SCORE); this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 1.5;
     }
 
