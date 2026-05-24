@@ -134,6 +134,9 @@ export class ServerEnemy {
         // Step 3 - Fator de Mitigação (Armadura)
         if (!isTrueDamage) {
             let defenseTotal = this.defense || 0;
+            if (instigator && instigator.armorPenetrationPct > 0) {
+                defenseTotal = defenseTotal * (1 - instigator.armorPenetrationPct);
+            }
             defenseTotal = Math.max(0, Math.min(500, defenseTotal)); // Hard Cap is 500
             const fatorReducao = defenseTotal / (defenseTotal + 750);
             fd = fd * (1 - fatorReducao);

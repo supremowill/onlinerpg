@@ -604,7 +604,46 @@ if ($subtopic === 'player_builds') {
     exit;
 } else if ($subtopic === 'news') {
     $title = "Últimas Notícias";
-    $content = '
+    
+    // Fetch current weekly leader
+    $weeklyLeaderHtml = '';
+    if ($pdo) {
+        try {
+            $sql = "
+                WITH weekly_ranked AS (
+                    SELECT player_name, score,
+                           ROW_NUMBER() OVER (PARTITION BY player_name ORDER BY score DESC) as rn
+                    FROM ranking
+                    WHERE created_at >= date_trunc('week', NOW() - INTERVAL '1 minute') + INTERVAL '1 minute'
+                )
+                SELECT player_name, ROUND(AVG(score)) as avg_score
+                FROM weekly_ranked
+                WHERE rn <= 10
+                GROUP BY player_name
+                HAVING COUNT(*) >= 10
+                ORDER BY avg_score DESC
+                LIMIT 1";
+            $stmt = $pdo->query($sql);
+            $leader = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($leader) {
+                $weeklyLeaderHtml = '
+                <div style="background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); border: 1px solid #B8860B; padding: 12px; border-radius: 4px; margin-bottom: 20px; color: #000; display: flex; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); font-family: Tahoma, Geneva, sans-serif;">
+                    <div style="font-size: 24px; margin-right: 15px;">👑</div>
+                    <div>
+                        <div style="font-weight: bold; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #5A2800;">Líder Semanal Atual</div>
+                        <div style="font-size: 15px; font-weight: bold; margin-top: 2px; color: #000;">
+                            ' . htmlspecialchars($leader['player_name']) . ' 
+                            <span style="font-weight: normal; font-size: 11px; color: #333;">- Média de <strong>' . $leader['avg_score'] . '</strong> pontos</span>
+                        </div>
+                    </div>
+                </div>';
+            }
+        } catch (Exception $e) {
+            // Ignore error silently
+        }
+    }
+
+    $content = $weeklyLeaderHtml . '
     <div class="Headline" style="font-weight:bold; font-size:14px; color:#5A2800; border-bottom:1px solid #5A2800; padding-bottom:5px; margin-bottom:10px;">Bem-vindo ao Survival 3D!</div>
     <div class="Text" style="font-size:11px; line-height:140%; color:#000;">
         O <strong>Survival 3D</strong> é um jogo de RPG de sobrevivência multijogador em tempo real executado direto no seu navegador. Enfrente hordas de monstros geométricos e personalize seu estilo com as Torres de Essência:
@@ -625,6 +664,50 @@ if ($subtopic === 'player_builds') {
             </a>
         </center>
     </div>';
+
+    // Append updates from updates.json
+    $updatesHtml = '';
+    $updates = [];
+    if (file_exists('updates.json')) {
+        $updates = json_decode(file_get_contents('updates.json'), true);
+    }
+    
+    if (!empty($updates)) {
+        $updatesHtml .= '
+        <br/><br/>
+        <div class="Headline" style="font-weight:bold; font-size:14px; color:#5A2800; border-bottom:1px solid #5A2800; padding-bottom:5px; margin-bottom:15px;">Novidades e Atualizações</div>';
+        $updates = array_reverse($updates);
+        foreach ($updates as $up) {
+            $type = $up['type'] ?? 'Novidade';
+            $target = $up['target'] ?? '';
+            $desc = $up['description'] ?? '';
+            $date = isset($up['date']) ? date('d/m/Y H:i', strtotime($up['date'])) : 'Recém-lançado';
+            
+            $badgeColor = '#505050';
+            if ($type === 'Buff') $badgeColor = '#228b22';
+            else if ($type === 'Nerf') $badgeColor = '#b22222';
+            else if ($type === 'Correção') $badgeColor = '#0000ff';
+            else if ($type === 'Ajuste') $badgeColor = '#d2691e';
+            else if ($type === 'Novidade') $badgeColor = '#800080';
+            
+            $updatesHtml .= '
+            <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050" style="margin-bottom:15px;">
+                <tr bgcolor="#D4C0A1">
+                    <td style="color:#000; font-size:11px; font-weight:bold;">
+                        <span style="background-color:' . $badgeColor . '; color:#FFF; padding:2px 6px; border-radius:3px; font-size:9px; margin-right:5px;">' . htmlspecialchars($type) . '</span>
+                        ' . htmlspecialchars($target) . '
+                        <span style="float:right; color:#555; font-size:10px; font-weight:normal;">' . $date . '</span>
+                    </td>
+                </tr>
+                <tr bgcolor="#F1E0C6">
+                    <td style="color:#000; font-size:11px; line-height:140%; padding:8px;">
+                        ' . nl2br(htmlspecialchars($desc)) . '
+                    </td>
+                </tr>
+            </table>';
+        }
+    }
+    $content .= $updatesHtml;
 } else if ($subtopic === 'highscores') {
     $title = "Rankings";
     $type = $_GET['type'] ?? 'general'; // general, weekly, farm, kpm, survival, records

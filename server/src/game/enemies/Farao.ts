@@ -153,33 +153,50 @@ export class FaraoEnemy extends ServerEnemy {
     applySilence(_duration: number): void { /* Immune */ }
     applyDisorientation(_duration: number): void { /* Immune */ }
 
-    // ===== PASSIVA 2: Maldição Dourada — 10% damage reflect =====
-    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true): void {
+    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true, hpPercent = 0, isTrueDamage = false): void {
         if (this.isDestroyed || this.isInvulnerable) return;
 
-        // Reflect 10% of damage back to attacker
+        // Step 1 - Dano Base
+        const danoBase = amount + (this.maxHp * hpPercent);
+
+        // Step 2 - Flutuação de Dano (RNG)
+        const rng = 0.9 + Math.random() * 0.2;
+        let fd = danoBase * rng;
+
+        // Step 3 - Fator de Mitigação (Armadura)
+        if (!isTrueDamage) {
+            let defenseTotal = this.defense || 0;
+            if (instigator && instigator.armorPenetrationPct > 0) {
+                defenseTotal = defenseTotal * (1 - instigator.armorPenetrationPct);
+            }
+            defenseTotal = Math.max(0, Math.min(500, defenseTotal)); // Hard Cap is 500
+            const fatorReducao = defenseTotal / (defenseTotal + 750);
+            fd = fd * (1 - fatorReducao);
+        }
+
+        // Step 4 - Dano Final
+        if (this.status.isMarked) { fd *= 1.5; this.status.isMarked = false; }
+
+        const finalDamage = Math.round(fd);
+        this.lastDamageTaken = finalDamage;
+
+        // Reflect 10% of damage back to attacker (based on final damage)
         if (instigator) {
-            const reflectDmg = amount * CONFIG.FARAO.MALDIÇÃO_REFLECT_PCT;
+            const reflectDmg = finalDamage * CONFIG.FARAO.MALDIÇÃO_REFLECT_PCT;
             instigator.takeDamage(reflectDmg, false);
         }
 
-        // Standard damage processing (skip parent CC-sensitive logic)
-        if (this.status.isMarked) {
-            amount *= 1.5;
-            this.status.isMarked = false;
-        }
-
-        this.hp -= amount;
+        this.hp -= finalDamage;
         if (this.hp <= 0) {
             this.hp = 0;
             this.isDestroyed = true;
         }
 
         // Check eclipse thresholds
-        const hpPercent = this.hp / this.maxHp;
+        const currentHpPercent = this.hp / this.maxHp;
         const thresholds = [0.75, 0.50, 0.25];
         for (let i = 0; i < thresholds.length; i++) {
-            if (!this.eclipseTriggered[i] && hpPercent <= thresholds[i]) {
+            if (!this.eclipseTriggered[i] && currentHpPercent <= thresholds[i]) {
                 this.eclipseTriggered[i] = true;
                 this.eclipseActive = true;
                 this.eclipseTimer = CONFIG.FARAO.ECLIPSE_DURATION;
