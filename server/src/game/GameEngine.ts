@@ -1113,7 +1113,7 @@ export class GameEngine {
                         x: p.position.x,
                         y: 2.0,
                         z: p.position.z,
-                        value: Math.round(finalDamage),
+                        value: p.lastDamageTaken,
                         type: isShieldHit ? 'SHIELD' : 'NORMAL'
                     }
                 });
@@ -1178,7 +1178,7 @@ export class GameEngine {
                 if (!proj.specialEffect) {
                     // Lifesteal
                     if (instigator.lifestealPct > 0) {
-                        const healAmt = Math.round(totalDamage * instigator.lifestealPct);
+                        const healAmt = Math.round(enemy.lastDamageTaken * instigator.lifestealPct);
                         if (healAmt > 0) {
                             instigator.heal(healAmt);
                             const hThrottle = this.hitNumberThrottle.get(`heal_${instigator.id}`) || 0;
@@ -1221,7 +1221,7 @@ export class GameEngine {
                                                 x: otherEnemy.position.x,
                                                 y: isBoss ? 3.5 : 1.5,
                                                 z: otherEnemy.position.z,
-                                                value: Math.round(totalDamage * 0.5),
+                                                value: otherEnemy.lastDamageTaken,
                                                 type: isCrit ? 'CRIT' : 'NORMAL'
                                             }
                                         });
@@ -1248,7 +1248,7 @@ export class GameEngine {
                 } else {
                     // Spell Vamp (abilities)
                     if (instigator.spellVampPct > 0) {
-                        const healAmt = Math.round(totalDamage * instigator.spellVampPct);
+                        const healAmt = Math.round(enemy.lastDamageTaken * instigator.spellVampPct);
                         if (healAmt > 0) {
                             instigator.heal(healAmt);
                             const hThrottle = this.hitNumberThrottle.get(`heal_${instigator.id}`) || 0;
@@ -1311,7 +1311,7 @@ export class GameEngine {
                         x: enemy.position.x,
                         y: isBoss ? 3.5 : 1.5,
                         z: enemy.position.z,
-                        value: Math.round(totalDamage),
+                        value: enemy.lastDamageTaken,
                         type: isCrit ? 'CRIT' : 'NORMAL'
                     }
                 });

@@ -72,6 +72,18 @@ app.get('/api/health', (_, res) => {
     res.json({ status: 'ok', uptime: process.uptime(), db: dbInitialized ? 'connected' : 'disconnected' });
 });
 
+// Admin hot-reload game data endpoint
+app.post('/api/admin/reload-data', (req, res) => {
+    try {
+        console.log('[Admin] Hot-reloading game data...');
+        loadGameData();
+        res.json({ success: true, message: 'Game data reloaded successfully' });
+    } catch (e: any) {
+        console.error('[Admin] Failed to reload game data:', e.message);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 // Debug endpoint - check DB tables (remove in production)
 app.get('/api/debug', async (_, res) => {
     try {

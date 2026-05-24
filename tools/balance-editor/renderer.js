@@ -72,7 +72,10 @@ function renderEditor() {
     if (!gameData.player) {
       gameData.player = { hp: 100, speed: 5, skills: {} }; // Fallback
     }
-    container.appendChild(buildFormSection('Base Stats', gameData.player, ['hp', 'speed', 'attackCooldownMs', 'projectileSpeed', 'projectileLifetime', 'hitboxRadius']));
+    if (gameData.player.defense === undefined) {
+      gameData.player.defense = 100;
+    }
+    container.appendChild(buildFormSection('Base Stats', gameData.player, ['hp', 'speed', 'defense', 'attackCooldownMs', 'projectileSpeed', 'projectileLifetime', 'hitboxRadius']));
     container.appendChild(buildFormSection('Leveling', gameData.player, ['xpToFirstLevel', 'xpMultiplier', 'levelHpMultiplier', 'upgradeLevels']));
     
     if (gameData.player.skills) {
@@ -84,7 +87,12 @@ function renderEditor() {
     // Enemy
     const enemy = gameData.enemies[currentTarget];
     container.appendChild(buildFormSection('Enemy Identity', enemy, ['id', 'name', 'category']));
-    container.appendChild(buildFormSection('Base Stats', enemy.stats, Object.keys(enemy.stats)));
+    if (enemy.stats) {
+      if (enemy.stats.defense === undefined) {
+        enemy.stats.defense = 0;
+      }
+      container.appendChild(buildFormSection('Base Stats', enemy.stats, Object.keys(enemy.stats)));
+    }
     if (enemy.scaling) {
       container.appendChild(buildFormSection('Scaling Per Level', enemy.scaling, Object.keys(enemy.scaling)));
     }

@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Vec3 } from '../../utils/Vector3';
 import { EnemySnapshot } from '../../network/Protocol';
 import { ServerPlayer } from '../Player';
+import { EnemyRegistry } from '../../data/EnemyRegistry';
 
 /**
  * Base Enemy class - mirrors client Enemy with all status/knockback mechanics
@@ -24,6 +25,27 @@ export class ServerEnemy {
     public isInvulnerable: boolean = false;
     public sizeMultiplier: number = 1.0;
     public damageMultiplier: number = 1.0;
+    public lastDamageTaken: number = 0;
+    protected _defense: number = 0;
+
+    get defense(): number {
+        if (this._defense > 0) return this._defense;
+        const def = EnemyRegistry.get(this.type);
+        if (def && def.stats.defense !== undefined) {
+            const raw = def.stats.defense;
+            if (raw > 0) {
+                if (raw <= 1.0) {
+                    return Math.round((750 * raw) / (1 - raw));
+                }
+                return raw;
+            }
+        }
+        return 0;
+    }
+
+    set defense(val: number) {
+        this._defense = val;
+    }
 
     // Status
     public status = {
@@ -84,7 +106,7 @@ export class ServerEnemy {
         this.status.disoriented.timer = Math.max(this.status.disoriented.timer, duration);
     }
 
-    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true): void {
+    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true, hpPercent = 0, isTrueDamage = false): void {
         if (this.isDestroyed || this.isInvulnerable) return;
 
         if (instigator) {
@@ -102,14 +124,33 @@ export class ServerEnemy {
             if (lamina && amount > 0) { amount += lamina.effects.bonus_damage; this.applySlow(500, 0.5); }
         }
 
-        if (this.status.isMarked) { amount *= 1.5; this.status.isMarked = false; }
+        // Step 1 - Dano Base
+        const danoBase = amount + (this.maxHp * hpPercent);
+
+        // Step 2 - Flutuação de Dano (RNG)
+        const rng = 0.9 + Math.random() * 0.2;
+        let fd = danoBase * rng;
+
+        // Step 3 - Fator de Mitigação (Armadura)
+        if (!isTrueDamage) {
+            let defenseTotal = this.defense || 0;
+            defenseTotal = Math.max(0, Math.min(500, defenseTotal)); // Hard Cap is 500
+            const fatorReducao = defenseTotal / (defenseTotal + 750);
+            fd = fd * (1 - fatorReducao);
+        }
+
+        // Step 4 - Dano Final
+        if (this.status.isMarked) { fd *= 1.5; this.status.isMarked = false; }
         
         // Armor Fracture logic
         if (this.status.armorFracture.isActive) {
-            amount *= (1 + this.status.armorFracture.amount);
+            fd *= (1 + this.status.armorFracture.amount);
         }
 
-        this.hp -= amount;
+        const finalDamage = Math.round(fd);
+        this.lastDamageTaken = finalDamage;
+
+        this.hp -= finalDamage;
         if (this.hp <= 0) { this.hp = 0; this.isDestroyed = true; }
 
         if (instigator && countsForPassive) {

@@ -269,6 +269,7 @@ function get_template_menus() {
     ];
     if ($isAdmin) {
         $account_menu[] = ['name' => 'Bloquear Usuários', 'link' => 'admin/block', 'link_full' => '?subtopic=admin/block', 'target_blank' => '', 'style_color' => 'style="color: #ff3333 !important; font-weight:bold;"'];
+        $account_menu[] = ['name' => 'Balanceamento de Jogo', 'link' => 'admin/balance', 'link_full' => '?subtopic=admin/balance', 'target_blank' => '', 'style_color' => 'style="color: #ff9900 !important; font-weight:bold;"'];
     }
 
     $menus = [
@@ -2726,6 +2727,255 @@ if ($subtopic === 'player_builds') {
             <td width="15%" align="center">Ações</td>
         </tr>
         ' . $playersHtml . '
+    </table>';
+} else if ($subtopic === 'admin/balance') {
+    $title = "Balanceamento de Jogo";
+    $isAdmin = isset($_SESSION['is_admin']) && $_SESSION['is_admin'];
+    if (!$isAdmin) {
+        header('Location: ?subtopic=news');
+        exit;
+    }
+
+    $error = '';
+    $success = '';
+
+    $gameDataPath = 'game_data.json';
+    if (!file_exists($gameDataPath)) {
+        $error = 'Arquivo game_data.json não encontrado.';
+        $gameData = [];
+    } else {
+        $gameData = json_decode(file_get_contents($gameDataPath), true);
+        if (!$gameData) {
+            $error = 'Erro ao decodificar game_data.json.';
+            $gameData = [];
+        }
+    }
+
+    $entity = $_GET['entity'] ?? 'Player';
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
+        if ($entity === 'Player') {
+            $gameData['player']['hp'] = intval($_POST['hp']);
+            $gameData['player']['speed'] = floatval($_POST['speed']);
+            $gameData['player']['attackCooldownMs'] = intval($_POST['attackCooldownMs']);
+            $gameData['player']['defense'] = intval($_POST['defense'] ?? 100);
+            $gameData['player']['projectileSpeed'] = floatval($_POST['projectileSpeed']);
+            $gameData['player']['projectileLifetime'] = floatval($_POST['projectileLifetime']);
+            $gameData['player']['hitboxRadius'] = floatval($_POST['hitboxRadius']);
+            $gameData['player']['xpToFirstLevel'] = intval($_POST['xpToFirstLevel']);
+            $gameData['player']['xpMultiplier'] = floatval($_POST['xpMultiplier']);
+            $gameData['player']['levelHpMultiplier'] = floatval($_POST['levelHpMultiplier']);
+        } else {
+            // Edit Enemy
+            if (isset($gameData['enemies'][$entity])) {
+                $gameData['enemies'][$entity]['name'] = $_POST['name'];
+                $gameData['enemies'][$entity]['category'] = $_POST['category'];
+                $gameData['enemies'][$entity]['stats']['hp'] = intval($_POST['hp']);
+                $gameData['enemies'][$entity]['stats']['speed'] = floatval($_POST['speed']);
+                $gameData['enemies'][$entity]['stats']['damage'] = intval($_POST['damage']);
+                $gameData['enemies'][$entity]['stats']['defense'] = intval($_POST['defense'] ?? 0);
+                $gameData['enemies'][$entity]['stats']['attackRange'] = floatval($_POST['attackRange']);
+                $gameData['enemies'][$entity]['stats']['attackCooldown'] = intval($_POST['attackCooldown']);
+                $gameData['enemies'][$entity]['stats']['hitboxRadius'] = floatval($_POST['hitboxRadius']);
+                $gameData['enemies'][$entity]['stats']['xp'] = intval($_POST['xp']);
+                $gameData['enemies'][$entity]['stats']['score'] = intval($_POST['score']);
+            }
+        }
+
+        // Save to file
+        if (file_put_contents($gameDataPath, json_encode($gameData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES))) {
+            $success = 'Alterações salvas com sucesso no arquivo JSON.';
+            
+            // Trigger Hot-Reload via cURL
+            $ch = curl_init('http://app:3000/api/admin/reload-data');
+            curl_setopt($ch, CURLOPT_POST, 1);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+            $response = curl_exec($ch);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
+            if ($response) {
+                $resJson = json_decode($response, true);
+                if ($resJson && isset($resJson['success']) && $resJson['success']) {
+                    $success .= ' Servidor do jogo recarregado (Hot-Reload) com sucesso!';
+                } else {
+                    $error = 'Alterações salvas, mas o Hot-Reload do servidor falhou: ' . ($resJson['error'] ?? $response);
+                }
+            } else {
+                $error = 'Alterações salvas, mas erro de conexão para Hot-Reload: ' . ($curlError ?: 'Servidor do jogo inacessível.');
+            }
+        } else {
+            $error = 'Falha ao gravar no arquivo game_data.json.';
+        }
+    }
+
+    $leftColumnHtml = '<table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050">';
+    $leftColumnHtml .= '<tr bgcolor="#D4C0A1"><td style="color:#000; font-weight:bold; font-size:11px;"><b>Entidades</b></td></tr>';
+    
+    // Player link
+    $activeStyle = ($entity === 'Player') ? 'background-color:#FFF; font-weight:bold;' : '';
+    $leftColumnHtml .= '<tr bgcolor="#F1E0C6" style="' . $activeStyle . '"><td><a href="?subtopic=admin/balance&entity=Player" style="color:#000; text-decoration:none; display:block; padding:4px;">🛡️ Jogador</a></td></tr>';
+    
+    // Enemies links
+    if (isset($gameData['enemies'])) {
+        foreach ($gameData['enemies'] as $key => $def) {
+            $activeStyle = ($entity === $key) ? 'background-color:#FFF; font-weight:bold;' : '';
+            $leftColumnHtml .= '<tr bgcolor="#F1E0C6" style="' . $activeStyle . '"><td><a href="?subtopic=admin/balance&entity=' . urlencode($key) . '" style="color:#000; text-decoration:none; display:block; padding:4px;">👾 ' . htmlspecialchars($def['name'] ?? $key) . '</a></td></tr>';
+        }
+    }
+    $leftColumnHtml .= '</table>';
+
+    $rightColumnHtml = '';
+    if ($entity === 'Player') {
+        $pStats = $gameData['player'] ?? [];
+        $defenseVal = isset($pStats['defense']) ? intval($pStats['defense']) : 100;
+        $rightColumnHtml = '
+        <form method="post" action="?subtopic=admin/balance&entity=Player">
+            <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050">
+                <tr bgcolor="#D4C0A1">
+                    <td colspan="2" style="color:#000; font-weight:bold; font-size:11px;"><b>Editar Stats do Jogador</b></td>
+                </tr>
+                <tr bgcolor="#F1E0C6" style="color:#000;">
+                    <td width="40%"><b>HP Base:</b></td>
+                    <td><input type="number" name="hp" value="' . intval($pStats['hp'] ?? 100) . '" style="width:90%;" required /></td>
+                </tr>
+                <tr bgcolor="#D4C0A1" style="color:#000;">
+                    <td><b>Velocidade Base:</b></td>
+                    <td><input type="number" step="0.1" name="speed" value="' . floatval($pStats['speed'] ?? 5) . '" style="width:90%;" required /></td>
+                </tr>
+                <tr bgcolor="#F1E0C6" style="color:#000;">
+                    <td><b>Cooldown de Ataque (ms):</b></td>
+                    <td><input type="number" name="attackCooldownMs" value="' . intval($pStats['attackCooldownMs'] ?? 500) . '" style="width:90%;" required /></td>
+                </tr>
+                <tr bgcolor="#D4C0A1" style="color:#000;">
+                    <td><b>Defesa Base (Pontos):</b></td>
+                    <td><input type="number" name="defense" value="' . $defenseVal . '" style="width:90%;" required /> <span style="font-size:9px; color:#555;">(Padrão: 100)</span></td>
+                </tr>
+                <tr bgcolor="#F1E0C6" style="color:#000;">
+                    <td><b>Velocidade do Projétil:</b></td>
+                    <td><input type="number" step="0.1" name="projectileSpeed" value="' . floatval($pStats['projectileSpeed'] ?? 15) . '" style="width:90%;" required /></td>
+                </tr>
+                <tr bgcolor="#D4C0A1" style="color:#000;">
+                    <td><b>Tempo Vida Projétil (s):</b></td>
+                    <td><input type="number" step="0.1" name="projectileLifetime" value="' . floatval($pStats['projectileLifetime'] ?? 3) . '" style="width:90%;" required /></td>
+                </tr>
+                <tr bgcolor="#F1E0C6" style="color:#000;">
+                    <td><b>Raio da Hitbox:</b></td>
+                    <td><input type="number" step="0.01" name="hitboxRadius" value="' . floatval($pStats['hitboxRadius'] ?? 0.5) . '" style="width:90%;" required /></td>
+                </tr>
+                <tr bgcolor="#D4C0A1" style="color:#000;">
+                    <td><b>XP para Level 2 (Primeiro Level):</b></td>
+                    <td><input type="number" name="xpToFirstLevel" value="' . intval($pStats['xpToFirstLevel'] ?? 10) . '" style="width:90%;" required /></td>
+                </tr>
+                <tr bgcolor="#F1E0C6" style="color:#000;">
+                    <td><b>Multiplicador de XP por Level:</b></td>
+                    <td><input type="number" step="0.1" name="xpMultiplier" value="' . floatval($pStats['xpMultiplier'] ?? 1.8) . '" style="width:90%;" required /></td>
+                </tr>
+                <tr bgcolor="#D4C0A1" style="color:#000;">
+                    <td><b>Multiplicador de HP por Level:</b></td>
+                    <td><input type="number" step="0.1" name="levelHpMultiplier" value="' . floatval($pStats['levelHpMultiplier'] ?? 1.5) . '" style="width:90%;" required /></td>
+                </tr>
+            </table>
+            <br/>
+            <center>
+                <input type="submit" value="Salvar Alterações" style="font-weight:bold; padding:5px 15px; cursor:pointer;" />
+            </center>
+        </form>';
+    } else {
+        if (isset($gameData['enemies'][$entity])) {
+            $enemyDef = $gameData['enemies'][$entity];
+            $eStats = $enemyDef['stats'] ?? [];
+            $defenseVal = isset($eStats['defense']) ? intval($eStats['defense']) : 0;
+            $rightColumnHtml = '
+            <form method="post" action="?subtopic=admin/balance&entity=' . urlencode($entity) . '">
+                <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050">
+                    <tr bgcolor="#D4C0A1">
+                        <td colspan="2" style="color:#000; font-weight:bold; font-size:11px;"><b>Editar Inimigo: ' . htmlspecialchars($enemyDef['name'] ?? $entity) . '</b></td>
+                    </tr>
+                    <tr bgcolor="#F1E0C6" style="color:#000;">
+                        <td width="40%"><b>Nome:</b></td>
+                        <td><input type="text" name="name" value="' . htmlspecialchars($enemyDef['name'] ?? '') . '" style="width:90%;" required /></td>
+                    </tr>
+                    <tr bgcolor="#D4C0A1" style="color:#000;">
+                        <td><b>Categoria:</b></td>
+                        <td>
+                            <select name="category" style="width:92%;">
+                                <option value="basic"' . (($enemyDef['category'] ?? '') === 'basic' ? ' selected' : '') . '>Basic (Básico)</option>
+                                <option value="boss"' . (($enemyDef['category'] ?? '') === 'boss' ? ' selected' : '') . '>Boss (Chefe)</option>
+                                <option value="structure"' . (($enemyDef['category'] ?? '') === 'structure' ? ' selected' : '') . '>Structure (Estrutura)</option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr bgcolor="#F1E0C6" style="color:#000;">
+                        <td><b>HP Base:</b></td>
+                        <td><input type="number" name="hp" value="' . intval($eStats['hp'] ?? 0) . '" style="width:90%;" required /></td>
+                    </tr>
+                    <tr bgcolor="#D4C0A1" style="color:#000;">
+                        <td><b>Velocidade:</b></td>
+                        <td><input type="number" step="0.1" name="speed" value="' . floatval($eStats['speed'] ?? 0) . '" style="width:90%;" required /></td>
+                    </tr>
+                    <tr bgcolor="#F1E0C6" style="color:#000;">
+                        <td><b>Dano Base:</b></td>
+                        <td><input type="number" name="damage" value="' . intval($eStats['damage'] ?? 0) . '" style="width:90%;" required /></td>
+                    </tr>
+                    <tr bgcolor="#D4C0A1" style="color:#000;">
+                        <td><b>Defesa (Pontos):</b></td>
+                        <td><input type="number" name="defense" value="' . $defenseVal . '" style="width:90%;" required /> <span style="font-size:9px; color:#555;">(Limite: 500 = 40% mit.)</span></td>
+                    </tr>
+                    <tr bgcolor="#F1E0C6" style="color:#000;">
+                        <td><b>Alcance de Ataque:</b></td>
+                        <td><input type="number" step="0.1" name="attackRange" value="' . floatval($eStats['attackRange'] ?? 0) . '" style="width:90%;" required /></td>
+                    </tr>
+                    <tr bgcolor="#D4C0A1" style="color:#000;">
+                        <td><b>Cooldown de Ataque (ms):</b></td>
+                        <td><input type="number" name="attackCooldown" value="' . intval($eStats['attackCooldown'] ?? 0) . '" style="width:90%;" required /></td>
+                    </tr>
+                    <tr bgcolor="#F1E0C6" style="color:#000;">
+                        <td><b>Raio da Hitbox:</b></td>
+                        <td><input type="number" step="0.01" name="hitboxRadius" value="' . floatval($eStats['hitboxRadius'] ?? 0) . '" style="width:90%;" required /></td>
+                    </tr>
+                    <tr bgcolor="#D4C0A1" style="color:#000;">
+                        <td><b>XP Concedida:</b></td>
+                        <td><input type="number" name="xp" value="' . intval($eStats['xp'] ?? 0) . '" style="width:90%;" required /></td>
+                    </tr>
+                    <tr bgcolor="#F1E0C6" style="color:#000;">
+                        <td><b>Score Concedido:</b></td>
+                        <td><input type="number" name="score" value="' . intval($eStats['score'] ?? 0) . '" style="width:90%;" required /></td>
+                    </tr>
+                </table>
+                <br/>
+                <center>
+                    <input type="submit" value="Salvar Alterações" style="font-weight:bold; padding:5px 15px; cursor:pointer;" />
+                </center>
+            </form>';
+        } else {
+            $rightColumnHtml = '<div style="color:red; font-weight:bold;">Inimigo não encontrado.</div>';
+        }
+    }
+
+    $content = '';
+    if ($error) {
+        $content .= '<div style="color:#FFF; background:#8b0000; border:1px solid red; padding:8px; margin-bottom:15px; font-weight:bold; font-size:11px;">⚠️ ' . htmlspecialchars($error) . '</div>';
+    }
+    if ($success) {
+        $content .= '<div style="color:#000; background:#98fb98; border:1px solid green; padding:8px; margin-bottom:15px; font-weight:bold; font-size:11px;">✅ ' . htmlspecialchars($success) . '</div>';
+    }
+
+    $content .= '
+    <p style="font-size:11px; color:#000; margin-bottom:15px;">
+        Ajuste os parâmetros de balanceamento de dano, defesa e atributos base para o Jogador e todos os Inimigos do jogo. 
+        Ao salvar, o arquivo <code>game_data.json</code> será atualizado e um comando de <strong>Hot-Reload</strong> será enviado ao servidor para aplicar as alterações em tempo real.
+    </p>
+    <table border="0" cellpadding="0" cellspacing="10" width="100%">
+        <tr valign="top">
+            <td width="30%">
+                ' . $leftColumnHtml . '
+            </td>
+            <td width="70%">
+                ' . $rightColumnHtml . '
+            </td>
+        </tr>
     </table>';
 } else if ($subtopic === 'wiki') {
     $title = "Biblioteca Wiki";

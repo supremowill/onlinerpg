@@ -37,6 +37,8 @@ export class ServerPlayer {
     public orbsCollected: number = 0;
     public attackCooldownMs: number;
     public originalAttackCooldownMs: number;
+    public defense: number = 100;
+    public lastDamageTaken: number = 0;
     public lastAttackTime: number = 0;
     public isAttacking: boolean = false;
     public attackHitCounter: number = 0;
@@ -170,6 +172,7 @@ export class ServerPlayer {
         this.hp = this.maxHp;
         this.speed = pConf.speed || CONFIG.PLAYER.SPEED;
         this.originalSpeed = pConf.speed || CONFIG.PLAYER.SPEED;
+        this.defense = pConf.defense !== undefined ? pConf.defense : 100;
         this.attackCooldownMs = pConf.attackCooldownMs || CONFIG.PLAYER.ATTACK_COOLDOWN_MS;
         this.originalAttackCooldownMs = pConf.attackCooldownMs || CONFIG.PLAYER.ATTACK_COOLDOWN_MS;
         this.xpToNextLevel = pConf.xpToFirstLevel || CONFIG.PLAYER.XP_TO_FIRST_LEVEL;
@@ -228,6 +231,7 @@ export class ServerPlayer {
             if (this.build.floor4 === 2) this.doubleDamageSuperLowHp = true;
         } 
         else if (color === 'green') {
+            this.defense += 100;
             // Floor 1
             if (this.build.floor1 === 0) {
                 this.bonusHpMaxPct += 0.25;
@@ -657,20 +661,27 @@ export class ServerPlayer {
             this.shieldOutOfCombatTimer = 5000;
         }
 
-        let fd = amount;
-
-        // Flat damage reduction (Green F1-2)
+        // Step 1 - Dano Base
+        let danoBase = amount;
         if (!isTrueDamage && this.flatDamageReduction > 0) {
-            fd = Math.max(0, fd - this.flatDamageReduction);
+            danoBase = Math.max(0, danoBase - this.flatDamageReduction);
         }
 
-        // Defense buff at high HP (Green F2-2: +30% defense if HP > 80%)
-        if (!isTrueDamage && this.defenseBuffHighHp && (this.hp / this.maxHp) > 0.80) {
-            fd *= 0.70;
-        }
+        // Step 2 - Flutuação de Dano (RNG)
+        const rng = 0.9 + Math.random() * 0.2;
+        let fd = danoBase * rng;
 
-        // Aura damage reduction from nearby players (Green F3-2: 15% reduction)
+        // Step 3 - Fator de Mitigação (Armadura)
         if (!isTrueDamage) {
+            let defenseTotal = this.defense || 0;
+            if (this.defenseBuffHighHp && (this.hp / this.maxHp) > 0.80) {
+                defenseTotal *= 1.30;
+            }
+            defenseTotal = Math.max(0, Math.min(500, defenseTotal)); // Hard Cap is 500
+            const fatorReducao = defenseTotal / (defenseTotal + 750);
+            fd = fd * (1 - fatorReducao);
+
+            // Aura damage reduction from nearby players (Green F3-2: 15% reduction)
             const engine = (global as any).__gameEngine;
             if (engine) {
                 for (const otherPlayer of engine.players.values()) {
@@ -691,6 +702,9 @@ export class ServerPlayer {
             if (f.isActive) fd *= (1 + f.amount); 
         }
 
+        const finalDamage = Math.round(fd);
+        this.lastDamageTaken = finalDamage;
+
         // Thorns (Green F2-3: Reflect 15% damage to closest enemy)
         if (!isTrueDamage && this.thornsPct > 0) {
             const engine = (global as any).__gameEngine;
@@ -707,7 +721,7 @@ export class ServerPlayer {
                     }
                 }
                 if (closest && closestDist < 8.0) {
-                    const thornsDmg = Math.round(fd * this.thornsPct);
+                    const thornsDmg = Math.round(finalDamage * this.thornsPct);
                     if (thornsDmg > 0) {
                         closest.takeDamage(thornsDmg, this);
                         const isBoss = ['LichKing','TheMightyOne','Gangplank','RainhaDasTrevas',
@@ -733,7 +747,7 @@ export class ServerPlayer {
         const e = this.skills.e;
         if (e.isActive && e.shieldHp > 0) {
             const wasShieldActive = e.shieldHp > 0;
-            const ds = Math.min(fd, e.shieldHp); 
+            const ds = Math.min(finalDamage, e.shieldHp); 
             e.shieldHp -= ds; 
             e.damageAbsorbed += ds;
 
@@ -776,10 +790,10 @@ export class ServerPlayer {
                 }
             }
 
-            const rem = fd - ds; 
+            const rem = finalDamage - ds; 
             if (rem > 0) this.hp -= rem;
         } else {
-            this.hp -= fd;
+            this.hp -= finalDamage;
         }
 
         // E upgrade: Fortaleza Inabalável — imunidade a CC enquanto shield ativo
