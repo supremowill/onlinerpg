@@ -1144,6 +1144,64 @@
       "spawn": {
         "timer": 150
       }
+    },
+    "Farao": {
+      "id": "Farao",
+      "name": "O Faraó",
+      "category": "boss",
+      "visuals": {
+        "shape": "sphere",
+        "color": "#FFD700",
+        "scale": 2.0
+      },
+      "stats": {
+        "hp": 150000,
+        "speed": 0,
+        "damage": 500,
+        "defense": 0,
+        "attackRange": 20,
+        "attackCooldown": 15000,
+        "hitboxRadius": 2.5,
+        "xp": 1000000,
+        "score": 100000
+      },
+      "passives": [],
+      "ai": {
+        "profile": "chaser",
+        "aggroRange": 40
+      },
+      "spawn": {
+        "timer": 720
+      }
+    },
+    "EscaravelhoFarao": {
+      "id": "EscaravelhoFarao",
+      "name": "Escaravelho",
+      "category": "basic",
+      "visuals": {
+        "shape": "cube",
+        "color": "#8B864E",
+        "scale": 0.5
+      },
+      "stats": {
+        "hp": 200,
+        "speed": 8,
+        "damage": 50,
+        "defense": 0,
+        "attackRange": 1.5,
+        "attackCooldown": 1000,
+        "hitboxRadius": 0.4,
+        "xp": 0,
+        "score": 0
+      },
+      "passives": [],
+      "ai": {
+        "profile": "chaser",
+        "aggroRange": 30
+      },
+      "spawn": {
+        "timer": 12
+      }
     }
   }
 }

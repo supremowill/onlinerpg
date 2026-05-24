@@ -2,6 +2,7 @@ import { ServerEnemy } from './Enemy';
 import { ServerPlayer } from '../Player';
 import { Vec3 } from '../../utils/Vector3';
 import { CONFIG } from '../../config';
+import { EnemyRegistry } from '../../data/EnemyRegistry';
 
 /**
  * EscaravelhoFarao — Guided scarab minion spawned by O Faraó
@@ -13,18 +14,33 @@ export class EscaravelhoFaraoEnemy extends ServerEnemy {
 
     constructor(pos: Vec3, ownerId: string) {
         super(pos);
-        const c = CONFIG.ESCARAVELHO_FARAO;
         this.type = 'EscaravelhoFarao';
         this.name = 'Escaravelho';
         this.ownerId = ownerId;
-        this.maxHp = c.BASE_HP;
-        this.hp = this.maxHp;
-        this.damage = c.BASE_DAMAGE;
-        this.speed = c.SPEED;
-        this.originalSpeed = c.SPEED;
-        this.hitboxRadius = c.HITBOX_RADIUS;
-        this.xp = c.XP;
-        this.score = c.SCORE;
+
+        const def = EnemyRegistry.get('EscaravelhoFarao');
+        const c = CONFIG.ESCARAVELHO_FARAO;
+
+        if (def) {
+            const s = def.stats;
+            this.maxHp = s.hp;
+            this.hp = this.maxHp;
+            this.damage = s.damage;
+            this.speed = s.speed;
+            this.originalSpeed = s.speed;
+            this.hitboxRadius = s.hitboxRadius;
+            this.xp = s.xp;
+            this.score = s.score;
+        } else {
+            this.maxHp = c.BASE_HP;
+            this.hp = this.maxHp;
+            this.damage = c.BASE_DAMAGE;
+            this.speed = c.SPEED;
+            this.originalSpeed = c.SPEED;
+            this.hitboxRadius = c.HITBOX_RADIUS;
+            this.xp = c.XP;
+            this.score = c.SCORE;
+        }
         this.position.y = 0.3;
     }
 
@@ -92,21 +108,36 @@ export class FaraoEnemy extends ServerEnemy {
 
     constructor(pos: Vec3, spawnCount: number) {
         super(pos);
-        const c = CONFIG.FARAO;
         this.type = 'Farao';
         this.name = 'O Faraó';
         this.spawnCount = spawnCount;
 
+        const def = EnemyRegistry.get('Farao');
+        const c = CONFIG.FARAO;
+
+        let baseHp = c.BASE_HP;
+        let hitboxRadius = c.HITBOX_RADIUS;
+        let xp = c.XP;
+        let score = c.SCORE;
+
+        if (def) {
+            const s = def.stats;
+            if (s.hp) baseHp = s.hp;
+            if (s.hitboxRadius) hitboxRadius = s.hitboxRadius;
+            if (s.xp) xp = s.xp;
+            if (s.score) score = s.score;
+        }
+
         // Scale HP by +20% per respawn
         const hpScale = Math.pow(c.HP_SCALE_PER_SPAWN, spawnCount);
-        this.maxHp = Math.floor(c.BASE_HP * hpScale);
+        this.maxHp = Math.floor(baseHp * hpScale);
         this.hp = this.maxHp;
 
         this.speed = 0;
         this.originalSpeed = 0;
-        this.hitboxRadius = c.HITBOX_RADIUS;
-        this.xp = c.XP;
-        this.score = c.SCORE;
+        this.hitboxRadius = hitboxRadius;
+        this.xp = xp;
+        this.score = score;
         this.sizeMultiplier = 2.0;
         this.position.y = 1.5; // Floating
 
