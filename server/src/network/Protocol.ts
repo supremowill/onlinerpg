@@ -6,8 +6,17 @@
 // Client → Server Messages
 // ============================================================
 
+export interface PlayerBuild {
+    buildingColor: 'red' | 'green' | 'purple';
+    floor1: number; // Selected index (0, 1, or 2)
+    floor2: number;
+    floor3: number;
+    floor4: number;
+    floor5?: number;
+}
+
 export type ClientMessage =
-    | { type: 'JOIN_QUEUE'; payload: { playerName: string } }
+    | { type: 'JOIN_QUEUE'; payload: { name?: string; token?: string; build?: PlayerBuild } }
     | { type: 'SELECT_PLATFORM'; payload: { platform: 'pc' | 'mobile' } }
     | { type: 'INPUT_STATE'; payload: InputState }
     | { type: 'USE_SKILL'; payload: { skill: 'q' | 'w' | 'e' | 'r' } }
@@ -118,6 +127,8 @@ export interface PlayerSnapshot {
     tempBuff: string | null;
     timedBuffs: string[];
     statusEffects: string[];
+    buffTimers?: { [key: string]: number };
+    pathogens?: { [key: string]: number };
     isDead: boolean;
     isDashing: boolean;
     isUltActive: boolean;
@@ -126,6 +137,7 @@ export interface PlayerSnapshot {
     color: number; // hex color for rendering
     skillUpgrades?: { q?: string; w?: string; e?: string; r?: string };
     isSelectingUpgrade?: boolean;
+    build?: PlayerBuild;
 }
 
 export interface EnemySnapshot {
@@ -142,6 +154,7 @@ export interface EnemySnapshot {
     isInvulnerable?: boolean;
     isChanneling?: boolean;
     shieldActive?: boolean;
+    isSurtoActive?: boolean;
     scaleX?: number;
     scaleY?: number;
     scaleZ?: number;
@@ -213,7 +226,8 @@ export interface MightyOneSnapshot {
 export interface GameEvent {
     event: 'BOSS_SPAWN' | 'BOSS_KILLED' | 'COLLAPSE' | 'PLAYER_LEVEL_UP'
         | 'ITEM_DROP' | 'MESSAGE' | 'PLAYER_BUFF'
-        | 'FARAO_SPAWN_WARNING' | 'FARAO_ECLIPSE' | 'FARAO_JULGAMENTO';
+        | 'FARAO_SPAWN_WARNING' | 'FARAO_ECLIPSE' | 'FARAO_JULGAMENTO'
+        | 'HIT_NUMBER' | 'MIGHTY_ONE_SPAWN' | 'MIGHTY_ONE_DEFEATED';
     data: any;
 }
 

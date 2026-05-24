@@ -88,12 +88,18 @@ export class ServerEnemy {
         if (this.isDestroyed || this.isInvulnerable) return;
 
         if (instigator) {
+            // Incapacidade pathogen check: 10% * stacks chance to fail attack
+            const incapacidade = instigator.pathogens['incapacidade'];
+            if (incapacidade && Math.random() < 0.10 * incapacidade.stacks) {
+                amount = 0;
+            }
+
             // Essência Negra lifesteal
             const essencia = instigator.timedBuffs.find(b => b.type === 'essencia_negra');
-            if (essencia) instigator.heal(amount * essencia.effects.lifesteal);
+            if (essencia && amount > 0) instigator.heal(amount * essencia.effects.lifesteal);
             // Lâmina da Geada bonus
             const lamina = instigator.timedBuffs.find(b => b.type === 'lamina_geada_buff');
-            if (lamina) { amount += lamina.effects.bonus_damage; this.applySlow(500, 0.5); }
+            if (lamina && amount > 0) { amount += lamina.effects.bonus_damage; this.applySlow(500, 0.5); }
         }
 
         if (this.status.isMarked) { amount *= 1.5; this.status.isMarked = false; }

@@ -12,6 +12,9 @@ export class SmithEnemy extends ServerEnemy {
     private skill2Next: number = 0;
     public playerTotalScore: number = 0;
     private destroyedCloneTimestamps: number[] = [];
+    private basicAttackCooldown: number = 1200;
+    private lastBasicAttackTime: number = 0;
+    private hitCounter: number = 0;
 
     constructor(pos: Vec3, globalMult: number, playerTotalScore: number) {
         super(pos);
@@ -81,6 +84,30 @@ export class SmithEnemy extends ServerEnemy {
             this.useSobrescritaGlobal(players);
             this.skill2Next = now + c.SKILL_2_COOLDOWN;
         }
+
+        // Melee Basic Attack check
+        if (dist < this.hitboxRadius + target.hitboxRadius + 0.3) {
+            if (now > this.lastBasicAttackTime + this.basicAttackCooldown) {
+                this.lastBasicAttackTime = now;
+                this.hitCounter++;
+                let dmg = this.damage;
+                if (this.hitCounter % 3 === 0) {
+                    const pctSmithLifeLost = (this.maxHp - this.hp) / this.maxHp;
+                    const percentDamage = 0.05 + pctSmithLifeLost;
+                    dmg = target.maxHp * percentDamage;
+                    
+                    const pctSt = Math.round(percentDamage * 100);
+                    const gameEngine = (global as any).__gameEngine;
+                    if (gameEngine) {
+                        gameEngine.pendingEvents.push({
+                            event: 'MESSAGE',
+                            data: { message: `⚡ Smith ataca criticamente com Corrupção: causou ${pctSt}% de dano com base no HP perdido! ⚡` }
+                        });
+                    }
+                }
+                target.takeDamage(dmg, false);
+            }
+        }
     }
 
     private useSaltoDeProtocolo(target: ServerPlayer, players: ServerPlayer[]): void {
@@ -145,9 +172,7 @@ export class SmithEnemy extends ServerEnemy {
             // Apply Buffer state to player (skills +3s cooldown)
             const target2 = this.getClosestPlayer(players);
             if (target2) {
-                for (const skill of Object.values((target2 as any).skills)) {
-                    (skill as any).cooldown += 3000;
-                }
+                target2.applyTimedBuff('smith_debuff', 8, { cooldown_increase: 3000 });
             }
         }
         console.log('[Smith] Sobrescrita Global used');

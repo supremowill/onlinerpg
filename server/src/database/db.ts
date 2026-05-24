@@ -65,6 +65,8 @@ export async function initDatabase(): Promise<Pool> {
             id SERIAL PRIMARY KEY,
             username VARCHAR(50) UNIQUE NOT NULL,
             password_hash VARCHAR(255) NOT NULL,
+            is_admin BOOLEAN DEFAULT FALSE,
+            is_blocked BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
             last_login TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
@@ -82,6 +84,12 @@ export async function initDatabase(): Promise<Pool> {
             assists INTEGER DEFAULT 0,
             room_id VARCHAR(255),
             players_in_room INTEGER DEFAULT 0,
+            build_color VARCHAR(20) DEFAULT 'red',
+            build_floor1 INTEGER DEFAULT 0,
+            build_floor2 INTEGER DEFAULT 0,
+            build_floor3 INTEGER DEFAULT 0,
+            build_floor4 INTEGER DEFAULT 0,
+            build_floor5 INTEGER DEFAULT 0,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
         CREATE INDEX IF NOT EXISTS idx_ranking_score ON ranking(score DESC);
@@ -114,6 +122,7 @@ export async function initDatabase(): Promise<Pool> {
             sql = FALLBACK_SQL;
             console.log('[DB] Using fallback SQL (Render deployment)');
         }
+        
         // Execute each statement separately for reliability
         const statements = sql.split(';').map(s => s.trim()).filter(s => s.length > 0);
         console.log(`[DB] Executing ${statements.length} schema statements...`);
@@ -130,9 +139,22 @@ export async function initDatabase(): Promise<Pool> {
         try {
             console.log('[DB] Running schema migration checks...');
             
+            // Alter players table to add missing role and block columns
+            await pool.query('ALTER TABLE players ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE');
+            await pool.query('ALTER TABLE players ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT FALSE');
+            // Ensure admin user is marked as admin
+            await pool.query("UPDATE players SET is_admin = TRUE WHERE LOWER(username) = 'admin'");
+            console.log('[DB] Verified players table columns.');
+            
             // Alter ranking table to add missing columns in production if they don't exist
             await pool.query('ALTER TABLE ranking ADD COLUMN IF NOT EXISTS deaths INTEGER DEFAULT 0');
             await pool.query('ALTER TABLE ranking ADD COLUMN IF NOT EXISTS assists INTEGER DEFAULT 0');
+            await pool.query('ALTER TABLE ranking ADD COLUMN IF NOT EXISTS build_color VARCHAR(20) DEFAULT \'red\'');
+            await pool.query('ALTER TABLE ranking ADD COLUMN IF NOT EXISTS build_floor1 INTEGER DEFAULT 0');
+            await pool.query('ALTER TABLE ranking ADD COLUMN IF NOT EXISTS build_floor2 INTEGER DEFAULT 0');
+            await pool.query('ALTER TABLE ranking ADD COLUMN IF NOT EXISTS build_floor3 INTEGER DEFAULT 0');
+            await pool.query('ALTER TABLE ranking ADD COLUMN IF NOT EXISTS build_floor4 INTEGER DEFAULT 0');
+            await pool.query('ALTER TABLE ranking ADD COLUMN IF NOT EXISTS build_floor5 INTEGER DEFAULT 0');
             console.log('[DB] Verified ranking table columns.');
 
             // Check if match_history contains old schema (player_id column)
@@ -212,13 +234,15 @@ export interface PlayerAccount {
     username: string;
     created_at: Date;
     last_login: Date;
+    is_admin?: boolean;
+    is_blocked?: boolean;
 }
 
 export async function createPlayer(username: string, password: string): Promise<PlayerAccount> {
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
         const result = await pool.query(
-            'INSERT INTO players (username, password_hash) VALUES ($1, $2) RETURNING id, username, created_at, last_login',
+            'INSERT INTO players (username, password_hash) VALUES ($1, $2) RETURNING id, username, created_at, last_login, is_admin, is_blocked',
             [username, hashedPassword]
         );
         return result.rows[0];
@@ -230,7 +254,7 @@ export async function createPlayer(username: string, password: string): Promise<
 
 export async function findPlayerByUsername(username: string): Promise<(PlayerAccount & { password_hash: string }) | null> {
     try {
-        const result = await pool.query('SELECT id, username, password_hash, created_at, last_login FROM players WHERE username = $1', [username]);
+        const result = await pool.query('SELECT id, username, password_hash, created_at, last_login, is_admin, is_blocked FROM players WHERE username = $1', [username]);
         return result.rows[0] || null;
     } catch (err: any) {
         console.error('[DB findPlayerByUsername] Error:', err.message, err.stack);
@@ -241,11 +265,15 @@ export async function findPlayerByUsername(username: string): Promise<(PlayerAcc
 export async function validatePlayer(username: string, password: string): Promise<PlayerAccount | null> {
     const player = await findPlayerByUsername(username);
     if (!player) return null;
+    if (player.is_blocked) {
+        console.log(`[DB] Blocked user login attempt blocked: ${username}`);
+        return null;
+    }
     const valid = await bcrypt.compare(password, player.password_hash);
     if (!valid) return null;
     // Update last login
     await pool.query('UPDATE players SET last_login = NOW() WHERE id = $1', [player.id]);
-    return { id: player.id, username: player.username, created_at: player.created_at, last_login: new Date() };
+    return { id: player.id, username: player.username, created_at: player.created_at, last_login: new Date(), is_admin: player.is_admin, is_blocked: player.is_blocked };
 }
 
 export function generateJWT(player: PlayerAccount): string {

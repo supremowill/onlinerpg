@@ -24,7 +24,25 @@ services:
       - JWT_SECRET=sua_chave_jwt_super_secreta_123456
     volumes:
       - ./server/game_data.json:/app/game_data.json
+      - ./server/dist:/app/dist
       - ./client:/app/public
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  website:
+    build:
+      context: .
+      dockerfile: Dockerfile.website
+    ports:
+      - "8080:80"
+    volumes:
+      - ./myaac-main:/var/www/html
+      - ./client/updates.json:/var/www/html/updates.json
+      - ./server/game_data.json:/var/www/html/game_data.json
+    environment:
+      - DATABASE_URL=postgresql://survival:survival_secret@db:5432/survival_game?sslmode=disable
     depends_on:
       db:
         condition: service_healthy

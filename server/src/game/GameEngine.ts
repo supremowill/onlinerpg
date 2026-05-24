@@ -5,7 +5,7 @@ import { CollisionSystem } from './CollisionSystem';
 import { SpawnManager, SpawnEvent } from './SpawnManager';
 import { Vec3 } from '../utils/Vector3';
 import { CONFIG } from '../config';
-import { WorldSnapshot } from '../network/Protocol';
+import { WorldSnapshot, PlayerBuild } from '../network/Protocol';
 import { PurpleCubeEnemy, RedConeEnemy, EnemyTowerEnemy, GuardianGuerreiroEnemy, GuardianMagoEnemy, GuardianArqueiroEnemy } from './enemies/BasicEnemies';
 import { BruxaDoGeloEnemy, MestraDaIlusaoEnemy, BombardeiroInsanoEnemy, CloneIlusorioEnemy } from './enemies/Defenders';
 import { SuperBossEnemy, GangplankEnemy, RainhaDasTrevasEnemy } from './enemies/Bosses';
@@ -15,6 +15,7 @@ import { AlmaAmaldicoadaEnemy, CaveiraExplosivaEnemy, EspectroSombrioEnemy, Brot
 import { EspectroDeRazielEnemy } from './enemies/EspectroDeRaziel';
 import { SmithEnemy } from './enemies/SmithEnemy';
 import { FaraoEnemy, EscaravelhoFaraoEnemy } from './enemies/Farao';
+import { DoutorDoencaEnemy } from './enemies/DoutorDoenca';
 
 export interface Orb { id: string; type: 'xp' | 'healing' | 'buff'; position: Vec3; hitboxRadius: number; buffType?: string; buffEffects?: any; buffDuration?: number; }
 export interface DynamicZone { id: string; type: string; position: Vec3; radius: number; duration: number; timer: number; damagePerSec: number; lastTick: number; extras?: any; }
@@ -38,6 +39,8 @@ export class GameEngine {
     private orbIdCounter = 0;
     private zoneIdCounter = 0;
     public pendingEvents: { event: string; data: any }[] = [];
+    // Throttle: only emit HIT_NUMBER events per entity every 150ms to avoid network spam
+    private hitNumberThrottle: Map<string, number> = new Map();
     constructor(numPlayers: number) {
         this.spawnManager = new SpawnManager();
         this.collisionSystem = new CollisionSystem();
@@ -88,8 +91,8 @@ export class GameEngine {
         });
     }
 
-    addPlayer(id: string, name: string, platform: 'pc' | 'mobile' = 'pc'): ServerPlayer {
-        const p = new ServerPlayer(id, name);
+    addPlayer(id: string, name: string, platform: 'pc' | 'mobile' = 'pc', build?: PlayerBuild): ServerPlayer {
+        const p = new ServerPlayer(id, name, build);
         p.platform = platform;
         this.players.set(id, p);
         return p;
@@ -117,6 +120,8 @@ export class GameEngine {
         for (const p of this.players.values()) p.update(dt, now);
         // Handle orbital souls from Espectro de Raziel essence
         this.handleOrbitalSouls(dt);
+        // Handle familiars from Núcleo da Matilha
+        this.handlePlayerFamiliars(dt);
         // Handle player attacks
         for (const p of this.players.values()) {
             if (!p.isDead && p.isAttacking && p.canAttack(now)) {
@@ -143,14 +148,18 @@ export class GameEngine {
                     for (let i = 0; i < numProjectiles; i++) {
                         const offset = (i - (numProjectiles - 1) / 2) * (coneAngle / (numProjectiles - 1));
                         const pDir = dir.clone().applyAxisAngleY(offset);
-                        const proj = new ServerProjectile(p.position.clone().set(p.position.x, 0.5, p.position.z), pDir, p.id, true, p.getDamage(), p.color);
+                        const dmg = p.getDamage();
+                        const proj = new ServerProjectile(p.position.clone().set(p.position.x, 0.5, p.position.z), pDir, p.id, true, dmg, p.color);
                         proj.speed = CONFIG.PLAYER.PROJECTILE_SPEED;
                         proj.isBuffed = 'arqueiro';
+                        proj.isCritical = p.lastHitWasCrit;
                         this.playerProjectiles.push(proj);
                     }
                 } else {
-                    const proj = new ServerProjectile(p.position.clone().set(p.position.x, 0.5, p.position.z), dir, p.id, true, p.getDamage(), p.color);
+                    const dmg = p.getDamage();
+                    const proj = new ServerProjectile(p.position.clone().set(p.position.x, 0.5, p.position.z), dir, p.id, true, dmg, p.color);
                     proj.speed = CONFIG.PLAYER.PROJECTILE_SPEED;
+                    proj.isCritical = p.lastHitWasCrit;
                     this.playerProjectiles.push(proj);
                 }
             }
@@ -196,9 +205,66 @@ export class GameEngine {
         this.processPlayerActions(dt, alivePlayers);
         // Update projectiles
         for (const p of this.playerProjectiles) p.update(dt);
-        for (const p of this.enemyProjectiles) p.update(dt);
+        for (const p of this.enemyProjectiles) {
+            if (p.specialEffect === 'esporo_basico' && !p.isDestroyed) {
+                let closestPlayer = null;
+                let closestDist = Infinity;
+                for (const pl of alivePlayers) {
+                    const dist = p.position.distanceToXZ(pl.position);
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        closestPlayer = pl;
+                    }
+                }
+                if (closestPlayer) {
+                    const dir = closestPlayer.position.clone().sub(p.position);
+                    dir.y = 0;
+                    if (dir.lengthSq() > 0.01) {
+                        p.direction = dir.normalize();
+                    }
+                }
+            }
+            p.update(dt);
+        }
         // Collisions
         this.processCollisions(now);
+
+        // Process esporo_basico explosions (on hit or expiration)
+        for (const p of this.enemyProjectiles) {
+            if (p.specialEffect === 'esporo_basico' && p.isDestroyed) {
+                this.zones.push({
+                    id: `zone_${this.zoneIdCounter++}`,
+                    type: 'esporo_explosion',
+                    position: p.position.clone(),
+                    radius: 3.5,
+                    duration: 800,
+                    timer: 800,
+                    damagePerSec: 0,
+                    lastTick: 0,
+                    extras: { burst: true }
+                });
+
+                for (const pl of alivePlayers) {
+                    if (!pl.isDead && pl.position.distanceToXZ(p.position) < 3.5) {
+                        pl.takeDamage(p.damage, false);
+                        if (Math.random() < 0.40) {
+                            const PATHOGENS = [
+                                'febre_critica',
+                                'paralisia_parcial',
+                                'mao_tremula',
+                                'imunidade_baixa',
+                                'visao_turva',
+                                'cansaco_viral',
+                                'incapacidade',
+                                'hemorragia_quadrada'
+                            ];
+                            const randKey = PATHOGENS[Math.floor(Math.random() * PATHOGENS.length)];
+                            pl.applyPathogen(randKey);
+                        }
+                    }
+                }
+            }
+        }
         // Zones (AoE damage areas)
         this.updateZones(dt, alivePlayers);
         // Healing tower
@@ -293,6 +359,15 @@ export class GameEngine {
                 console.log(`[Faraó] Spawned! HP=${farao.hp} spawnCount=${farao.spawnCount}`);
                 break;
             }
+            case 'DoutorDoenca': {
+                enemy = new DoutorDoencaEnemy(ev.position, this.spawnManager.globalMultiplier, avgLevel);
+                this.spawnManager.isDoutorDoencaSpawned = true;
+                this.spawnManager.isDoutorDoencaAlive = true;
+                this.spawnManager.activeBoss = enemy.id;
+                this.pendingEvents.push({ event: 'BOSS_SPAWN', data: { name: 'Doutor Doença', tier: 'Elite' } });
+                console.log(`[Doutor Doença] Spawned! HP=${enemy.hp}`);
+                break;
+            }
             default: return;
         }
         this.enemies.push(enemy);
@@ -310,6 +385,7 @@ export class GameEngine {
                     if (pp.explosionRadius) proj.explosionRadius = pp.explosionRadius;
                     if (pp.bleedDamage) proj.bleedDamage = pp.bleedDamage;
                     if (pp.speed) proj.speed = pp.speed;
+                    if (pp.lifetime !== undefined) proj.lifetime = pp.lifetime;
                     this.enemyProjectiles.push(proj);
                 }
                 asAny.pendingProjectiles = [];
@@ -384,6 +460,48 @@ export class GameEngine {
         }
     }
 
+    private handlePlayerFamiliars(dt: number): void {
+        for (const p of this.players.values()) {
+            const buff = p.timedBuffs.find(b => b.type === 'nucleo_da_matilha');
+            if (!buff) continue;
+
+            if (p.familiarAttackTimer === undefined) p.familiarAttackTimer = 0;
+            p.familiarAttackTimer -= dt * 1000;
+
+            if (p.familiarAttackTimer <= 0) {
+                let closest: any = null;
+                let minDist = Infinity;
+                for (const e of this.enemies) {
+                    if (e.isDestroyed) continue;
+                    const dist = e.position.distanceToXZ(p.position);
+                    if (dist < minDist && dist < 15) {
+                        minDist = dist;
+                        closest = e;
+                    }
+                }
+
+                if (closest) {
+                    const orbitSpeed = Date.now() * 0.003;
+                    const radius = 1.8;
+                    const fx = p.position.x + Math.sin(orbitSpeed) * radius;
+                    const fz = p.position.z + Math.cos(orbitSpeed) * radius;
+                    const startPos = new Vec3(fx, 1.2, fz);
+
+                    const dir = closest.position.clone().sub(startPos).normalize();
+                    const damage = 15 + (p.level * 5);
+
+                    const proj = new ServerProjectile(startPos, dir, p.id, true, damage, 0xff3333);
+                    proj.specialEffect = 'matilha_projectile';
+                    proj.speed = 12;
+                    proj.hitboxRadius = 0.3;
+                    this.playerProjectiles.push(proj);
+
+                    p.familiarAttackTimer = 1500;
+                }
+            }
+        }
+    }
+
     private processPlayerActions(dt: number, players: ServerPlayer[]): void {
         for (const p of players) {
             // Pending projectiles (from Q dash finish)
@@ -393,6 +511,10 @@ export class GameEngine {
                     if (pp.specialEffect) proj.specialEffect = pp.specialEffect;
                     if (pp.skillUpgrades) proj.skillUpgrades = pp.skillUpgrades;
                     if (pp.trackHits) proj.trackHits = pp.trackHits;
+                    if (pp.isCritical) proj.isCritical = pp.isCritical;
+                    if (proj.specialEffect && p.hitboxMagiasSizePct > 0) {
+                        proj.hitboxRadius *= (1 + p.hitboxMagiasSizePct);
+                    }
                     this.playerProjectiles.push(proj);
                 }
                 p.pendingProjectiles = [];
@@ -422,6 +544,91 @@ export class GameEngine {
                     for (const e of this.enemies) {
                         if (!e.isDestroyed && p.position.distanceToXZ(e.position) < 2.5) {
                             e.takeDamage(p.getDamage(true) * 0.1 * dt, p);
+                        }
+                    }
+                }
+            }
+
+            // --- Essence Towers Mutated Ultimates Ticking states ---
+            const ms = dt * 1000;
+
+            // 1. Chuva de Tetraedros (Red)
+            if (p.r_chuva_timer > 0) {
+                p.r_chuva_timer -= ms;
+                p.r_chuva_tick -= ms;
+                if (p.r_chuva_tick <= 0) {
+                    p.r_chuva_tick = 300; // spawn every 300ms
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = Math.random() * 8;
+                    const zx = p.position.x + Math.cos(angle) * dist;
+                    const zz = p.position.z + Math.sin(angle) * dist;
+                    this.zones.push({
+                        id: `zone_${this.zoneIdCounter++}`,
+                        type: 'chuva_tetraedros_zone',
+                        position: new Vec3(zx, 0, zz),
+                        radius: 4,
+                        duration: 1000,
+                        timer: 1000,
+                        damagePerSec: p.getDamage(true) * 1.5,
+                        lastTick: 0,
+                        extras: { sourceId: p.id, burst: true }
+                    });
+                }
+            }
+
+            // 2. Corte Dimensional (Red)
+            if (p.r_slash_targets.length > 0) {
+                p.r_slash_timer -= ms;
+                if (p.r_slash_timer <= 0) {
+                    p.r_slash_timer = 150; // every 150ms
+                    let foundTarget = false;
+                    while (p.r_slash_index < p.r_slash_targets.length) {
+                        const targetId = p.r_slash_targets[p.r_slash_index];
+                        const target = this.enemies.find(e => e.id === targetId);
+                        p.r_slash_index++;
+                        if (target && !target.isDestroyed) {
+                            p.position.copy(target.position);
+                            this.zones.push({
+                                id: `zone_${this.zoneIdCounter++}`,
+                                type: 'explosion',
+                                position: p.position.clone(),
+                                radius: 4,
+                                duration: 300,
+                                timer: 300,
+                                damagePerSec: p.getDamage(true) * 2.5,
+                                lastTick: 0,
+                                extras: { sourceId: p.id, burst: true }
+                            });
+                            foundTarget = true;
+                            break;
+                        }
+                    }
+                    if (!foundTarget || p.r_slash_index >= p.r_slash_targets.length) {
+                        p.r_slash_targets = [];
+                    }
+                }
+            }
+
+            // 3. Terremoto Geométrico (Green)
+            if (p.r_quake_timer > 0) {
+                p.r_quake_timer -= ms;
+                p.r_quake_tick -= ms;
+                if (p.r_quake_tick <= 0) {
+                    p.r_quake_tick = 1000; // every 1s
+                    this.zones.push({
+                        id: `zone_${this.zoneIdCounter++}`,
+                        type: 'terremoto_geometrico_zone',
+                        position: p.position.clone(),
+                        radius: 8,
+                        duration: 500,
+                        timer: 500,
+                        damagePerSec: p.getDamage(true) * 1.6,
+                        lastTick: 0,
+                        extras: { sourceId: p.id, burst: true }
+                    });
+                    for (const enemy of this.enemies) {
+                        if (!enemy.isDestroyed && p.position.distanceToXZ(enemy.position) < 8.0) {
+                            enemy.applyDisorientation(1000);
                         }
                     }
                 }
@@ -628,12 +835,45 @@ export class GameEngine {
                 const matilha = new MatilhaGeometraEnemy(new Vec3(ab.x, 0, ab.z), ab.playerLevel || 1, this.spawnManager.globalMultiplier);
                 matilha.parentId = ab.parentId;
                 matilha.xp = 0; matilha.score = 0;
-                this.enemies.push(matilha);
                 const boss = this.enemies.find(e => e.id === ab.parentId);
-                if (boss && (boss as any).matilhaIds) (boss as any).matilhaIds.push(matilha.id);
+                if (boss) {
+                    matilha.parentBoss = boss as CaoDosInfernosEnemy;
+                    if ((boss as any).matilhaIds) (boss as any).matilhaIds.push(matilha.id);
+                }
+                this.enemies.push(matilha);
                 break;
             case 'prismaSombrio':
-                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'prismaSombrio', position: new Vec3(ab.x, 0, ab.z), radius: 3, duration: ab.duration || 4000, timer: ab.duration || 4000, damagePerSec: 0, lastTick: 0, extras: { damage: ab.damage, bossId: ab.bossId } });
+                const projQ = new ServerProjectile(
+                    new Vec3(ab.x, ab.y || 0.6, ab.z),
+                    new Vec3(ab.dirX, 0, ab.dirZ),
+                    ab.bossId,
+                    false,
+                    ab.damage,
+                    0xff0000
+                );
+                projQ.speed = 18;
+                projQ.specialEffect = 'prismaSombrio';
+                projQ.lifetime = 1.5;
+                projQ.hitboxRadius = 0.5;
+                this.enemyProjectiles.push(projQ);
+                break;
+            case 'repairMatilha':
+                const parentBoss = this.enemies.find(e => e.id === ab.bossId) as CaoDosInfernosEnemy;
+                if (parentBoss && !parentBoss.isDestroyed) {
+                    const toSpawn = CONFIG.CAO_DOS_INFERNOS.MATILHA_MAX - parentBoss.matilhaIds.length;
+                    for (let i = 0; i < toSpawn; i++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const mx = parentBoss.position.x + Math.cos(angle) * 2;
+                        const mz = parentBoss.position.z + Math.sin(angle) * 2;
+                        const repairedPup = new MatilhaGeometraEnemy(new Vec3(mx, 0, mz), parentBoss.playerLevel || 1, this.spawnManager.globalMultiplier);
+                        repairedPup.parentId = parentBoss.id;
+                        repairedPup.parentBoss = parentBoss;
+                        repairedPup.xp = 0; repairedPup.score = 0;
+                        this.enemies.push(repairedPup);
+                        parentBoss.matilhaIds.push(repairedPup.id);
+                    }
+                    (parentBoss as any).habilidades.matilhaCount = CONFIG.CAO_DOS_INFERNOS.MATILHA_MAX;
+                }
                 break;
             case 'investidaChannel':
             case 'investidaImpact':
@@ -665,6 +905,44 @@ export class GameEngine {
                 break;
             case 'chamadoAbismo':
                 this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'chamadoAbismo', position: new Vec3(ab.x, 0, ab.z), radius: 8, duration: ab.duration || 15000, timer: ab.duration || 15000, damagePerSec: 0, lastTick: 0, extras: ab });
+                break;
+            case 'surto_epidemico':
+                // Duplicate 1 stack of a random pathogen for all players in range, or apply a random one if they have none.
+                for (const p of players) {
+                    if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < ab.radius) {
+                        const pathogenKeys = Object.keys(p.pathogens);
+                        if (pathogenKeys.length > 0) {
+                            const randKey = pathogenKeys[Math.floor(Math.random() * pathogenKeys.length)];
+                            p.applyPathogen(randKey);
+                        } else {
+                            const PATHOGENS = [
+                                'febre_critica',
+                                'paralisia_parcial',
+                                'mao_tremula',
+                                'imunidade_baixa',
+                                'visao_turva',
+                                'cansaco_viral',
+                                'incapacidade',
+                                'hemorragia_quadrada'
+                            ];
+                            const randomPathogen = PATHOGENS[Math.floor(Math.random() * PATHOGENS.length)];
+                            p.applyPathogen(randomPathogen);
+                        }
+                    }
+                }
+                break;
+            case 'nuvem_esporos':
+                this.zones.push({
+                    id: `zone_${this.zoneIdCounter++}`,
+                    type: 'nuvem_esporos',
+                    position: new Vec3(ab.x, 0, ab.z),
+                    radius: ab.radius,
+                    duration: ab.duration,
+                    timer: ab.duration,
+                    damagePerSec: ab.damagePerSec,
+                    lastTick: 0,
+                    extras: ab
+                });
                 break;
 
             // ======= O FARAÓ — Abilities =======
@@ -818,13 +1096,63 @@ export class GameEngine {
                     this.pendingEvents.push({ event: 'MESSAGE', data: { message: `☠️ O Poderoso desferiu MORTE INSTANTÂNEA em ${p.name}! ☠️` } });
                 }
             }
+            if (hit.specialEffect === 'esporo_basico') {
+                finalDamage = 0;
+            }
             p.takeDamage(finalDamage);
+            // HIT_NUMBER feedback for the local player
+            const hitNow = Date.now();
+            const pThrottle = this.hitNumberThrottle.get(p.id) || 0;
+            if (hitNow - pThrottle > 150) {
+                this.hitNumberThrottle.set(p.id, hitNow);
+                const isShieldHit = p.skills.e.isActive && p.skills.e.shieldHp > 0;
+                this.pendingEvents.push({
+                    event: 'HIT_NUMBER',
+                    data: {
+                        targetId: p.id,
+                        x: p.position.x,
+                        y: 2.0,
+                        z: p.position.z,
+                        value: Math.round(finalDamage),
+                        type: isShieldHit ? 'SHIELD' : 'NORMAL'
+                    }
+                });
+            }
             if (hit.specialEffect === 'freeze') p.applyFreeze(2000);
             if (hit.specialEffect === 'freezingCone') { p.statusEffects.freezingConeHits.count++; p.statusEffects.freezingConeHits.timer = 3000; if (p.statusEffects.freezingConeHits.count >= 3) { p.applyFreeze(2000); p.statusEffects.freezingConeHits.count = 0; } }
             if (hit.specialEffect === 'bleed') p.applyBleed(5000, 5);
             if (hit.specialEffect === 'prisao') p.applyRoot(2000);
             if (hit.specialEffect === 'tiroIncendiario') p.applyBurn(3000, 10);
             if (hit.specialEffect === 'lançaGelo') p.applyFreeze(1500);
+            if (hit.specialEffect === 'prismaSombrio') {
+                const c = CONFIG.CAO_DOS_INFERNOS;
+                if (p.statusEffects.bleeding && p.statusEffects.bleeding.isActive) {
+                    const extraDmg = finalDamage * (c.SKILL_Q_BONUS_DAMAGE_ON_BLEED - 1);
+                    p.takeDamage(extraDmg, true);
+                    const proj = this.enemyProjectiles.find(pr => pr.id === hit.projectileId);
+                    const bossId = proj ? proj.ownerId : null;
+                    const boss = bossId ? this.enemies.find(e => e.id === bossId) : null;
+                    if (boss) {
+                        const healAmount = boss.maxHp * c.SKILL_Q_LIFESTEAL_PERCENT;
+                        boss.hp = Math.min(boss.maxHp, boss.hp + healAmount);
+                    }
+                }
+                p.applyBleed(c.SKILL_Q_BLEED_DURATION, c.SKILL_Q_BLEED_DPS);
+            }
+            if (hit.specialEffect === 'injecao_geometrica') {
+                const PATHOGENS = [
+                    'febre_critica',
+                    'paralisia_parcial',
+                    'mao_tremula',
+                    'imunidade_baixa',
+                    'visao_turva',
+                    'cansaco_viral',
+                    'incapacidade',
+                    'hemorragia_quadrada'
+                ];
+                const randKey = PATHOGENS[Math.floor(Math.random() * PATHOGENS.length)];
+                p.applyPathogen(randKey);
+            }
         }
         // Player projectiles vs enemies
         const enemyHits = this.collisionSystem.checkProjectileVsEnemies(this.playerProjectiles, this.enemies);
@@ -843,6 +1171,151 @@ export class GameEngine {
             }
 
             enemy.takeDamage(totalDamage, instigator);
+
+            // --- Essence Towers passive hit effects ---
+            if (proj) {
+                // If it's a basic attack
+                if (!proj.specialEffect) {
+                    // Lifesteal
+                    if (instigator.lifestealPct > 0) {
+                        const healAmt = Math.round(totalDamage * instigator.lifestealPct);
+                        if (healAmt > 0) {
+                            instigator.heal(healAmt);
+                            const hThrottle = this.hitNumberThrottle.get(`heal_${instigator.id}`) || 0;
+                            if (now - hThrottle > 150) {
+                                this.hitNumberThrottle.set(`heal_${instigator.id}`, now);
+                                this.pendingEvents.push({
+                                    event: 'HIT_NUMBER',
+                                    data: {
+                                        targetId: instigator.id,
+                                        x: instigator.position.x,
+                                        y: 2.0,
+                                        z: instigator.position.z,
+                                        value: healAmt,
+                                        type: 'LIFESTEAL'
+                                    }
+                                });
+                            }
+                        }
+                    }
+                    // Cleave
+                    if (instigator.attackCleave) {
+                        for (const otherEnemy of this.enemies) {
+                            if (!otherEnemy.isDestroyed && otherEnemy.id !== enemy.id) {
+                                if (enemy.position.distanceToXZ(otherEnemy.position) < 4.0) {
+                                    otherEnemy.takeDamage(totalDamage * 0.5, instigator);
+                                    // Hit number feedback for cleave damage
+                                    const eHitNow = Date.now();
+                                    const eThrottle = this.hitNumberThrottle.get(otherEnemy.id) || 0;
+                                    if (eHitNow - eThrottle > 150) {
+                                        this.hitNumberThrottle.set(otherEnemy.id, eHitNow);
+                                        const isBoss = ['LichKing','TheMightyOne','Gangplank','RainhaDasTrevas',
+                                            'PlantaCarnivora','FeiticeiroImortal','SuperBoss','CaoDosInfernos','Farao',
+                                            'GuardiãoDoLimbo','Minos','Cerbero','Plutão','Fúria','Megera','Minotauro',
+                                            'Geriao','Lúcifer','EspectroDeRaziel','Smith'].includes(otherEnemy.type);
+                                        const isCrit = proj ? proj.isCritical : false;
+                                        this.pendingEvents.push({
+                                            event: 'HIT_NUMBER',
+                                            data: {
+                                                targetId: otherEnemy.id,
+                                                x: otherEnemy.position.x,
+                                                y: isBoss ? 3.5 : 1.5,
+                                                z: otherEnemy.position.z,
+                                                value: Math.round(totalDamage * 0.5),
+                                                type: isCrit ? 'CRIT' : 'NORMAL'
+                                            }
+                                        });
+                                    }
+                                    if (otherEnemy.isDestroyed) this.onEnemyKilled(otherEnemy, instigator);
+                                }
+                            }
+                        }
+                    }
+                    // 4th hit explosion
+                    if (instigator.fourthHitExplodes) {
+                        instigator.consecutiveHitCount++;
+                        if (instigator.consecutiveHitCount >= 4) {
+                            instigator.consecutiveHitCount = 0;
+                            instigator.pendingZones.push({
+                                type: 'explosion',
+                                x: enemy.position.x,
+                                z: enemy.position.z,
+                                radius: 5,
+                                damage: instigator.getDamage(true) * 1.5
+                            });
+                        }
+                    }
+                } else {
+                    // Spell Vamp (abilities)
+                    if (instigator.spellVampPct > 0) {
+                        const healAmt = Math.round(totalDamage * instigator.spellVampPct);
+                        if (healAmt > 0) {
+                            instigator.heal(healAmt);
+                            const hThrottle = this.hitNumberThrottle.get(`heal_${instigator.id}`) || 0;
+                            if (now - hThrottle > 150) {
+                                this.hitNumberThrottle.set(`heal_${instigator.id}`, now);
+                                this.pendingEvents.push({
+                                    event: 'HIT_NUMBER',
+                                    data: {
+                                        targetId: instigator.id,
+                                        x: instigator.position.x,
+                                        y: 2.0,
+                                        z: instigator.position.z,
+                                        value: healAmt,
+                                        type: 'SPELLVAMP'
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Purple F3-3: Orbes extras no hit (15% chance on any hit)
+            if (instigator.extraOrbsOnHit && Math.random() < 0.15) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * 2 + 1;
+                const orbPos = enemy.position.clone().add(new Vec3(Math.cos(angle) * dist, 0.5, Math.sin(angle) * dist));
+                this.orbs.push({
+                    id: `orb_${this.orbIdCounter++}`,
+                    type: 'xp',
+                    position: orbPos,
+                    hitboxRadius: CONFIG.XP_ORB.HITBOX_RADIUS
+                });
+            }
+
+            // Red F3-1: Dano escala com hits
+            if (instigator.damageEscalasConsecutivas > 0) {
+                instigator.consecutiveHitsTime = Date.now();
+                instigator.consecutiveHitsMultiplier = Math.min(1.20, instigator.consecutiveHitsMultiplier + 0.02);
+            }
+
+            // Purple F3-2: Ataques dão Slow (3s, 50% slow)
+            if (instigator.slowOnAttack) {
+                enemy.applySlow(3000, 0.5);
+            }
+            // HIT_NUMBER feedback for enemy damage
+            const eHitNow = Date.now();
+            const eThrottle = this.hitNumberThrottle.get(enemy.id) || 0;
+            if (eHitNow - eThrottle > 150) {
+                this.hitNumberThrottle.set(enemy.id, eHitNow);
+                const isBoss = ['LichKing','TheMightyOne','Gangplank','RainhaDasTrevas',
+                    'PlantaCarnivora','FeiticeiroImortal','SuperBoss','CaoDosInfernos','Farao',
+                    'GuardiãoDoLimbo','Minos','Cerbero','Plutão','Fúria','Megera','Minotauro',
+                    'Geriao','Lúcifer','EspectroDeRaziel','Smith'].includes(enemy.type);
+                const isCrit = proj ? proj.isCritical : false;
+                this.pendingEvents.push({
+                    event: 'HIT_NUMBER',
+                    data: {
+                        targetId: enemy.id,
+                        x: enemy.position.x,
+                        y: isBoss ? 3.5 : 1.5,
+                        z: enemy.position.z,
+                        value: Math.round(totalDamage),
+                        type: isCrit ? 'CRIT' : 'NORMAL'
+                    }
+                });
+            }
             if (hit.bleedDamage > 0) enemy.status.isMarked = true;
             
             // Handle special effects from upgrades
@@ -883,12 +1356,29 @@ export class GameEngine {
             killerPlayer.score += enemy.score;
             killerPlayer.kills++;
             killerPlayer.onEnemyKilled(); // R upgrade: Fúria Infinita
+
+            // Purple F4-1: Kill reseta cooldowns
+            if (killerPlayer.killResetsCooldowns) {
+                killerPlayer.skills.q.lastUsed = 0;
+                killerPlayer.skills.w.lastUsed = 0;
+                killerPlayer.skills.e.lastUsed = 0;
+            }
         }
         // Notify Smith about clone destroyed (for lag effect)
         if (enemy.type === 'CloneSmith') {
             const smith = this.enemies.find(e => e.type === 'Smith' && !e.isDestroyed) as any;
             if (smith && smith.recordCloneDestroyed) {
                 smith.recordCloneDestroyed();
+            }
+        }
+        // Notify CaoDosInfernos about matilha minion destroyed
+        if (enemy.type === 'MatilhaGeometra') {
+            const parentId = (enemy as any).parentId;
+            if (parentId) {
+                const parent = this.enemies.find(e => e.id === parentId) as any;
+                if (parent && parent.removeMatilha) {
+                    parent.removeMatilha(enemy.id);
+                }
             }
         }
         // Boss-specific drops
@@ -937,6 +1427,9 @@ export class GameEngine {
                 duration: 300, // 5 minutes to use
             }, 300);
         }
+        if (t === 'DoutorDoenca') {
+            this.spawnManager.onDoutorDoencaDefeated();
+        }
         // ======= O FARAÓ — Kill rewards =======
         if (t === 'Farao') {
             this.spawnManager.onFaraoDefeated();
@@ -978,7 +1471,12 @@ export class GameEngine {
         if (t === 'GuardianGuerreiro' && killerPlayer) killerPlayer.applyBuff('guerreiro');
         if (t === 'GuardianMago' && killerPlayer) killerPlayer.applyBuff('mago');
         if (t === 'GuardianArqueiro' && killerPlayer) killerPlayer.applyBuff('arqueiro');
-        if (t === 'CaoDosInfernos') { const bt = Math.random() < 0.5 ? 'damage' : 'attackSpeed'; this.orbs.push({ id: `orb_${this.orbIdCounter++}`, type: 'buff', position: enemy.position.clone(), hitboxRadius: 0.8, buffType: bt }); }
+        if (t === 'CaoDosInfernos') {
+            this.spawnItemDrop(enemy.position, 'cao_dos_infernos_buff', { move_speed: 1.20, damage: 1.20 }, 60);
+            if (Math.random() < 0.15) {
+                this.spawnItemDrop(enemy.position, 'nucleo_da_matilha', { familiar: true }, 180);
+            }
+        }
         // Tower respawn
         if (enemy instanceof EnemyTowerEnemy) { this.towerRespawnQueue.push({ enemy, timer: CONFIG.ENEMY_TOWER.RESPAWN_DELAY }); }
     }
@@ -991,6 +1489,53 @@ export class GameEngine {
         for (let i = this.zones.length - 1; i >= 0; i--) {
             const z = this.zones[i];
             z.timer -= dt * 1000;
+
+            // Singularity pull / damage / final explosion
+            if (z.type === 'singularidade_zone') {
+                for (const e of this.enemies) {
+                    if (!e.isDestroyed) {
+                        const dist = z.position.distanceToXZ(e.position);
+                        if (dist < z.radius) {
+                            const pullDir = z.position.clone().sub(e.position);
+                            pullDir.y = 0;
+                            const len = pullDir.length();
+                            if (len > 0.1) {
+                                pullDir.normalize();
+                                e.position.add(pullDir.multiplyScalar(6 * dt));
+                            }
+                            const p = this.players.get(z.extras?.sourceId);
+                            e.takeDamage(z.damagePerSec * dt, p || null);
+                        }
+                    }
+                }
+                
+                if (z.timer <= 0) {
+                    const p = this.players.get(z.extras?.sourceId);
+                    if (p) {
+                        this.zones.push({
+                            id: `zone_${this.zoneIdCounter++}`,
+                            type: 'explosion',
+                            position: z.position.clone(),
+                            radius: z.radius,
+                            duration: 500,
+                            timer: 500,
+                            damagePerSec: p.getDamage(true) * 2.0,
+                            lastTick: 0,
+                            extras: { sourceId: p.id, burst: true }
+                        });
+                    }
+                }
+            }
+
+            // Time Distortion zone slow
+            if (z.type === 'distorcao_temporal_zone') {
+                for (const e of this.enemies) {
+                    if (!e.isDestroyed && z.position.distanceToXZ(e.position) < z.radius) {
+                        e.applySlow(500, 0.2); // 80% slow
+                    }
+                }
+            }
+
             if (z.timer <= 0) { this.zones.splice(i, 1); continue; }
 
             // Handle mine explosion (Q upgrade)
@@ -1008,6 +1553,38 @@ export class GameEngine {
                 }
             }
 
+            if (z.type === 'nuvem_esporos') {
+                if (!z.extras) z.extras = {};
+                if (z.extras.pathogenTimer === undefined) {
+                    z.extras.pathogenTimer = 0;
+                }
+                z.extras.pathogenTimer -= dt * 1000;
+                let attemptPathogen = false;
+                if (z.extras.pathogenTimer <= 0) {
+                    z.extras.pathogenTimer = 1500; // 1.5 seconds
+                    attemptPathogen = true;
+                }
+                for (const p of players) {
+                    if (!p.isDead && p.position.distanceToXZ(z.position) < z.radius) {
+                        p.takeDamage(10 * dt, false);
+                        if (attemptPathogen && Math.random() < 0.35) {
+                            const PATHOGENS = [
+                                'febre_critica',
+                                'paralisia_parcial',
+                                'mao_tremula',
+                                'imunidade_baixa',
+                                'visao_turva',
+                                'cansaco_viral',
+                                'incapacidade',
+                                'hemorragia_quadrada'
+                            ];
+                            const randKey = PATHOGENS[Math.floor(Math.random() * PATHOGENS.length)];
+                            p.applyPathogen(randKey);
+                        }
+                    }
+                }
+            }
+
             if (z.extras?.burst && z.lastTick === 0) {
                 z.lastTick = 1;
                 // Burst damage from player zones (Shield explosion, dash explosion, R singularity)
@@ -1015,7 +1592,7 @@ export class GameEngine {
                     if (!e.isDestroyed && z.position.distanceToXZ(e.position) < z.radius) {
                         const p = this.players.get(z.extras.sourceId);
                         if (p) {
-                            const damage = z.type === 'explosion' ? z.damagePerSec : z.damagePerSec / 2;
+                            const damage = (z.type === 'explosion' || z.type === 'pulso_arcano' || z.type === 'terremoto_geometrico_zone') ? z.damagePerSec : z.damagePerSec / 2;
                             e.takeDamage(damage, p);
                         }
                     }
@@ -1037,7 +1614,24 @@ export class GameEngine {
         for (const p of players) {
             if (p.position.distanceToXZ(this.healingTowerPos) <= CONFIG.HEALING_TOWER.AURA_RADIUS && now > this.healingTowerLastHeal + CONFIG.HEALING_TOWER.HEAL_COOLDOWN) {
                 this.healingTowerLastHeal = now;
-                p.heal(p.maxHp * CONFIG.HEALING_TOWER.HEAL_PERCENT);
+                const healAmount = p.maxHp * CONFIG.HEALING_TOWER.HEAL_PERCENT;
+                p.heal(healAmount);
+                // HIT_NUMBER HEAL feedback
+                const hThrottle = this.hitNumberThrottle.get(`heal_${p.id}`) || 0;
+                if (now - hThrottle > 500) {
+                    this.hitNumberThrottle.set(`heal_${p.id}`, now);
+                    this.pendingEvents.push({
+                        event: 'HIT_NUMBER',
+                        data: {
+                            targetId: p.id,
+                            x: p.position.x,
+                            y: 2.0,
+                            z: p.position.z,
+                            value: Math.round(healAmount),
+                            type: 'HEAL'
+                        }
+                    });
+                }
             }
         }
     }
@@ -1073,6 +1667,12 @@ export class GameEngine {
         const now = Date.now();
         if (!p.canUseSkill(skill, now)) return;
         p.skills[skill].lastUsed = now;
+
+        // Purple Floor 2 Option 1: extra damage after casting skill
+        if (p.extraDamageAfterSkill) {
+            p.extraDamageAfterSkillActive = true;
+        }
+
         switch (skill) {
             case 'q': p.activateDash(); break;
             case 'w': // Repel: push enemies away
@@ -1118,7 +1718,132 @@ export class GameEngine {
                 }
                 break;
             case 'e': p.activateShield(); break;
-            case 'r': p.activateUltimate(); p.clearNegativeEffects(); p.heal(p.maxHp * 0.3); break;
+            case 'r': 
+                // Purple Mutated Ultimate: Reset Dimensional (Blink + cooldown resets)
+                if (p.upgradeFlags.r_reset_dimensional) {
+                    p.skills.q.lastUsed = 0;
+                    p.skills.w.lastUsed = 0;
+                    p.skills.e.lastUsed = 0;
+                    const dir = p.getFacingDirection();
+                    p.position.add(dir.multiplyScalar(8.0));
+                    p.position.x = Math.max(-48, Math.min(48, p.position.x));
+                    p.position.z = Math.max(-48, Math.min(48, p.position.z));
+                }
+
+                p.activateUltimate(); 
+                p.clearNegativeEffects(); 
+                p.heal(p.maxHp * 0.3); 
+
+                // Basic and Mutated Ultimate activation logic
+                const color = p.build.buildingColor;
+                if (color === 'red') {
+                    if (p.upgradeFlags.r_chuva_tetraedros) {
+                        p.r_chuva_timer = 4000;
+                        p.r_chuva_tick = 0;
+                    } else if (p.upgradeFlags.r_raio_oblivio) {
+                        const dir = p.getFacingDirection();
+                        const dmg = p.getDamage(true) * 8.0;
+                        const proj = new ServerProjectile(p.position.clone().set(p.position.x, 0.5, p.position.z), dir, p.id, true, dmg, 0xff0000);
+                        proj.isCritical = p.lastHitWasCrit;
+                        proj.specialEffect = 'raio_oblivio';
+                        proj.speed = 35;
+                        proj.hitboxRadius = 2.5;
+                        proj.lifetime = 2.0;
+                        this.playerProjectiles.push(proj);
+                    } else if (p.upgradeFlags.r_corte_dimensional) {
+                        const nearbyEnemies = [];
+                        for (const enemy of this.enemies) {
+                            if (!enemy.isDestroyed && p.position.distanceToXZ(enemy.position) < 12.0) {
+                                nearbyEnemies.push(enemy);
+                            }
+                        }
+                        nearbyEnemies.sort((a, b) => p.position.distanceToXZ(a.position) - p.position.distanceToXZ(b.position));
+                        p.r_slash_targets = nearbyEnemies.slice(0, 5).map(e => e.id);
+                        p.r_slash_timer = 0;
+                        p.r_slash_index = 0;
+                    } else {
+                        // Basic Red Ultimate: Raio de Fogo Simples
+                        const dir = p.getFacingDirection();
+                        const dmg = p.getDamage(true) * 3.0;
+                        const proj = new ServerProjectile(p.position.clone().set(p.position.x, 0.5, p.position.z), dir, p.id, true, dmg, 0xff5500);
+                        proj.isCritical = p.lastHitWasCrit;
+                        proj.specialEffect = 'raio_fogo_simples';
+                        proj.speed = 25;
+                        proj.hitboxRadius = 1.0;
+                        proj.lifetime = 2.0;
+                        this.playerProjectiles.push(proj);
+                    }
+                } else if (color === 'green') {
+                    if (p.upgradeFlags.r_bastiao_titanio) {
+                        const sh = p.skills.e;
+                        sh.isActive = true;
+                        sh.maxShieldHp = p.maxHp;
+                        sh.shieldHp = p.maxHp;
+                        sh.timer = 6000;
+                        p.applyTemporaryBuff('invulnerable', 6, 0);
+                    } else if (p.upgradeFlags.r_terremoto_geometrico) {
+                        p.r_quake_timer = 6000;
+                        p.r_quake_tick = 0;
+                    } else {
+                        // Basic Green Ultimate: Escudo de Polígonos
+                        const sh = p.skills.e;
+                        sh.isActive = true;
+                        sh.maxShieldHp = p.maxHp * 0.30;
+                        sh.shieldHp = sh.maxShieldHp;
+                        sh.timer = 10000;
+                    }
+                } else if (color === 'purple') {
+                    if (p.upgradeFlags.r_singularidade) {
+                        const dir = p.getFacingDirection();
+                        const targetPos = p.position.clone().add(dir.multiplyScalar(6.0));
+                        targetPos.x = Math.max(-48, Math.min(48, targetPos.x));
+                        targetPos.z = Math.max(-48, Math.min(48, targetPos.z));
+                        this.zones.push({
+                            id: `zone_${this.zoneIdCounter++}`,
+                            type: 'singularidade_zone',
+                            position: targetPos,
+                            radius: 6,
+                            duration: 4000,
+                            timer: 4000,
+                            damagePerSec: p.getDamage(true) * 0.5,
+                            lastTick: 0,
+                            extras: { sourceId: p.id }
+                        });
+                    } else if (p.upgradeFlags.r_distorcao_temporal_mut) {
+                        this.zones.push({
+                            id: `zone_${this.zoneIdCounter++}`,
+                            type: 'distorcao_temporal_zone',
+                            position: p.position.clone(),
+                            radius: 8,
+                            duration: 6000,
+                            timer: 6000,
+                            damagePerSec: 0,
+                            lastTick: 0,
+                            extras: { sourceId: p.id }
+                        });
+                    } else {
+                        // Basic Purple Ultimate: Pulso Arcano
+                        p.pendingZones.push({
+                            type: 'pulso_arcano',
+                            x: p.position.x,
+                            z: p.position.z,
+                            radius: 8,
+                            damage: p.getDamage(true) * 1.5
+                        });
+                        for (const enemy of this.enemies) {
+                            if (!enemy.isDestroyed) {
+                                const dist = p.position.distanceToXZ(enemy.position);
+                                if (dist < 8.0) {
+                                    const kDir = enemy.position.clone().sub(p.position);
+                                    kDir.y = 0;
+                                    kDir.normalize();
+                                    enemy.applyKnockback(kDir, 30);
+                                }
+                            }
+                        }
+                    }
+                }
+                break;
         }
     }
 

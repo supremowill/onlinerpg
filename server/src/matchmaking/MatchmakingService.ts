@@ -2,7 +2,7 @@ import WebSocket from 'ws';
 import { v4 as uuidv4 } from 'uuid';
 import { Room } from './Room';
 import { CONFIG } from '../config';
-import { ServerMessage } from '../network/Protocol';
+import { ServerMessage, PlayerBuild } from '../network/Protocol';
 
 interface QueuedPlayer {
     id: string;
@@ -10,6 +10,7 @@ interface QueuedPlayer {
     ws: WebSocket;
     joinedAt: number;
     platform: 'pc' | 'mobile';
+    build?: PlayerBuild;
 }
 
 export class MatchmakingService {
@@ -22,10 +23,10 @@ export class MatchmakingService {
         this.checkInterval = setInterval(() => this.processQueue(), 1000);
     }
 
-    addToQueue(playerId: string, playerName: string, ws: WebSocket, platform: 'pc' | 'mobile' = 'pc'): void {
+    addToQueue(playerId: string, playerName: string, ws: WebSocket, platform: 'pc' | 'mobile' = 'pc', build?: PlayerBuild): void {
         // Remove if already in queue
         this.queue = this.queue.filter(p => p.id !== playerId);
-        this.queue.push({ id: playerId, name: playerName, ws, joinedAt: Date.now(), platform });
+        this.queue.push({ id: playerId, name: playerName, ws, joinedAt: Date.now(), platform, build });
         console.log(`[Matchmaking] ${playerName} joined queue (${this.queue.length} in queue) [${platform}]`);
         this.sendQueueStatus();
         this.processQueue();
@@ -113,7 +114,7 @@ export class MatchmakingService {
         const playerInfos = players.map(p => ({ id: p.id, name: p.name }));
 
         for (const p of players) {
-            room.addPlayer(p.id, p.name, p.ws, p.platform);
+            room.addPlayer(p.id, p.name, p.ws, p.platform, p.build);
             this.playerToRoom.set(p.id, room.id);
             const msg: ServerMessage = { type: 'MATCH_FOUND', payload: { roomId: room.id, players: playerInfos } };
             if (p.ws.readyState === WebSocket.OPEN) p.ws.send(JSON.stringify(msg));

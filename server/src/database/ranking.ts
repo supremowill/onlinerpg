@@ -1,5 +1,5 @@
 import { getPool } from './db';
-import { LeaderboardEntry } from '../network/Protocol';
+import { LeaderboardEntry, PlayerBuild } from '../network/Protocol';
 
 export class RankingService {
     private isDbAvailable(): boolean {
@@ -23,7 +23,8 @@ export class RankingService {
         roomId: string,
         playersInRoom: number,
         deaths: number = 0,
-        assists: number = 0
+        assists: number = 0,
+        build?: PlayerBuild
     ): Promise<void> {
         if (!this.isDbAvailable()) {
             console.warn('[Ranking] Skipping score post - no database available');
@@ -31,12 +32,18 @@ export class RankingService {
         }
         try {
             const pool = getPool();
+            const color = build?.buildingColor || 'red';
+            const f1 = build?.floor1 ?? 0;
+            const f2 = build?.floor2 ?? 0;
+            const f3 = build?.floor3 ?? 0;
+            const f4 = build?.floor4 ?? 0;
+            const f5 = build?.floor5 ?? 0;
             await pool.query(
-                `INSERT INTO ranking (player_name, score, survival_time_seconds, collapse_level, kills, deaths, assists, room_id, players_in_room)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-                [playerName, score, Math.floor(survivalTime), collapseLevel, kills, deaths, assists, roomId, playersInRoom]
+                `INSERT INTO ranking (player_name, score, survival_time_seconds, collapse_level, kills, deaths, assists, room_id, players_in_room, build_color, build_floor1, build_floor2, build_floor3, build_floor4, build_floor5)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+                [playerName, score, Math.floor(survivalTime), collapseLevel, kills, deaths, assists, roomId, playersInRoom, color, f1, f2, f3, f4, f5]
             );
-            console.log(`[Ranking] Score posted: ${playerName} = ${score}`);
+            console.log(`[Ranking] Score posted: ${playerName} = ${score} with build color: ${color}`);
         } catch (err) {
             console.warn('[Ranking] Failed to post score:', (err as Error).message);
         }

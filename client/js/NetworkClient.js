@@ -113,8 +113,8 @@ export class NetworkClient {
             this.ws.send(JSON.stringify(msg));
         }
     }
-    joinQueue(name) { this.send({ type: 'JOIN_QUEUE', payload: { name } }); }
-    joinQueueWithToken(token) { this.send({ type: 'JOIN_QUEUE', payload: { token } }); }
+    joinQueue(name, build) { this.send({ type: 'JOIN_QUEUE', payload: { name, build } }); }
+    joinQueueWithToken(token, build) { this.send({ type: 'JOIN_QUEUE', payload: { token, build } }); }
     leaveQueue() { this.send({ type: 'LEAVE_QUEUE' }); }
     selectPlatform(platform) { this.send({ type: 'SELECT_PLATFORM', payload: { platform } }); }
 

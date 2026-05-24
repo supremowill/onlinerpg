@@ -115,6 +115,10 @@ app.get('/api/dashboard', async (req, res) => {
     const payload = verifyJWT(token);
     if (!payload) return res.status(401).json({ error: 'Invalid token' });
     try {
+        const player = await findPlayerByUsername(payload.username);
+        if (!player || player.is_blocked) {
+            return res.status(401).json({ error: 'Account blocked or not found' });
+        }
         const [kda, matchHistory, rankingTotal, rankingAvg, rankingWeekly] = await Promise.all([
             rankingService.getPlayerStats(payload.username),
             rankingService.getPlayerMatchHistory(payload.username, 10),
@@ -186,7 +190,15 @@ app.get('/api/auth/me', async (req, res) => {
     const payload = verifyJWT(token);
     if (!payload) return res.status(401).json({ error: 'Invalid token' });
 
-    res.json({ id: payload.id, username: payload.username });
+    try {
+        const player = await findPlayerByUsername(payload.username);
+        if (!player || player.is_blocked) {
+            return res.status(401).json({ error: 'Account blocked or not found' });
+        }
+        res.json({ id: payload.id, username: payload.username });
+    } catch (e) {
+        res.status(500).json({ error: 'Database check failed' });
+    }
 });
 
 // WebSocket
@@ -198,7 +210,7 @@ wss.on('connection', (ws: WebSocket) => {
     // Register the socket for force-disconnect capability
     playerSockets.set(playerId, ws);
 
-    ws.on('message', (raw: Buffer) => {
+    ws.on('message', async (raw: Buffer) => {
         try {
             const msg = JSON.parse(raw.toString());
             switch (msg.type) {
@@ -208,6 +220,15 @@ wss.on('connection', (ws: WebSocket) => {
                     if (token) {
                         const payload = verifyJWT(token);
                         if (payload) {
+                            const player = await findPlayerByUsername(payload.username);
+                            if (player && player.is_blocked) {
+                                ws.send(JSON.stringify({
+                                    type: 'FORCE_LOGOUT',
+                                    payload: { reason: 'Sua conta foi bloqueada pelo administrador.' }
+                                }));
+                                ws.close(1000, 'Conta bloqueada');
+                                return;
+                            }
                             playerName = payload.username;
                             console.log(`[WS] Player ${playerName} joined via token`);
 
@@ -236,7 +257,8 @@ wss.on('connection', (ws: WebSocket) => {
                     } else {
                         playerName = msg.payload?.name || 'Player';
                     }
-                    matchmaking.addToQueue(playerId, playerName, ws);
+                    const build = msg.payload?.build;
+                    matchmaking.addToQueue(playerId, playerName, ws, 'pc', build);
                     break;
                 }
                 case 'LEAVE_QUEUE':

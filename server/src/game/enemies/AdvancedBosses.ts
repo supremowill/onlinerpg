@@ -358,14 +358,24 @@ export class CaoDosInfernosEnemy extends ServerEnemy {
                 dir.normalize().multiplyScalar(h.w.dashSpeed * dt);
                 this.position.add(dir);
             }
-            if (this.position.distanceToXZ(target.position) < this.attackRange + target.hitboxRadius) {
+            // Check collision with any player in path
+            let hitPlayer: ServerPlayer | null = null;
+            for (const p of players) {
+                if (!p.isDead && this.position.distanceToXZ(p.position) < this.hitboxRadius + p.hitboxRadius) {
+                    hitPlayer = p;
+                    break;
+                }
+            }
+            if (hitPlayer) {
                 const dmg = c.SKILL_W_DAMAGE + (this.playerLevel * 5);
-                target.takeDamage(dmg, false);
-                target.statusEffects.stunned = { isActive: true, timer: c.SKILL_W_STUN_DURATION };
+                hitPlayer.takeDamage(dmg, false);
+                hitPlayer.applyStun(c.SKILL_W_STUN_DURATION);
                 h.w.isDashing = false; h.w.lastUsed = now;
                 this.pendingAbilities.push({ type: 'investidaImpact', x: this.position.x, z: this.position.z });
+            } else if (h.w.dashTimer <= 0) {
+                h.w.isDashing = false;
+                h.w.lastUsed = now;
             }
-            if (h.w.dashTimer <= 0) { h.w.isDashing = false; h.w.lastUsed = now; }
             this.lookAt(target.position);
             return;
         }
@@ -425,6 +435,7 @@ export class CaoDosInfernosEnemy extends ServerEnemy {
         if (now > h.e.lastUsed + h.e.cooldown && dist < 8) {
             h.e.isSlamming = true; h.e.slamTimer = h.e.slamDuration;
             this.pendingAbilities.push({ type: 'eviscerarStart', x: this.position.x, z: this.position.z });
+            this.pendingAbilities.push({ type: 'recallMatilha', bossId: this.id, x: this.position.x, z: this.position.z });
         }
 
         const hpPercent = this.hp / this.maxHp;
@@ -548,6 +559,8 @@ export class TheMightyOneEnemy extends ServerEnemy {
 /** MatilhaGeometraEnemy - minion spawned by Cao Dos Infernos */
 export class MatilhaGeometraEnemy extends ServerEnemy {
     public parentId: string = '';
+    public parentBoss: CaoDosInfernosEnemy | null = null;
+    public pendingProjectiles: { dir: Vec3; damage: number; specialEffect?: string; speed?: number }[] = [];
     public playerLevel: number;
     private attackCooldown: number;
     private lastAttackTime = 0;
@@ -580,31 +593,41 @@ export class MatilhaGeometraEnemy extends ServerEnemy {
 
         this.habilidades.qTimer -= ms;
 
-        if (dist > 20) {
-            this.moveTowards(target.position, dt, this.speed);
-        } else if (dist < 3) {
+        // Follow or orbit the parent boss
+        if (this.parentBoss && !this.parentBoss.isDestroyed) {
+            const distToBoss = this.position.distanceToXZ(this.parentBoss.position);
+            if (distToBoss > 4.5) {
+                this.moveTowards(this.parentBoss.position, dt, this.speed);
+            } else {
+                const angle = gameTime * 1.5 + (this.id.charCodeAt(0) % 4) * Math.PI / 2;
+                const orbitRadius = 2.5 + Math.sin(gameTime * 2 + (this.id.charCodeAt(0) % 4)) * 0.5;
+                const targetPos = this.parentBoss.position.clone().add(new Vec3(Math.sin(angle) * orbitRadius, 0, Math.cos(angle) * orbitRadius));
+                this.moveTowards(targetPos, dt, this.speed);
+            }
+        } else {
+            if (dist > 3) {
+                this.moveTowards(target.position, dt, this.speed);
+            }
+        }
+
+        // Melee attack fallback if very close
+        if (dist < 2.0) {
             if (now > this.lastAttackTime + this.attackCooldown) {
                 this.lastAttackTime = now;
                 target.takeDamage(this.damage, false);
             }
-        } else {
-            this.moveTowards(target.position, dt, this.speed);
         }
 
-        if (this.habilidades.qTimer <= 0 && dist < 15) {
+        // Shoot mini cubic projectiles autonomously
+        if (this.habilidades.qTimer <= 0 && dist < 16) {
             this.habilidades.qTimer = this.habilidades.qCooldown;
-            const dirToTarget = target.position.clone().sub(this.position).normalize();
-            const leftDir = new Vec3(-dirToTarget.z, 0, dirToTarget.x);
-            for (let i = 0; i < 2; i++) {
-                const offset = leftDir.clone().multiplyScalar((i === 0 ? -1 : 1) * 1.2);
-                const startPos = this.position.clone().add(offset);
-                const bosses = [this];
-                for (const p of players) {
-                    if (p.isDead && this.position.distanceToXZ(p.position) < 15) {
-                        p.takeDamage(this.damage * 0.6, false);
-                    }
-                }
-            }
+            const dir = target.position.clone().sub(this.position).normalize();
+            this.pendingProjectiles.push({
+                dir,
+                damage: this.damage,
+                specialEffect: 'matilha_projectile',
+                speed: CONFIG.CAO_DOS_INFERNOS.MATILHA_PROJECTILE_SPEED || 8
+            });
         }
 
         this.lookAt(target.position);

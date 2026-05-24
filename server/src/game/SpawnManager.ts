@@ -40,6 +40,10 @@ export class SpawnManager {
     public isLuciferAlive = false;
     public isEspectroDeRazielAlive = false;
     public isSmithAlive = false;
+    public isDoutorDoencaSpawned = false;
+    public isDoutorDoencaAlive = false;
+    public doutorDoencaNextSpawn = 360; // 6 minutes initially
+
     // O Faraó — Entidade Deus (acima de boss)
     public isFaraoAlive = false;
     public faraoSpawnCount = 0;
@@ -318,6 +322,13 @@ export class SpawnManager {
             }
         }
 
+        // Doutor Doença (Elite Boss spawn after 6 minutes = 360 seconds, and respawns 6 min after defeat)
+        if (!this.isDoutorDoencaAlive && this.gameTime >= this.doutorDoencaNextSpawn) {
+            this.isDoutorDoencaAlive = true;
+            this.doutorDoencaNextSpawn = Infinity; // Block spawning until onDoutorDoencaDefeated is called
+            events.push({ type: 'DoutorDoenca', position: this.getSpawnPosition() });
+        }
+
         // === O FARAÓ — Entidade Deus (12 min, respawns, independent of activeBoss) ===
         if (!this.isFaraoAlive && !this.faraoWarningActive) {
             this.timers.spawnFarao -= dt;
@@ -359,5 +370,11 @@ export class SpawnManager {
     onFaraoDefeated(): void {
         this.isFaraoAlive = false;
         this.faraoSpawnCount++;
+    }
+
+    onDoutorDoencaDefeated(): void {
+        this.isDoutorDoencaAlive = false;
+        this.activeBoss = null;
+        this.doutorDoencaNextSpawn = this.gameTime + 360; // Respawn after 6 minutes
     }
 }

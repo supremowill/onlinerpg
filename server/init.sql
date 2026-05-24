@@ -23,6 +23,12 @@ CREATE TABLE IF NOT EXISTS ranking (
     assists INTEGER DEFAULT 0,
     room_id VARCHAR(255),
     players_in_room INTEGER DEFAULT 0,
+    build_color VARCHAR(20) DEFAULT 'red',
+    build_floor1 INTEGER DEFAULT 0,
+    build_floor2 INTEGER DEFAULT 0,
+    build_floor3 INTEGER DEFAULT 0,
+    build_floor4 INTEGER DEFAULT 0,
+    build_floor5 INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

@@ -37,7 +37,7 @@ export class HUDManager {
 
         // Buffs
         this.buffDisplay = document.getElementById('buff-display');
-        this.buffName = document.getElementById('buff-name');
+        this.buffMaxDurations = new Map();
         // Skills
         this.skillSlots = {
             q: document.getElementById('skill-q'),
@@ -47,16 +47,103 @@ export class HUDManager {
         };
         // Blind overlay
         this.blindOverlay = document.getElementById('blind-overlay');
+        this.visaoTurvaOverlay = document.getElementById('visao-turva-overlay');
         // Latency
         this.latencyEl = document.getElementById('latency-value');
         // Multiplayer scoreboard
         this.scoreboardEl = document.getElementById('multiplayer-scoreboard');
+        // Tower badge HUD
+        this.towerBadgeHud = document.getElementById('tower-badge-hud');
     }
 
     update(snapshot) {
         if (!snapshot) return;
         const me = snapshot.players?.find(p => p.id === this.localPlayerId);
         if (!me) return;
+
+        // Active Tower Details and HUD styling
+        const towerDetails = {
+            red: { name: 'Torre Vermelha', color: '#ff4d4d', icon: '🔺', passives: [
+                ['+15% Dano', '+10% Speed', '+20% Crítico'],
+                ['10% Lifesteal', '+20% Dano (<30% HP)', 'Ignora 25% Armor'],
+                ['Dano escala c/ hits', 'Ataque Cleave', '+70% Dano / -30% AS'],
+                ['Kill = Cura+Speed', '4º Hit Explode', 'Dano x2 (<20% HP)']
+            ]},
+            green: { name: 'Torre Verde', color: '#4dff4d', icon: '🟩', passives: [
+                ['+25% HP Max', 'Redução Dano Flat', 'Imune a Knockback'],
+                ['Regen 1% HP/s', '+30% Defesa (>80% HP)', 'Reflete 15% Dano'],
+                ['Ataques geram Taunt', 'Aura Redução Dano', 'Cura de itens x2'],
+                ['Escudo fora combate', 'Sobrevive 1 Hit Kill', 'Escudo quebrado explode']
+            ]},
+            purple: { name: 'Torre Roxa', color: '#d44dff', icon: '🟣', passives: [
+                ['+25% Escudo Max', '+15% Move Speed', '+CDR'],
+                ['Dano extra após skill', 'Escudo Defletor', 'Vampirismo Mágico'],
+                ['10% Esquiva', 'Ataques dão Slow', 'Orbes extras no hit'],
+                ['Kill reseta CDs', 'Hitbox magias +30%', 'Aura tóxica DPS']
+            ]}
+        };
+
+        if (this.towerBadgeHud && me.build) {
+            const tower = towerDetails[me.build.buildingColor];
+            if (tower) {
+                let html = `<div style="font-weight:bold; color:${tower.color};">${tower.icon} ${tower.name}</div>`;
+                const p1 = tower.passives[0][me.build.floor1] || '';
+                const p2 = tower.passives[1][me.build.floor2] || '';
+                const p3 = tower.passives[2][me.build.floor3] || '';
+                const p4 = tower.passives[3][me.build.floor4] || '';
+                html += `<div style="font-size:0.65rem; opacity:0.85; display:flex; flex-direction:column; gap:2px; margin-left:4px;">`;
+                if (p1) html += `<div>• ${p1}</div>`;
+                if (p2) html += `<div>• ${p2}</div>`;
+                if (p3) html += `<div>• ${p3}</div>`;
+                if (p4) html += `<div>• ${p4}</div>`;
+                
+                if (me.skillUpgrades && me.skillUpgrades.r) {
+                    const ultUpgradeName = {
+                        r_chuva_tetraedros: 'Chuva de Tetraedros',
+                        r_raio_oblivio: 'Raio do Oblívio',
+                        r_corte_dimensional: 'Corte Dimensional',
+                        r_bastiao_titanio: 'Bastião de Titânio',
+                        r_terremoto_geometrico: 'Terremoto Geométrico',
+                        r_armadura_reativa: 'Armadura Reativa',
+                        r_singularidade: 'Singularidade',
+                        r_distorcao_temporal_mut: 'Distorção Temporal',
+                        r_reset_dimensional: 'Reset Dimensional'
+                    }[me.skillUpgrades.r] || 'Mutação Desperta';
+                    html += `<div style="font-weight:bold; color:#ffcc00; margin-top:2px;">✨ ${ultUpgradeName}</div>`;
+                }
+                
+                html += `</div>`;
+                this.towerBadgeHud.innerHTML = html;
+            }
+        }
+
+        if (this.skillSlots.r && me.build) {
+            const tower = towerDetails[me.build.buildingColor];
+            if (tower) {
+                let ultText = 'R';
+                if (me.skillUpgrades && me.skillUpgrades.r) {
+                    const ultShort = {
+                        r_chuva_tetraedros: 'CHUVA',
+                        r_raio_oblivio: 'RAIO',
+                        r_corte_dimensional: 'CORTE',
+                        r_bastiao_titanio: 'BAST.',
+                        r_terremoto_geometrico: 'TERRE',
+                        r_armadura_reativa: 'REAC.',
+                        r_singularidade: 'SING.',
+                        r_distorcao_temporal_mut: 'DIST.',
+                        r_reset_dimensional: 'RESET'
+                    }[me.skillUpgrades.r] || 'ULT';
+                    ultText = ultShort;
+                } else {
+                    ultText = { red: 'RAIO', green: 'ESCU', purple: 'PULS' }[me.build.buildingColor] || 'R';
+                }
+                
+                const rSlot = this.skillSlots.r;
+                rSlot.style.borderColor = tower.color;
+                rSlot.style.boxShadow = `0 0 8px ${tower.color}aa`;
+                rSlot.innerHTML = `<span style="font-size:0.6rem; position:absolute; top:2px; left:4px; opacity:0.6;">R</span><span style="font-size:0.65rem; font-weight:bold; margin-top:8px;">${ultText}</span>`;
+            }
+        }
 
         // HP bar
         if (this.hpBar) {
@@ -143,25 +230,172 @@ export class HUDManager {
             this.julgamentoWarning.style.display = 'none';
         }
 
-        // Buffs
-        let buffText = '';
-        if (me.activeBuff) buffText += me.activeBuff;
-        if (me.timedBuffs?.length > 0) {
-            const buffNames = {
-                rainha_buff: 'Sombra Corrompida', planta_buff: 'Benção da Flora',
-                essencia_negra: 'Essência do Medo', coroa_lich_buff: 'Coroa do Lich',
-                lamina_geada_buff: 'Lâmina da Geada', fragmento_morte_buff: 'Fragmento da Morte',
-                talisma_quebrado_buff: 'Talismã Quebrado', sabre_pirata: 'Sabre Pirata',
-                bencao_do_farao: '☀ Bênção do Faraó',
-            };
+        // Buffs/Debuffs Dynamic Rendering
+        const activeTypes = new Set();
+        const buffList = [];
+
+        const registerActive = (type, timer, stacks = undefined) => {
+            if (!type || activeTypes.has(type)) return;
+            activeTypes.add(type);
+            buffList.push({ type, timer, stacks });
+        };
+
+        // Gather all active effects
+        if (me.activeBuff) registerActive(me.activeBuff, me.buffTimer || 0);
+        if (me.tempBuff) registerActive(me.tempBuff, me.buffTimers?.[me.tempBuff] || 0);
+        if (me.timedBuffs) {
             for (const b of me.timedBuffs) {
-                const name = buffNames[b] || b;
-                if (buffText) buffText += ' | ';
-                buffText += name;
+                registerActive(b, me.buffTimers?.[b] || 0);
             }
         }
-        if (buffText) { this.buffDisplay.style.display = 'block'; this.buffName.textContent = buffText; }
-        else this.buffDisplay.style.display = 'none';
+        if (me.statusEffects) {
+            for (const se of me.statusEffects) {
+                registerActive(se, me.buffTimers?.[se] || 0);
+            }
+        }
+        if (me.pathogens) {
+            for (const [k, stacks] of Object.entries(me.pathogens)) {
+                registerActive(k, me.buffTimers?.[k] || 0, stacks);
+            }
+        }
+
+        // Clean up durations for buffs that are no longer active
+        for (const type of this.buffMaxDurations.keys()) {
+            if (!activeTypes.has(type)) {
+                this.buffMaxDurations.delete(type);
+            }
+        }
+
+        if (buffList.length > 0) {
+            this.buffDisplay.style.display = 'flex';
+            
+            const BUFF_DETAILS = {
+                guerreiro: { name: 'Guerreiro', symbol: '⚔', isBuff: true },
+                arqueiro: { name: 'Arqueiro', symbol: '🏹', isBuff: true },
+                mago: { name: 'Mago', symbol: '🔮', isBuff: true },
+                damage: { name: 'Fúria Destrutiva', symbol: '💥', isBuff: true },
+                attackSpeed: { name: 'Ímpeto de Ataque', symbol: '⚡', isBuff: true },
+                rainha_buff: { name: 'Sombra Corrompida', symbol: '👑', isBuff: true },
+                planta_buff: { name: 'Benção da Flora', symbol: '🌿', isBuff: true },
+                essencia_negra: { name: 'Essência do Medo', symbol: '💀', isBuff: true },
+                coroa_lich_buff: { name: 'Coroa do Lich', symbol: '❄', isBuff: true },
+                lamina_geada_buff: { name: 'Lâmina da Geada', symbol: '❄', isBuff: true },
+                fragmento_morte_buff: { name: 'Fragmento da Morte', symbol: '⏳', isBuff: true },
+                talisma_quebrado_buff: { name: 'Talismã Quebrado', symbol: '🛡', isBuff: true },
+                sabre_pirata: { name: 'Sabre Pirata', symbol: '⚔', isBuff: true },
+                bencao_do_farao: { name: 'Bênção do Faraó', symbol: '☀', isBuff: true },
+                cao_dos_infernos_buff: { name: 'Instinto de Caçador', symbol: '🐺', isBuff: true },
+                nucleo_da_matilha: { name: 'Núcleo da Matilha', symbol: '🔺', isBuff: true },
+
+                smith_debuff: { name: 'Sobrescrita Global', symbol: '🖥', isBuff: false },
+                stunned: { name: 'Atordoado', symbol: '🌀', isBuff: false },
+                frozen: { name: 'Congelado', symbol: '🧊', isBuff: false },
+                bleeding: { name: 'Sangramento', symbol: '🩸', isBuff: false },
+                slowed: { name: 'Lentidão', symbol: '❄', isBuff: false },
+                rooted: { name: 'Enraizado', symbol: '🕸', isBuff: false },
+                attackSpeedSlow: { name: 'Lentidão de Ataque', symbol: '⏳', isBuff: false },
+                disoriented: { name: 'Desorientado', symbol: '🌀', isBuff: false },
+                blind: { name: 'Cegueira', symbol: '👁', isBuff: false },
+                silenced: { name: 'Silenciado', symbol: '🔇', isBuff: false },
+                burning: { name: 'Queimadura', symbol: '🔥', isBuff: false },
+                armorFracture: { name: 'Fractura de Armadura', symbol: '💔', isBuff: false },
+                marcaDaAlma: { name: 'Marca da Alma', symbol: '✨', isBuff: false },
+                lichKingPrison: { name: 'Prisão do Rei Lich', symbol: '⛓', isBuff: false },
+                lichKingLifeDrain: { name: 'Dreno de Vida', symbol: '💔', isBuff: false },
+                invertedControls: { name: 'Controles Invertidos', symbol: '🔄', isBuff: false },
+
+                febre_critica: { name: 'Febre Crítica', symbol: '🤒', isBuff: false },
+                paralisia_parcial: { name: 'Paralisia Parcial', symbol: '🦵', isBuff: false },
+                mao_tremula: { name: 'Mão Trêmula', symbol: '🤝', isBuff: false },
+                imunidade_baixa: { name: 'Imunidade Baixa', symbol: '🛡️', isBuff: false },
+                visao_turva: { name: 'Visão Turva', symbol: '👁️', isBuff: false },
+                cansaco_viral: { name: 'Cansaço Viral', symbol: '💤', isBuff: false },
+                incapacidade: { name: 'Incapacidade', symbol: '🚫', isBuff: false },
+                hemorragia_quadrada: { name: 'Hemorragia Quadrada', symbol: '🩸', isBuff: false }
+            };
+
+            // 1. Remove cards that are no longer active
+            const currentCardIds = new Set(buffList.map(item => `buff-card-${item.type}`));
+            const existingCards = this.buffDisplay.querySelectorAll('.buff-card');
+            for (const card of existingCards) {
+                if (!currentCardIds.has(card.id)) {
+                    card.remove();
+                }
+            }
+
+            // 2. Create or update cards
+            for (const item of buffList) {
+                const type = item.type;
+                const timer = item.timer; // in ms
+                const cardId = `buff-card-${type}`;
+                
+                const details = BUFF_DETAILS[type] || {
+                    name: type.replace(/_/g, ' ').toUpperCase(),
+                    symbol: '✨',
+                    isBuff: !type.toLowerCase().includes('debuff') && 
+                            !type.toLowerCase().includes('slow') && 
+                            !type.toLowerCase().includes('stun') && 
+                            !type.toLowerCase().includes('fracture') &&
+                            !type.toLowerCase().includes('bleeding') &&
+                            !type.toLowerCase().includes('burning') &&
+                            !['febre_critica','paralisia_parcial','mao_tremula','imunidade_baixa','visao_turva','cansaco_viral','incapacidade','hemorragia_quadrada'].includes(type)
+                };
+
+                // Track and calculate progress percentage
+                let maxDur = this.buffMaxDurations.get(type) || 0;
+                if (timer > maxDur) {
+                    maxDur = timer;
+                    this.buffMaxDurations.set(type, maxDur);
+                }
+                const pct = maxDur > 0 ? (timer / maxDur) * 100 : 100;
+
+                const cardClass = details.isBuff ? 'type-buff' : 'type-debuff';
+                const timeText = timer > 0 ? this.formatTimerText(timer) : '∞';
+                const displayName = item.stacks && item.stacks > 0 ? `${details.name} x${item.stacks}` : details.name;
+
+                let card = this.buffDisplay.querySelector(`#${cardId}`);
+                if (!card) {
+                    card = document.createElement('div');
+                    card.className = `buff-card ${cardClass}`;
+                    card.id = cardId;
+                    card.innerHTML = `
+                        <div class="buff-card-icon">${details.symbol}</div>
+                        <div class="buff-card-info">
+                            <span class="buff-card-name">${displayName}</span>
+                            <span class="buff-card-timer">${timeText}</span>
+                        </div>
+                        ${timer > 0 ? `<div class="buff-card-progress" style="width: ${pct}%"></div>` : ''}
+                    `;
+                    this.buffDisplay.appendChild(card);
+                } else {
+                    const nameEl = card.querySelector('.buff-card-name');
+                    if (nameEl && nameEl.textContent !== displayName) {
+                        nameEl.textContent = displayName;
+                    }
+                    const timerEl = card.querySelector('.buff-card-timer');
+                    if (timerEl && timerEl.textContent !== timeText) {
+                        timerEl.textContent = timeText;
+                    }
+                    const progressEl = card.querySelector('.buff-card-progress');
+                    if (progressEl) {
+                        progressEl.style.width = `${pct}%`;
+                    }
+                }
+            }
+
+            // 3. Ensure correct order of elements matching buffList
+            buffList.forEach((item, index) => {
+                const cardId = `buff-card-${item.type}`;
+                const card = this.buffDisplay.querySelector(`#${cardId}`);
+                const referenceNode = this.buffDisplay.children[index] || null;
+                if (card && referenceNode !== card) {
+                    this.buffDisplay.insertBefore(card, referenceNode);
+                }
+            });
+        } else {
+            this.buffDisplay.style.display = 'none';
+            this.buffDisplay.innerHTML = '';
+        }
 
         // Skills cooldowns
         if (me.skillCooldowns) {
@@ -196,6 +430,13 @@ export class HUDManager {
             const isDisoriented = me.statusEffects.includes('disoriented');
             this.blindOverlay?.classList.toggle('active', isBlind);
             document.body.classList.toggle('disoriented-screen', isDisoriented);
+        }
+
+        // Visão Turva overlay handling
+        if (this.visaoTurvaOverlay) {
+            const visaoTurvaStacks = me.pathogens?.['visao_turva'] || 0;
+            this.visaoTurvaOverlay.classList.toggle('active', visaoTurvaStacks >= 1);
+            this.visaoTurvaOverlay.classList.toggle('active-stack2', visaoTurvaStacks >= 2);
         }
 
         // Multiplayer scoreboard
@@ -260,5 +501,16 @@ export class HUDManager {
         const m = Math.floor(s / 60).toString().padStart(2, '0');
         const sec = Math.floor(s % 60).toString().padStart(2, '0');
         return `${m}:${sec}`;
+    }
+
+    formatTimerText(ms) {
+        if (ms <= 0) return '0.0s';
+        const s = ms / 1000;
+        if (s >= 60) {
+            const mins = Math.floor(s / 60);
+            const secs = Math.floor(s % 60);
+            return `${mins}m ${secs}s`;
+        }
+        return `${s.toFixed(1)}s`;
     }
 }

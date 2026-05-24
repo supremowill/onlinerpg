@@ -6,7 +6,7 @@
     <title>Sobrevivência 3D — Online</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         :root { --poderoso-color: #ff00ff; }
         body { margin:0; overflow:hidden; background:#000; color:#fff; font-family:'Orbitron',sans-serif; user-select:none; }
@@ -14,6 +14,25 @@
         .disoriented-screen { filter:invert(1) hue-rotate(180deg); transition:filter .2s; }
         .blind-screen-effect { position:absolute; top:0; left:0; width:100%; height:100%; background:radial-gradient(circle,transparent 30%,black 80%); pointer-events:none; z-index:500; opacity:0; transition:opacity .3s; }
         .blind-screen-effect.active { opacity:1; }
+        .visao-turva-effect {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, transparent 70%, rgba(58, 0, 80, 0.4) 100%);
+            pointer-events: none;
+            z-index: 500;
+            opacity: 0;
+            transition: opacity .3s, background .3s;
+        }
+        .visao-turva-effect.active {
+            opacity: 1;
+        }
+        .visao-turva-effect.active-stack2 {
+            opacity: 1;
+            background: radial-gradient(circle, transparent 40%, rgba(58, 0, 80, 0.7) 100%);
+        }
         .overlay-screen { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.85); display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; z-index:100; backdrop-filter:blur(5px); }
         .overlay-screen h1 { font-size:3rem; margin-bottom:20px; text-shadow:0 0 10px #fff,0 0 20px #0ff; }
         .overlay-screen h2 { font-size:2rem; margin-bottom:30px; }
@@ -46,7 +65,7 @@
         @keyframes pulse-red { 0%{box-shadow:0 0 3px #f44336} 50%{box-shadow:0 0 10px #f11} 100%{box-shadow:0 0 3px #f44336} }
         .stats-simple { display:flex; justify-content:space-between; margin-top:8px; font-size:1.1rem; font-weight:bold; }
         .stat-item { color:#0ff; text-shadow:1px 1px 2px #000; }
-        #buff-display { position:absolute; top:20px; right:20px; display:none; background:rgba(0,0,0,.5); padding:10px; border-radius:8px; z-index:10; text-align:right; }
+        #buff-display { display:none; flex-direction:column; gap:8px; align-items:flex-end; pointer-events:auto; width:100%; }
         .boss-hud-container { position:absolute; top:30px; left:50%; transform:translateX(-50%); width:60%; max-width:700px; display:none; flex-direction:column; align-items:center; gap:10px; z-index:10; }
         .boss-hud-item { width:100%; background:rgba(0,0,0,.7); padding:10px; border-radius:8px; border:1px solid #555; text-align:center; }
         #boss-hp-bar { background:linear-gradient(90deg,#c62828,#e53935); }
@@ -68,7 +87,7 @@
         #upgrade-panel { display:none; }
         #upgrade-panel .panel-content { background:rgba(20,20,20,.9); padding:40px; border-radius:15px; border:1px solid #555; box-shadow:0 0 20px rgba(0,0,0,.5); }
         /* Multiplayer scoreboard */
-        #multiplayer-scoreboard { position:absolute; top:20px; right:20px; width:220px; background:rgba(0,0,0,.6); border:1px solid #444; border-radius:8px; padding:8px; z-index:10; display:none; }
+        #multiplayer-scoreboard { width:100%; background:rgba(10,10,10,0.85); border:1px solid #444; border-radius:4px; padding:8px; display:none; pointer-events:auto; box-shadow:0 4px 15px rgba(0,0,0,0.6); }
         .sb-row { display:flex; align-items:center; gap:6px; padding:4px 6px; border-radius:4px; font-size:.75rem; }
         .sb-row.me { background:rgba(0,255,255,.15); border:1px solid rgba(0,255,255,.3); }
         .sb-row.dead { opacity:.4; }
@@ -77,6 +96,110 @@
         .sb-level { color:#aaa; min-width:35px; }
         .sb-hp-mini { width:40px; height:6px; background:#333; border-radius:3px; overflow:hidden; }
         .sb-hp-fill { height:100%; background:#e53935; border-radius:3px; transition:width .3s; }
+        
+        /* Right HUD Area (Scoreboard + Buffs) */
+        .right-hud-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: flex-end;
+            z-index: 10;
+            pointer-events: none;
+            width: 240px;
+        }
+
+        /* Premium Geometric Buff/Debuff Cards */
+        .buff-card {
+            width: 100%;
+            background: rgba(12, 12, 12, 0.9);
+            border-radius: 4px;
+            padding: 6px 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-sizing: border-box;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: card-appear 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+        @keyframes card-appear {
+            0% { opacity: 0; transform: translateX(20px); }
+            100% { opacity: 1; transform: translateX(0); }
+        }
+        .buff-card.type-buff {
+            border: 1px solid rgba(0, 255, 204, 0.35);
+            box-shadow: 0 0 10px rgba(0, 255, 204, 0.08), inset 0 0 4px rgba(0, 255, 204, 0.03);
+        }
+        .buff-card.type-debuff {
+            border: 1px solid rgba(255, 23, 68, 0.35);
+            box-shadow: 0 0 10px rgba(255, 23, 68, 0.08), inset 0 0 4px rgba(255, 23, 68, 0.03);
+        }
+        .buff-card-icon {
+            font-size: 1.15rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 22px;
+            height: 22px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 3px;
+        }
+        .buff-card.type-buff .buff-card-icon {
+            color: #00ffcc;
+            text-shadow: 0 0 6px rgba(0, 255, 204, 0.4);
+        }
+        .buff-card.type-debuff .buff-card-icon {
+            color: #ff1744;
+            text-shadow: 0 0 6px rgba(255, 23, 68, 0.4);
+        }
+        .buff-card-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .buff-card-name {
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: #eee;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            text-shadow: 1px 1px 2px #000;
+        }
+        .buff-card-timer {
+            font-size: 0.7rem;
+            font-weight: bold;
+            font-family: 'Outfit', sans-serif, monospace;
+            margin-top: 1px;
+        }
+        .buff-card.type-buff .buff-card-timer {
+            color: #00e5ff;
+        }
+        .buff-card.type-debuff .buff-card-timer {
+            color: #ff5252;
+        }
+        .buff-card-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 2px;
+            width: 100%;
+            transition: width 0.1s linear;
+        }
+        .buff-card.type-buff .buff-card-progress {
+            background: linear-gradient(90deg, #00ffcc, #00e5ff);
+        }
+        .buff-card.type-debuff .buff-card-progress {
+            background: linear-gradient(90deg, #ff1744, #ff5252);
+        }
         /* Latency */
         #latency-display { position:absolute; bottom:5px; left:10px; font-size:.7rem; color:#666; z-index:10; }
         /* Auth forms */
@@ -109,7 +232,12 @@
             .mobile-button .skill-cooldown { font-size: 1.2rem; }
             #attack-button { width: 75px; height: 75px; font-size: 1.3rem; background: rgba(220,40,40,.8); border: 2px solid rgba(255,100,100,0.8); box-shadow: 0 0 15px rgba(255,0,0,0.5); }
             .boss-hud-container { top: 10px; width: 95%; max-width: none; }
-            #multiplayer-scoreboard { top: 10px; right: 10px; width: 160px; }
+            #multiplayer-scoreboard { width: 100%; }
+            .right-hud-container { top: 10px; right: 10px; width: 160px; gap: 8px; }
+            .buff-card { padding: 4px 8px; gap: 6px; }
+            .buff-card-icon { font-size: 1rem; min-width: 18px; height: 18px; }
+            .buff-card-name { font-size: 0.7rem; }
+            .buff-card-timer { font-size: 0.6rem; }
             .leaderboard-container { width: 95%; max-width: 320px; padding: 10px; }
             .leaderboard-container h2 { font-size: 1.4rem; }
             #auth-container input { width: 200px; }
@@ -280,6 +408,195 @@
             #changelog-bell { top: 10px; right: 10px; width: 36px; height: 36px; font-size: 1.1rem; }
             #changelog-panel { width: 95%; max-height: 85vh; }
         }
+
+        /* Essence Towers UI Styles */
+        .tower-select-btn {
+            border-radius: 6px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            box-sizing: border-box;
+            border: 1px solid #333;
+            background: rgba(255,255,255,0.03);
+            color: #666;
+        }
+        .tower-select-btn.active-red {
+            background: rgba(239, 68, 68, 0.15) !important;
+            border-color: #ef4444 !important;
+            color: #fca5a5 !important;
+            box-shadow: 0 0 15px rgba(239,68,68,0.4);
+        }
+        .tower-select-btn.active-green {
+            background: rgba(16, 185, 129, 0.15) !important;
+            border-color: #10b981 !important;
+            color: #a7f3d0 !important;
+            box-shadow: 0 0 15px rgba(16,185,129,0.4);
+        }
+        .tower-select-btn.active-purple {
+            background: rgba(168, 85, 247, 0.15) !important;
+            border-color: #a855f7 !important;
+            color: #e9d5ff !important;
+            box-shadow: 0 0 15px rgba(168,85,247,0.4);
+        }
+
+        .floor-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 6px;
+            padding: 6px 10px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .floor-label {
+            width: 75px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            opacity: 0.6;
+            border-right: 1px solid rgba(255,255,255,0.1);
+            padding-right: 5px;
+            color: #fff;
+        }
+        .floor-options-grid {
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+        .floor-option-btn {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #ccc;
+            font-family: monospace;
+            font-size: 0.7rem;
+            padding: 8px 2px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            line-height: 1.2;
+        }
+        .floor-option-btn:hover {
+            border-color: rgba(255,255,255,0.3);
+        }
+
+        /* Option selections per color */
+        .floor-option-btn.selected-red {
+            background: #ef4444 !important;
+            border-color: #fca5a5 !important;
+            color: #fff !important;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+            font-weight: bold;
+        }
+        .floor-option-btn.selected-green {
+            background: #10b981 !important;
+            border-color: #a7f3d0 !important;
+            color: #fff !important;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+            font-weight: bold;
+        }
+        .floor-option-btn.selected-purple {
+            background: #a855f7 !important;
+            border-color: #e9d5ff !important;
+            color: #fff !important;
+            box-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+            font-weight: bold;
+        }
+
+        .floor-5-ult-card {
+            border: 1px dashed rgba(255,255,255,0.2);
+            border-radius: 6px;
+            padding: 10px;
+            background: rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        .floor-5-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.5;
+            color: #aaa;
+        }
+        .floor-5-name {
+            font-size: 1rem;
+            font-weight: bold;
+            color: #fff;
+            margin: 4px 0;
+        }
+        .floor-5-warning {
+            font-size: 0.65rem;
+            color: #fbc02d;
+            font-family: monospace;
+        }
+        #open-towers-btn {
+            background: rgba(20,20,20,0.85);
+            border: 2px solid #555;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 440px;
+            margin: 15px 0 10px 0;
+            padding: 12px 15px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            align-items: center;
+        }
+        #open-towers-btn:hover {
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.4);
+            transform: translateY(-2px);
+        }
+
+        #essence-towers-modal-content {
+            padding: 25px;
+            border: 2px solid #555;
+            border-radius: 12px;
+            background: #111;
+            text-align: left;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 0 25px rgba(0,229,255,0.25);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            max-height: 90vh;
+            box-sizing: border-box;
+        }
+
+        @media (max-width: 600px) {
+            #essence-towers-modal-content {
+                padding: 15px;
+                gap: 10px;
+                width: 95%;
+            }
+            .floor-row {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 6px;
+                padding: 8px;
+            }
+            .floor-label {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid rgba(255,255,255,0.1);
+                padding-right: 0;
+                padding-bottom: 4px;
+                text-align: center;
+            }
+            .floor-options-grid {
+                grid-template-columns: 1fr;
+                gap: 6px;
+            }
+            .floor-option-btn {
+                font-size: 0.75rem;
+                padding: 10px 4px;
+            }
+        }
     </style>
     <script type="importmap">
     { 
@@ -292,6 +609,8 @@
 </head>
 <body>
     <div id="blind-overlay" class="blind-screen-effect"></div>
+    <div id="visao-turva-overlay" class="visao-turva-effect"></div>
+    <div id="damage-text-layer"></div>
     <!-- START SCREEN / LOBBY -->
     <div id="start-screen" class="overlay-screen">
         <h1>SOBREVIVÊNCIA 3D</h1>
@@ -324,6 +643,13 @@
             <button id="logout-button" class="overlay-button" style="background:#c0392b">Sair</button>
         </div>
 
+        <!-- TOWER BUILD SUMMARY BUTTON -->
+        <button id="open-towers-btn" type="button" style="display:none; background: rgba(20,20,20,0.85); border: 2px solid #555; border-radius: 8px; width: 90%; max-width: 440px; margin: 15px 0 10px 0; padding: 12px 15px; cursor: pointer; text-align: center; transition: all 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 4px; align-items: center;">
+            <div style="font-size: 0.85rem; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #fff;">⚙️ Matriz de Essência (Torre)</div>
+            <div id="tower-summary-text" style="font-size: 0.72rem; color: #00e5ff; text-align: center; line-height: 1.3; font-family: 'Inter', sans-serif; font-weight: 500;">🔺 Carregando Escolhas...</div>
+            <div style="font-size: 0.6rem; color: #777; margin-top: 2px; font-style: italic;">Clique para alterar passivas da torre</div>
+        </button>
+
         <p>Escolha sua plataforma para entrar na fila</p>
         <div>
             <button id="pc-button" class="overlay-button" disabled>PC</button>
@@ -335,6 +661,29 @@
             <ol id="leaderboard-list-start"><li>Carregando ranking...</li></ol>
         </div>
     </div>
+
+    <!-- ESSENCE TOWERS SELECTION MODAL -->
+    <div id="essence-towers-modal" class="overlay-screen" style="display:none; z-index:150;">
+        <div id="essence-towers-modal-content">
+            <h3 style="margin-top: 0; color: #fff; text-align: center; font-size: 1.25em; letter-spacing: 1.2px; font-family: 'Inter', sans-serif; border-bottom: 1px solid #333; padding-bottom: 10px;">⚙️ MATRIZ DE ESSÊNCIA (TORRE)</h3>
+            
+            <!-- Seletor de Torres -->
+            <div id="tower-selector" style="display: flex; gap: 8px; justify-content: center; margin-bottom: 5px;">
+                <button id="tower-btn-red" class="tower-select-btn" style="flex: 1; padding: 10px 5px; cursor: pointer; transition: all 0.2s;">🔺 VERMELHA</button>
+                <button id="tower-btn-green" class="tower-select-btn" style="flex: 1; padding: 10px 5px; cursor: pointer; transition: all 0.2s;">🟩 VERDE</button>
+                <button id="tower-btn-purple" class="tower-select-btn" style="flex: 1; padding: 10px 5px; cursor: pointer; transition: all 0.2s;">🟣 ROXA</button>
+            </div>
+
+            <!-- Detalhes da Torre e Andares -->
+            <div id="tower-floors-panel" style="display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex: 1; padding-right: 5px;">
+                <!-- floors will be dynamically populated -->
+            </div>
+
+            <!-- Botão Confirmar/Fechar -->
+            <button id="close-towers-btn" class="overlay-button" style="margin-top: 10px; width: 100%; padding: 12px; font-weight: bold; background: #27ae60; border-color: #2ecc71; margin-left: 0; margin-right: 0;">CONFIRMAR BUILD</button>
+        </div>
+    </div>
+
     <!-- MATCH FOUND -->
     <div id="match-found-overlay">
         <h2>⚔️ PARTIDA ENCONTRADA!</h2>
@@ -374,6 +723,7 @@
             <div class="stat-item">Nv. <span id="level-value">1</span></div>
             <div class="stat-item">Pts: <span id="score-value">0</span></div>
         </div>
+        <div id="tower-badge-hud" style="margin-top: 8px; font-size: 0.8rem; display: flex; flex-direction: column; gap: 4px; border-top: 1px solid #444; padding-top: 6px;"></div>
     </div>
     <!-- BOSS HUD -->
     <div id="boss-hud" class="boss-hud-container">
@@ -395,7 +745,6 @@
         <div class="boss-hud-item"><div class="hud-item-label" style="color:var(--poderoso-color)">O PODEROSO</div><div class="progress-bar-container"><div id="poderoso-hp-bar" class="progress-bar"><div id="poderoso-hp-text" class="progress-bar-text"></div></div></div></div>
         <div class="boss-hud-item"><div class="progress-bar-container"><div id="poderoso-power-bar" class="progress-bar"><div id="poderoso-power-text" class="progress-bar-text"></div></div></div></div>
     </div>
-    <div id="buff-display"><h3 id="buff-name">Buff</h3><p id="buff-timer"></p></div>
     <div id="skills-hud">
         <div id="skill-q" class="skill-slot">Q</div>
         <div id="skill-w" class="skill-slot">W</div>
@@ -412,24 +761,28 @@
             <div id="r-button" class="mobile-button">R</div>
         </div>
     </div>
-    <!-- MULTIPLAYER SCOREBOARD -->
-    <div id="multiplayer-scoreboard"></div>
+    <!-- RIGHT HUD AREA (Scoreboard + Buffs/Debuffs) -->
+    <div class="right-hud-container">
+        <div id="multiplayer-scoreboard"></div>
+        <div id="buff-display"></div>
+    </div>
     <div id="latency-display">Ping: <span id="latency-value">--</span></div>
 
     <script type="module">
         import * as THREE from 'three';
         import { NetworkClient } from './js/NetworkClient.js';
-        import { SnapshotRenderer } from './js/SnapshotRenderer.js';
+        import { SnapshotRenderer } from './js/SnapshotRenderer.js?v=1.0.5';
         import { InputManager } from './js/InputManager.js';
-        import { HUDManager } from './js/HUDManager.js';
+        import { HUDManager } from './js/HUDManager.js?v=1.0.3';
         import { AuthManager } from './js/auth.js';
         import { DashboardManager } from './js/DashboardManager.js';
         import { ChangelogManager } from './js/ChangelogManager.js';
+        import { DamageTextManager } from './js/DamageTextManager.js';
 
         // --- State ---
         let scene, camera, renderer, clock;
         let cameraShake = { duration: 0, intensity: 0 };
-        let net, snapshotRenderer, inputManager, hudManager;
+        let net, snapshotRenderer, inputManager, hudManager, damageTextManager;
         let animationFrameId;
         const TICK_MS = 50; // 20Hz
 
@@ -469,6 +822,181 @@
         const loggedUsername = document.getElementById('logged-username');
         const logoutBtn = document.getElementById('logout-button');
 
+        // --- Essence Towers Data & Selection ---
+        const towersData = {
+          red: {
+            id: 'red',
+            name: 'Torre Vermelha',
+            focus: 'Dano / Burst',
+            icon: '🔺',
+            floors: [
+              { level: 1, title: 'Status', options: ['+15% Dano', '+10% Speed', '+20% Crítico'] },
+              { level: 2, title: 'Ataque', options: ['10% Lifesteal', '+20% Dano (<30% HP)', 'Ignora 25% Armor'] },
+              { level: 3, title: 'Efeito', options: ['Dano escala c/ hits', 'Ataque Cleave', '+70% Dano / -30% AS'] },
+              { level: 4, title: 'Condicional', options: ['Kill = Cura+Speed', '4º Hit Explode', 'Dano x2 (<20% HP)'] },
+            ],
+            basicUlt: 'Raio de Fogo Simples'
+          },
+          green: {
+            id: 'green',
+            name: 'Torre Verde',
+            focus: 'Tank / Defesa',
+            icon: '🟩',
+            floors: [
+              { level: 1, title: 'Status', options: ['+25% HP Max', 'Redução Dano Flat', 'Imune a Knockback'] },
+              { level: 2, title: 'Defesa', options: ['Regen 1% HP/s', '+30% Defesa (>80% HP)', 'Reflete 15% Dano'] },
+              { level: 3, title: 'Presença', options: ['Ataques geram Taunt', 'Aura Redução Dano', 'Cura de itens x2'] },
+              { level: 4, title: 'Condicional', options: ['Escudo fora combate', 'Sobrevive 1 Hit Kill', 'Escudo quebrado explode'] },
+            ],
+            basicUlt: 'Escudo de Polígonos'
+          },
+          purple: {
+            id: 'purple',
+            name: 'Torre Roxa',
+            focus: 'Magia / Utilidade',
+            icon: '🟣',
+            floors: [
+              { level: 1, title: 'Status', options: ['+25% Escudo Max', '+15% Move Speed', '+CDR'] },
+              { level: 2, title: 'Magia', options: ['Dano extra após skill', 'Escudo Defletor', 'Vampirismo Mágico'] },
+              { level: 3, title: 'Controle', options: ['10% Esquiva', 'Ataques dão Slow', 'Orbes extras no hit'] },
+              { level: 4, title: 'Condicional', options: ['Kill reseta CDs', 'Hitbox magias +30%', 'Aura tóxica DPS'] },
+            ],
+            basicUlt: 'Pulso Arcano'
+          }
+        };
+
+        let selectedTowerColor = 'red';
+        let selectedPassives = { 1: 0, 2: 0, 3: 0, 4: 0 };
+
+        function updateTowerSummaryText() {
+            const summaryText = document.getElementById('tower-summary-text');
+            const btn = document.getElementById('open-towers-btn');
+            if (!summaryText) return;
+            const tower = towersData[selectedTowerColor];
+            if (tower) {
+                const p1 = tower.floors[0].options[selectedPassives[1]] || '';
+                const p2 = tower.floors[1].options[selectedPassives[2]] || '';
+                const p3 = tower.floors[2].options[selectedPassives[3]] || '';
+                const p4 = tower.floors[3].options[selectedPassives[4]] || '';
+                
+                const colorHex = selectedTowerColor === 'red' ? '#ff4d4d' : selectedTowerColor === 'green' ? '#4dff4d' : '#d44dff';
+                summaryText.innerHTML = `<span style="color: ${colorHex}; font-weight: bold; font-size: 0.78rem;">${tower.icon} ${tower.name}</span><br><span style="color: #bbb; font-size: 0.65rem; font-weight: normal; font-family: monospace;">[${p1} • ${p2} • ${p3} • ${p4}]</span>`;
+                
+                if (btn) {
+                    btn.style.borderColor = colorHex;
+                    btn.style.boxShadow = `0 4px 15px rgba(0,0,0,0.4), 0 0 10px ${selectedTowerColor === 'red' ? 'rgba(239,68,68,0.35)' : selectedTowerColor === 'green' ? 'rgba(16,185,129,0.35)' : 'rgba(168,85,247,0.35)'}`;
+                }
+            }
+        }
+
+        function saveBuild() {
+            localStorage.setItem('onlinerpg_selected_tower', selectedTowerColor);
+            localStorage.setItem('onlinerpg_selected_passives', JSON.stringify(selectedPassives));
+            updateTowerSummaryText();
+        }
+
+        function loadBuild() {
+            const savedColor = localStorage.getItem('onlinerpg_selected_tower');
+            if (savedColor && towersData[savedColor]) {
+                selectedTowerColor = savedColor;
+            }
+            const savedPassives = localStorage.getItem('onlinerpg_selected_passives');
+            if (savedPassives) {
+                try {
+                    selectedPassives = JSON.parse(savedPassives);
+                } catch(e) {}
+            }
+            updateTowerSummaryText();
+        }
+
+        function renderTowerSelector() {
+            ['red', 'green', 'purple'].forEach(c => {
+                const btn = document.getElementById(`tower-btn-${c}`);
+                if (btn) {
+                    btn.className = 'tower-select-btn';
+                    if (selectedTowerColor === c) {
+                        btn.classList.add(`active-${c}`);
+                    }
+                }
+            });
+
+            const panel = document.getElementById('tower-floors-panel');
+            if (!panel) return;
+            panel.innerHTML = '';
+
+            const tower = towersData[selectedTowerColor];
+
+            const f5Div = document.createElement('div');
+            f5Div.className = 'floor-5-ult-card';
+            f5Div.innerHTML = `
+                <div class="floor-5-title">Andar 5 - Ultimate Básica</div>
+                <div class="floor-5-name">${tower.basicUlt}</div>
+                <div class="floor-5-warning">⚠️ Desperta e sofre Mutação ao atingir o Nível 20</div>
+            `;
+            panel.appendChild(f5Div);
+
+            [...tower.floors].reverse().forEach(floor => {
+                const row = document.createElement('div');
+                row.className = 'floor-row';
+
+                const label = document.createElement('div');
+                label.className = 'floor-label';
+                label.innerHTML = `Andar ${floor.level}<br><span style="font-size:0.6rem;opacity:0.6;">${floor.title}</span>`;
+                row.appendChild(label);
+
+                const grid = document.createElement('div');
+                grid.className = 'floor-options-grid';
+
+                floor.options.forEach((opt, idx) => {
+                    const optBtn = document.createElement('button');
+                    optBtn.className = 'floor-option-btn';
+                    optBtn.textContent = opt;
+                    if (selectedPassives[floor.level] === idx) {
+                        optBtn.classList.add(`selected-${selectedTowerColor}`);
+                    }
+                    optBtn.onclick = (e) => {
+                        e.preventDefault();
+                        selectedPassives[floor.level] = idx;
+                        saveBuild();
+                        renderTowerSelector();
+                    };
+                    grid.appendChild(optBtn);
+                });
+
+                row.appendChild(grid);
+                panel.appendChild(row);
+            });
+
+            updateTowerSummaryText();
+        }
+
+        function getCurrentBuild() {
+            return {
+                buildingColor: selectedTowerColor,
+                floor1: selectedPassives[1],
+                floor2: selectedPassives[2],
+                floor3: selectedPassives[3],
+                floor4: selectedPassives[4]
+            };
+        }
+
+        document.getElementById('tower-btn-red').onclick = (e) => { e.preventDefault(); selectedTowerColor = 'red'; selectedPassives = {1:0,2:0,3:0,4:0}; saveBuild(); renderTowerSelector(); };
+        document.getElementById('tower-btn-green').onclick = (e) => { e.preventDefault(); selectedTowerColor = 'green'; selectedPassives = {1:0,2:0,3:0,4:0}; saveBuild(); renderTowerSelector(); };
+        document.getElementById('tower-btn-purple').onclick = (e) => { e.preventDefault(); selectedTowerColor = 'purple'; selectedPassives = {1:0,2:0,3:0,4:0}; saveBuild(); renderTowerSelector(); };
+
+        // Modal triggers
+        document.getElementById('open-towers-btn').onclick = (e) => {
+            e.preventDefault();
+            document.getElementById('essence-towers-modal').style.display = 'flex';
+        };
+        document.getElementById('close-towers-btn').onclick = (e) => {
+            e.preventDefault();
+            document.getElementById('essence-towers-modal').style.display = 'none';
+        };
+
+        loadBuild();
+        renderTowerSelector();
+
         // --- Auth Logic ---
         function showLogin() {
             loginTab.classList.add('active');
@@ -490,6 +1018,8 @@
             loggedUsername.textContent = username;
             pcBtn.disabled = false;
             mobileBtn.disabled = false;
+            const openTowersBtn = document.getElementById('open-towers-btn');
+            if (openTowersBtn) openTowersBtn.style.display = 'flex';
         }
 
         function showLoggedOut() {
@@ -497,6 +1027,8 @@
             loggedInContainer.style.display = 'none';
             pcBtn.disabled = true;
             mobileBtn.disabled = true;
+            const openTowersBtn = document.getElementById('open-towers-btn');
+            if (openTowersBtn) openTowersBtn.style.display = 'none';
         }
 
         // Check if already logged in
@@ -581,7 +1113,7 @@
             // Register event handlers BEFORE connecting to avoid race conditions
             net.on('welcome', () => {
                 queueText.textContent = 'Procurando partida...';
-                net.joinQueueWithToken(token);
+                net.joinQueueWithToken(token, getCurrentBuild());
                 net.selectPlatform(platform);
             });
 
@@ -624,6 +1156,9 @@
                         scene.background = new THREE.Color(0x100018);
                         if (scene.fog) scene.fog.color = new THREE.Color(0x100018);
                     }
+                } else if (ev.event === 'HIT_NUMBER' && damageTextManager && camera && renderer) {
+                    const d = ev.data;
+                    damageTextManager.showDamage(d.x, d.y, d.z, d.value, d.type, camera, renderer.domElement);
                 }
             });
 
@@ -738,6 +1273,10 @@
             inputManager = new InputManager(net);
             inputManager.setup(platform, camera, scene);
             hudManager = new HUDManager(playerId);
+
+            // Damage text floating numbers
+            const dmgLayer = document.getElementById('damage-text-layer');
+            damageTextManager = new DamageTextManager(dmgLayer, 60);
 
             // Handle upgrade prompts
             net.on('upgradePrompt', (payload) => {

@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
 import { GameEngine } from '../game/GameEngine';
 import { CONFIG } from '../config';
-import { ClientMessage, ServerMessage } from '../network/Protocol';
+import { ClientMessage, ServerMessage, PlayerBuild } from '../network/Protocol';
 import { rankingService } from '../database/ranking';
 import { getUpgradePromptForLevel, applyUpgrade } from '../game/UpgradeSystem';
 
@@ -19,10 +19,10 @@ export class Room {
         this.engine = new GameEngine(0);
     }
 
-    addPlayer(playerId: string, name: string, ws: WebSocket, platform: 'pc' | 'mobile' = 'pc'): void {
+    addPlayer(playerId: string, name: string, ws: WebSocket, platform: 'pc' | 'mobile' = 'pc', build?: PlayerBuild): void {
         this.players.set(playerId, ws);
         this.playerNames.set(playerId, name);
-        this.engine.addPlayer(playerId, name, platform);
+        this.engine.addPlayer(playerId, name, platform, build);
         console.log(`[Room ${this.id.slice(0, 8)}] Player joined: ${name} [${platform}] (${this.players.size}/${CONFIG.MAX_PLAYERS_PER_ROOM})`);
     }
 
@@ -66,7 +66,7 @@ export class Room {
         // Check for upgrade prompts
         for (const p of this.engine.players.values()) {
             if (p.isSelectingUpgrade && p.pendingUpgradeLevel > 0) {
-                const prompt = getUpgradePromptForLevel(p.pendingUpgradeLevel);
+                const prompt = getUpgradePromptForLevel(p.pendingUpgradeLevel, p);
                 if (prompt) {
                     const ws = this.players.get(p.id);
                     if (ws) this.send(ws, { type: 'UPGRADE_PROMPT', payload: prompt });
@@ -148,7 +148,19 @@ export class Room {
             for (const p of this.engine.players.values()) {
                 const deaths = p.isDead ? 1 : 0;
                 const assists = 0; // Not tracked currently
-                await rankingService.postScore(p.name, p.score, time, this.engine.spawnManager.collapseLevel, p.kills, this.id, this.players.size, deaths, assists);
+                const rUpgrade = p.selectedUpgrades?.['r'];
+                let floor5 = 0;
+                if (rUpgrade) {
+                    const options = ['r_chuva_tetraedros', 'r_raio_oblivio', 'r_corte_dimensional', 
+                                     'r_bastiao_titanio', 'r_terremoto_geometrico', 'r_armadura_reativa', 
+                                     'r_singularidade', 'r_distorcao_temporal_mut', 'r_reset_dimensional'];
+                    const idx = options.indexOf(rUpgrade);
+                    if (idx !== -1) {
+                        floor5 = (idx % 3) + 1;
+                    }
+                }
+                p.build.floor5 = floor5;
+                await rankingService.postScore(p.name, p.score, time, this.engine.spawnManager.collapseLevel, p.kills, this.id, this.players.size, deaths, assists, p.build);
             }
             await rankingService.saveMatchHistory(this.id, scores.length, time, this.engine.spawnManager.collapseLevel);
         } catch (e) { console.error('[Room] Failed to save scores:', e); }

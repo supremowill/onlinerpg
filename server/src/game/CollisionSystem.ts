@@ -34,10 +34,17 @@ export class CollisionSystem {
             if (proj.isDestroyed || !proj.isPlayerOwned) continue;
             for (const e of enemies) {
                 if (e.isDestroyed) continue;
+                const isPiercing = proj.specialEffect === 'raio_oblivio' || proj.specialEffect === 'raio_fogo_simples';
+                if (isPiercing && proj.hitTargets && proj.hitTargets.has(e.id)) {
+                    continue;
+                }
                 const dist = proj.position.distanceToXZ(e.position);
                 if (dist < proj.hitboxRadius + e.hitboxRadius) {
                     hits.push({ enemyId: e.id, projectileId: proj.id, damage: proj.damage, instigatorId: proj.ownerId, specialEffect: proj.specialEffect, bleedDamage: proj.bleedDamage });
-                    if (proj.bounces > 0) { proj.bounces--; proj.direction.negate(); }
+                    if (isPiercing) {
+                        if (!proj.hitTargets) proj.hitTargets = new Set();
+                        proj.hitTargets.add(e.id);
+                    } else if (proj.bounces > 0) { proj.bounces--; proj.direction.negate(); }
                     else proj.isDestroyed = true;
                     break;
                 }

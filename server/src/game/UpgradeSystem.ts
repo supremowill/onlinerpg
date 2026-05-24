@@ -86,6 +86,63 @@ export const UPGRADE_DEFINITIONS: Record<string, UpgradeOption[]> = {
 };
 
 // ============================================================
+// Definições das mutações de ultimate baseadas na cor da torre
+// ============================================================
+export const TOWER_MUTATION_DEFINITIONS: Record<string, UpgradeOption[]> = {
+    red: [
+        {
+            id: 'r_chuva_tetraedros',
+            name: 'Chuva de Tetraedros',
+            description: 'Chuva de meteoros tetraédricos em área, causando dano massivo contínuo por 4s.',
+        },
+        {
+            id: 'r_raio_oblivio',
+            name: 'Raio do Oblívio',
+            description: 'Dispara um megashoot em linha reta de calor extremo que derrete inimigos.',
+        },
+        {
+            id: 'r_corte_dimensional',
+            name: 'Corte Dimensional',
+            description: 'Dobra a velocidade e ataca inimigos em sequência com cortes críticos rápidos.',
+        },
+    ],
+    green: [
+        {
+            id: 'r_bastiao_titanio',
+            name: 'Bastião de Titânio',
+            description: 'Gera um escudo impenetrável de 100% do HP máximo e imunidade total por 6s.',
+        },
+        {
+            id: 'r_terremoto_geometrico',
+            name: 'Terremoto Geométrico',
+            description: 'Cria terremotos contínuos ao seu redor que dão dano e Stun (1s) a cada pulso.',
+        },
+        {
+            id: 'r_armadura_reativa',
+            name: 'Armadura Reativa',
+            description: 'Reflete 50% do dano sofrido e atordoa o atacante por 1s.',
+        },
+    ],
+    purple: [
+        {
+            id: 'r_singularidade',
+            name: 'Singularidade',
+            description: 'Dispara um orbe que cria um buraco negro puxando inimigos próximos por 4s.',
+        },
+        {
+            id: 'r_distorcao_temporal_mut',
+            name: 'Distorção Temporal',
+            description: 'Cria campo que congela inimigos e reduz tempo de recarga de suas magias em 80%.',
+        },
+        {
+            id: 'r_reset_dimensional',
+            name: 'Reset Dimensional',
+            description: 'Blink à frente. Ao usar a ultimate, reseta instantaneamente os cooldowns de Q, W, E.',
+        },
+    ],
+};
+
+// ============================================================
 // Mapeamento: nível → habilidade que recebe upgrade
 // ============================================================
 const UPGRADE_LEVEL_MAP: Record<number, 'q' | 'w' | 'e' | 'r'> = {
@@ -100,13 +157,22 @@ export const UPGRADE_LEVELS = [5, 10, 15, 20];
 /**
  * Verifica se o player atingiu um nível de upgrade e retorna o prompt
  */
-export function getUpgradePromptForLevel(level: number): UpgradePrompt | null {
+export function getUpgradePromptForLevel(level: number, player?: ServerPlayer): UpgradePrompt | null {
     const skill = UPGRADE_LEVEL_MAP[level];
     if (!skill) return null;
+    
+    let options = UPGRADE_DEFINITIONS[skill];
+    if (level === 20 && player && player.build && player.build.buildingColor) {
+        const color = player.build.buildingColor;
+        if (TOWER_MUTATION_DEFINITIONS[color]) {
+            options = TOWER_MUTATION_DEFINITIONS[color];
+        }
+    }
+
     return {
         level,
         skill,
-        options: UPGRADE_DEFINITIONS[skill],
+        options,
     };
 }
 
@@ -115,7 +181,13 @@ export function getUpgradePromptForLevel(level: number): UpgradePrompt | null {
  * Retorna true se aplicado com sucesso.
  */
 export function applyUpgrade(player: ServerPlayer, skill: string, optionId: string): boolean {
-    const options = UPGRADE_DEFINITIONS[skill];
+    let options = UPGRADE_DEFINITIONS[skill];
+    if (skill === 'r' && player.build && player.build.buildingColor) {
+        const color = player.build.buildingColor;
+        if (TOWER_MUTATION_DEFINITIONS[color]) {
+            options = TOWER_MUTATION_DEFINITIONS[color];
+        }
+    }
     if (!options) return false;
     const option = options.find(o => o.id === optionId);
     if (!option) return false;
@@ -160,7 +232,7 @@ export function applyUpgrade(player: ServerPlayer, skill: string, optionId: stri
             player.upgradeFlags.e_fortress = true;
             break;
 
-        // ── R Upgrades ──
+        // ── Fallback R Upgrades ──
         case 'r_furia_infinita':
             player.upgradeFlags.r_extendOnKill = true;
             break;
@@ -170,6 +242,39 @@ export function applyUpgrade(player: ServerPlayer, skill: string, optionId: stri
         case 'r_singularidade_colapso':
             player.upgradeFlags.r_storedExplosion = true;
             player.ultDamageStored = 0;
+            break;
+
+        // ── Red Mutations ──
+        case 'r_chuva_tetraedros':
+            player.upgradeFlags.r_chuva_tetraedros = true;
+            break;
+        case 'r_raio_oblivio':
+            player.upgradeFlags.r_raio_oblivio = true;
+            break;
+        case 'r_corte_dimensional':
+            player.upgradeFlags.r_corte_dimensional = true;
+            break;
+
+        // ── Green Mutations ──
+        case 'r_bastiao_titanio':
+            player.upgradeFlags.r_bastiao_titanio = true;
+            break;
+        case 'r_terremoto_geometrico':
+            player.upgradeFlags.r_terremoto_geometrico = true;
+            break;
+        case 'r_armadura_reativa':
+            player.upgradeFlags.r_armadura_reativa = true;
+            break;
+
+        // ── Purple Mutations ──
+        case 'r_singularidade':
+            player.upgradeFlags.r_singularidade = true;
+            break;
+        case 'r_distorcao_temporal_mut':
+            player.upgradeFlags.r_distorcao_temporal_mut = true;
+            break;
+        case 'r_reset_dimensional':
+            player.upgradeFlags.r_reset_dimensional = true;
             break;
     }
 

@@ -87,7 +87,7 @@ ipcMain.handle('save-all-data', async (event, gameDataStr, updatesDataStr) => {
           // Use absolute paths for the scp/ssh commands to avoid working directory issues
           const scpGame = `scp -i "${keyPath}" -o StrictHostKeyChecking=no "${GAME_DATA_PATH}" ubuntu@18.231.110.109:/home/ubuntu/onlinerpg/server/game_data.json`;
           const scpUpdates = `scp -i "${keyPath}" -o StrictHostKeyChecking=no "${UPDATES_DATA_PATH}" ubuntu@18.231.110.109:/home/ubuntu/onlinerpg/client/updates.json`;
-          const restartApp = `ssh -i "${keyPath}" -o StrictHostKeyChecking=no ubuntu@18.231.110.109 "cd onlinerpg && docker compose restart app"`;
+          const restartApp = `ssh -i "${keyPath}" -o StrictHostKeyChecking=no ubuntu@18.231.110.109 "cd onlinerpg && docker compose restart app website"`;
 
           exec(`${scpGame} && ${scpUpdates} && ${restartApp}`, (awsError, awsStdout, awsStderr) => {
             if (awsError) {

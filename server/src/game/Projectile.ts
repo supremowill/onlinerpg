@@ -10,6 +10,7 @@ export class ServerProjectile {
     public velocity: Vec3 | null = null; // for arcing projectiles
     public speed: number = 15;
     public damage: number;
+    public isCritical: boolean = false;
     public lifetime: number = 3;
     public hitboxRadius: number = 0.3;
     public isPlayerOwned: boolean = false;
@@ -23,6 +24,7 @@ export class ServerProjectile {
     public color: number = 0xffffff;
     public skillUpgrades: { q?: string; w?: string; e?: string; r?: string } | null = null;
     public trackHits: boolean = false;
+    public hitTargets: Set<string> = new Set();
 
     constructor(start: Vec3, dir: Vec3, ownerId: string, isPlayerOwned: boolean, damage: number, color: number) {
         this.position = start.clone();

@@ -49,20 +49,15 @@ export class SnapshotRenderer {
             LichKing: { geo: new THREE.BoxGeometry(2, 2, 2), color: 0xADD8E6 },
             PlantaCarnivora: { geo: new THREE.CylinderGeometry(2, 1.5, 1, 12), color: 0x588157 },
             CaoDosInfernos: {
-                // Geometric hunter: black/red block + pyramid details (Naafiri-inspired)
-                geo: new THREE.BoxGeometry(2.4, 1.2, 1.2),
-                color: 0x1a0000, // Very dark red-black
-                emissive: 0x8B0000, // Dark red emissive
-                emissiveIntensity: 0.4,
-                // Extra meshes for the geometric look
-                pyramidLeft: new THREE.ConeGeometry(0.4, 0.8, 4),
-                pyramidRight: new THREE.ConeGeometry(0.4, 0.8, 4),
-                pyramidColor: 0x8B0000, // Dark red pyramids
-                shieldGeo: new THREE.BoxGeometry(2.6, 1.4, 0.1),
-                shieldColor: 0xFF0000,
-                isCaoDosInfernos: true, // Flag for special rendering
+                geo: new THREE.BoxGeometry(2, 1.5, 4),
+                color: 0x111111,
+                emissive: 0x111111,
+                emissiveIntensity: 0.2,
+                isCaoDosInfernos: true,
             },
-            MatilhaGeometra: { geo: new THREE.BoxGeometry(0.8, 0.8, 0.8), color: 0x8B4513 },
+            MatilhaGeometra: {
+                isMatilhaGeometra: true,
+            },
             TheMightyOne: { geo: new THREE.BoxGeometry(8, 8, 8), color: 0x0a0a0a },
             AlmaAmaldicoada: { geo: new THREE.SphereGeometry(0.5, 16, 16), color: 0x1a1a1a },
             CaveiraExplosiva: { geo: new THREE.BoxGeometry(0.5, 0.5, 0.5), color: 0xeeeeee },
@@ -80,6 +75,12 @@ export class SnapshotRenderer {
             Minotauro: { geo: new THREE.BoxGeometry(2.5, 2.5, 2.5), color: 0x4E342E },
             Geriao: { geo: new THREE.CylinderGeometry(0.8, 0.8, 3.5, 6), color: 0x004D40 },
             Lúcifer: { geo: new THREE.SphereGeometry(3, 32, 32), color: 0xFF0000 },
+            DoutorDoenca: {
+                geo: new THREE.DodecahedronGeometry(1.5),
+                color: 0x3a0050,
+                emissive: 0x1d0032,
+                emissiveIntensity: 0.5,
+            },
             EspectroDeRaziel: {
                 geo: new THREE.OctahedronGeometry(1.2, 0),
                 color: 0x00CCFF, // Cyan-blue, translucent
@@ -236,6 +237,37 @@ export class SnapshotRenderer {
                 } else if (entry.shieldMesh) {
                     entry.shieldMesh.visible = false;
                 }
+
+                // --- Familiar from Núcleo da Matilha ---
+                const hasFamiliar = ps.timedBuffs?.includes('nucleo_da_matilha');
+                if (hasFamiliar && !ps.isDead) {
+                    if (!entry.familiarMesh) {
+                        const famGeo = new THREE.CylinderGeometry(0, 0.3, 0.9, 4, 1);
+                        const famMat = new THREE.MeshStandardMaterial({ 
+                            color: 0xff0000, 
+                            emissive: 0xaa0000, 
+                            roughness: 0.2, 
+                            metalness: 0.5 
+                        });
+                        const famMesh = new THREE.Mesh(famGeo, famMat);
+                        famMesh.rotation.y = Math.PI / 4;
+                        famMesh.rotation.x = Math.PI / 2;
+                        famMesh.castShadow = true;
+                        this.scene.add(famMesh);
+                        entry.familiarMesh = famMesh;
+                    }
+                    const orbitSpeed = Date.now() * 0.003;
+                    const radius = 1.8;
+                    const fx = entry.mesh.position.x + Math.sin(orbitSpeed) * radius;
+                    const fz = entry.mesh.position.z + Math.cos(orbitSpeed) * radius;
+                    entry.familiarMesh.position.set(fx, 1.2, fz);
+                    entry.familiarMesh.rotation.y = orbitSpeed + Math.PI / 2;
+                } else if (entry.familiarMesh) {
+                    this.scene.remove(entry.familiarMesh);
+                    entry.familiarMesh.geometry.dispose();
+                    entry.familiarMesh.material.dispose();
+                    entry.familiarMesh = null;
+                }
                 entry.lastUpdate = Date.now();
             }
         }
@@ -249,20 +281,119 @@ export class SnapshotRenderer {
                     let mesh;
                     let mixer = null;
                     const visual = this.enemyVisuals[es.type] || { geo: new THREE.BoxGeometry(1, 1, 1), color: 0xffffff };
-                    const mat = new THREE.MeshStandardMaterial({
-                        color: visual.color,
-                        emissive: visual.emissive || visual.color,
-                        emissiveIntensity: es.type === 'TheMightyOne' ? 1.0 : (visual.emissiveIntensity || 0.2),
-                        metalness: es.type === 'Farao' ? 0.7 : 0.4,
-                        roughness: es.type === 'Farao' ? 0.3 : 0.5,
-                        transparent: es.type === 'SuperBoss' || es.type === 'FeiticeiroImortal' || es.type === 'EspectroSombrio' || es.type === 'EspectroDeRaziel' || es.type === 'Smith' || es.type === 'CloneSmith',
-                        opacity: visual.opacity !== undefined ? visual.opacity : (es.type === 'SuperBoss' ? 0.8 : es.type === 'EspectroSombrio' ? 0.5 : es.type === 'EspectroDeRaziel' ? 0.7 : 1.0),
-                    });
-                    if (es.type === 'EspectroSombrio') mat.emissive.set(0x00aaff);
-                    if (es.type === 'EspectroDeRaziel') mat.emissive.set(0x00CCFF);
-                    if (es.type === 'Smith' || es.type === 'CloneSmith') mat.metalness = 0.8;
-                    mesh = new THREE.Mesh(visual.geo.clone(), mat);
-                    mesh.castShadow = true;
+                    if (es.type === 'MatilhaGeometra') {
+                        mesh = new THREE.Group();
+                        const pupGeo = new THREE.CylinderGeometry(0, 0.5, 1.5, 4, 1);
+                        const pupMat = new THREE.MeshStandardMaterial({ 
+                            color: 0xff0000, 
+                            emissive: 0xaa0000,
+                            roughness: 0.2,
+                            metalness: 0.5
+                        });
+                        const pupMesh = new THREE.Mesh(pupGeo, pupMat);
+                        pupMesh.rotation.y = Math.PI / 4;
+                        pupMesh.rotation.x = Math.PI / 2;
+                        pupMesh.castShadow = true;
+                        mesh.add(pupMesh);
+                    } else {
+                        const mat = new THREE.MeshStandardMaterial({
+                            color: visual.color,
+                            emissive: visual.emissive || visual.color,
+                            emissiveIntensity: es.type === 'TheMightyOne' ? 1.0 : (visual.emissiveIntensity || 0.2),
+                            metalness: es.type === 'Farao' ? 0.7 : 0.4,
+                            roughness: es.type === 'Farao' ? 0.3 : 0.5,
+                            transparent: es.type === 'SuperBoss' || es.type === 'FeiticeiroImortal' || es.type === 'EspectroSombrio' || es.type === 'EspectroDeRaziel' || es.type === 'Smith' || es.type === 'CloneSmith',
+                            opacity: visual.opacity !== undefined ? visual.opacity : (es.type === 'SuperBoss' ? 0.8 : es.type === 'EspectroSombrio' ? 0.5 : es.type === 'EspectroDeRaziel' ? 0.7 : 1.0),
+                        });
+                        if (es.type === 'EspectroSombrio') mat.emissive.set(0x00aaff);
+                        if (es.type === 'EspectroDeRaziel') mat.emissive.set(0x00CCFF);
+                        if (es.type === 'Smith' || es.type === 'CloneSmith') mat.metalness = 0.8;
+                        if (es.type === 'DoutorDoenca') {
+                            mat.metalness = 0.8;
+                            mat.roughness = 0.1;
+                        }
+                        mesh = new THREE.Mesh(visual.geo.clone(), mat);
+                        mesh.castShadow = true;
+
+                        // --- CaoDosInfernos (Naafiri) Rework Visual Assembly ---
+                        if (es.type === 'CaoDosInfernos') {
+                            const glowMaterial = new THREE.MeshStandardMaterial({ 
+                                color: 0xff0000, 
+                                emissive: 0xaa0000,
+                                roughness: 0.2,
+                                metalness: 0.5
+                            });
+                            // Core
+                            const coreGeo = new THREE.BoxGeometry(2.1, 0.5, 3);
+                            const coreMesh = new THREE.Mesh(coreGeo, glowMaterial);
+                            coreMesh.position.set(0, 0, 0);
+                            mesh.add(coreMesh);
+                            // Snout/Head
+                            const headGeo = new THREE.CylinderGeometry(0, 1, 2, 4, 1);
+                            const headMesh = new THREE.Mesh(headGeo, mat);
+                            headMesh.rotation.x = Math.PI / 2;
+                            headMesh.rotation.y = Math.PI / 4;
+                            headMesh.position.set(0, 0, 2.5);
+                            headMesh.castShadow = true;
+                            mesh.add(headMesh);
+                            // Teeth
+                            for (let i = 0; i < 3; i++) {
+                                const toothGeo = new THREE.CylinderGeometry(0, 0.3, 1, 4, 1);
+                                const toothMesh = new THREE.Mesh(toothGeo, glowMaterial);
+                                toothMesh.rotation.x = Math.PI / 2;
+                                toothMesh.rotation.y = Math.PI / 4;
+                                toothMesh.position.set(-0.6 + (i * 0.6), -0.55, 3.2);
+                                mesh.add(toothMesh);
+                            }
+                            // Back spikes
+                            for (let i = 0; i < 2; i++) {
+                                const spikeGeo = new THREE.CylinderGeometry(0, 0.5, 2, 4, 1);
+                                const spikeMesh = new THREE.Mesh(spikeGeo, glowMaterial);
+                                spikeMesh.rotation.y = Math.PI / 4;
+                                spikeMesh.rotation.x = -Math.PI / 6;
+                                spikeMesh.position.set(0, 1.25, -1 + (i * 1.5));
+                                mesh.add(spikeMesh);
+                            }
+                        }
+                    }
+
+                    if (es.type === 'DoutorDoenca') {
+
+                        const limbGeo = new THREE.CylinderGeometry(0.3, 0.3, 2, 6);
+                        const limbMat = new THREE.MeshStandardMaterial({
+                            color: 0x39ff14,
+                            emissive: 0x39ff14,
+                            emissiveIntensity: 1.0,
+                            roughness: 0.2,
+                            metalness: 0.1
+                        });
+
+                        mesh.userData.limbs = [];
+                        for (let i = 0; i < 4; i++) {
+                            const limb = new THREE.Mesh(limbGeo, limbMat);
+                            limb.castShadow = true;
+                            const angle = (i / 4) * Math.PI * 2;
+                            limb.position.set(Math.cos(angle) * 2.2, 0, Math.sin(angle) * 2.2);
+                            limb.rotation.x = Math.PI / 4;
+                            limb.rotation.z = Math.PI / 4;
+                            mesh.add(limb);
+                            mesh.userData.limbs.push(limb);
+                        }
+
+                        const esporoGeo = new THREE.BoxGeometry(0.25, 0.25, 0.25);
+                        const esporoMat = new THREE.MeshStandardMaterial({
+                            color: 0x39ff14,
+                            emissive: 0x39ff14,
+                            emissiveIntensity: 1.0
+                        });
+                        mesh.userData.esporos = [];
+                        for (let i = 0; i < 12; i++) {
+                            const esporo = new THREE.Mesh(esporoGeo, esporoMat);
+                            esporo.position.set(Math.cos(i) * 3, 0.5 - Math.random(), Math.sin(i) * 3);
+                            mesh.add(esporo);
+                            mesh.userData.esporos.push(esporo);
+                        }
+                    }
 
                     // ─── FARAÓ — geometric low-poly assembly ─────────────────
                     if (es.type === 'Farao') {
@@ -368,14 +499,18 @@ export class SnapshotRenderer {
                 }
                 // Shield visualization for CaoDosInfernos
                 if (es.type === 'CaoDosInfernos' && es.shieldActive && !entry.shieldMesh) {
-                    const shieldGeo = new THREE.BoxGeometry(2.6, 1.4, 0.1);
-                    const shieldMat = new THREE.MeshBasicMaterial({ color: 0xFF0000, transparent: true, opacity: 0.4, emissive: 0xFF0000, emissiveIntensity: 0.5 });
+                    const shieldGeo = new THREE.IcosahedronGeometry(2.5, 0); // sharp polygon shield
+                    const shieldMat = new THREE.MeshBasicMaterial({ color: 0xFF0000, transparent: true, opacity: 0.4, wireframe: true });
                     const shieldMesh = new THREE.Mesh(shieldGeo, shieldMat);
                     entry.mesh.add(shieldMesh);
                     entry.shieldMesh = shieldMesh;
                 }
                 if (es.type === 'CaoDosInfernos') {
-                    if (entry.shieldMesh) entry.shieldMesh.visible = es.shieldActive || false;
+                    if (entry.shieldMesh) {
+                        entry.shieldMesh.visible = es.shieldActive || false;
+                        entry.shieldMesh.rotation.y += 0.01;
+                        entry.shieldMesh.rotation.x += 0.005;
+                    }
                     // Channeling W: red line effect
                     if (es.isChannelingW && !entry.channelLine) {
                         const lineGeo = new THREE.BufferGeometry().setFromPoints([
@@ -504,6 +639,34 @@ export class SnapshotRenderer {
                         entry.orbitingSoulMeshes.push(soulMesh);
                     }
                 }
+                if (es.type === 'DoutorDoenca') {
+                    entry.mesh.rotation.x += 0.005;
+                    entry.mesh.rotation.z += 0.003;
+
+                    if (entry.mesh.userData.limbs) {
+                        const time = Date.now() * 0.003;
+                        entry.mesh.userData.limbs.forEach((limb, i) => {
+                            limb.position.y = Math.sin(time + i) * 0.3;
+                            limb.rotation.y += 0.01;
+                        });
+                    }
+
+                    if (entry.mesh.userData.esporos) {
+                        const time = Date.now() * 0.0015;
+                        entry.mesh.userData.esporos.forEach((esporo, i) => {
+                            const orbitRadius = 2.5 + 0.5 * Math.sin(time + i);
+                            const angle = time + (i / 12) * Math.PI * 2;
+                            esporo.position.set(Math.cos(angle) * orbitRadius, 0.5 * Math.sin(time * 2 + i), Math.sin(angle) * orbitRadius);
+                        });
+                    }
+
+                    if (es.isSurtoActive) {
+                        const pulseScale = 1.0 + 0.35 * Math.abs(Math.sin(Date.now() * 0.015));
+                        entry.mesh.scale.set(pulseScale, pulseScale, pulseScale);
+                    } else {
+                        entry.mesh.scale.set(1.0, 1.0, 1.0);
+                    }
+                }
                 // Rotate cylinder scarf
                 if (entry.cylinderMesh) {
                     entry.cylinderMesh.rotation.z += 0.02;
@@ -519,21 +682,48 @@ export class SnapshotRenderer {
                 let entry = this.projectilePool.get(ps.id);
                 if (!entry) {
                     const c = ps.color || (ps.isPlayerOwned ? 0x00BFFF : 0xff4444);
-                    // Apply skill upgrade visuals for Q
                     let projColor = c;
                     if (ps.skillUpgrades?.q === 'q_impacto_estilhacante') projColor = 0x00ffff; // cyan
                     else if (ps.skillUpgrades?.q === 'q_convergencia_assassina') projColor = 0x8A2BE2; // purple
                     else if (ps.skillUpgrades?.q === 'q_rastro_polvora') projColor = 0xff4500; // orange
+                    if (ps.specialEffect === 'matilha_projectile') projColor = 0xff3333; // bright red
+                    else if (ps.specialEffect === 'injecao_geometrica') projColor = 0x39ff14;
+                    else if (ps.specialEffect === 'esporo_basico') projColor = 0x39ff14;
                     const mat = new THREE.MeshStandardMaterial({
                         color: projColor, emissive: projColor, emissiveIntensity: 2,
                         wireframe: ps.skillUpgrades?.q === 'q_impacto_estilhacante'
                     });
-                    const mesh = new THREE.Mesh(this.geometries.projectile.clone(), mat);
+                    let geo = this.geometries.projectile.clone();
+                    if (ps.specialEffect === 'prismaSombrio') {
+                        geo = new THREE.CylinderGeometry(0, 0.4, 1.5, 4, 1);
+                        geo.rotateX(Math.PI / 2);
+                        geo.rotateY(Math.PI / 4);
+                    } else if (ps.specialEffect === 'matilha_projectile') {
+                        geo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+                    } else if (ps.specialEffect === 'injecao_geometrica') {
+                        geo = new THREE.CylinderGeometry(0, 0.35, 1.8, 4, 1);
+                        geo.rotateX(Math.PI / 2);
+                        geo.rotateY(Math.PI / 4);
+                    } else if (ps.specialEffect === 'esporo_basico') {
+                        geo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
+                    }
+                    const mesh = new THREE.Mesh(geo, mat);
                     this.scene.add(mesh);
                     entry = { mesh };
                     this.projectilePool.set(ps.id, entry);
                 }
-                entry.mesh.position.set(ps.x, ps.y || 0.5, ps.z);
+                const prevProj = prev?.projectiles?.find(p => p.id === ps.id);
+                const tx = prevProj ? THREE.MathUtils.lerp(prevProj.x, ps.x, alpha) : ps.x;
+                const ty = ps.y || 0.5;
+                const tz = prevProj ? THREE.MathUtils.lerp(prevProj.z, ps.z, alpha) : ps.z;
+                entry.mesh.position.set(tx, ty, tz);
+                if (prevProj) {
+                    const dx = ps.x - prevProj.x;
+                    const dz = ps.z - prevProj.z;
+                    if (dx*dx + dz*dz > 0.0001) {
+                        entry.mesh.rotation.y = Math.atan2(dx, dz);
+                    }
+                }
             }
         }
 
@@ -570,6 +760,7 @@ export class SnapshotRenderer {
                 if (!entry) {
                     let color = 0xffa500;
                     let geo = new THREE.CircleGeometry(de.radius || 3, 32);
+                    let isLine = false;
                     if (de.type === 'blizzard' || de.type === 'nevascaZone') { color = 0x00aaff; geo = new THREE.RingGeometry(de.radius || 3, (de.radius || 3) + 0.1, 32); }
                     else if (de.type === 'tormentFlames') color = 0x5a189a;
                     else if (de.type === 'cannonSalvo') color = 0xff6600;
@@ -582,28 +773,77 @@ export class SnapshotRenderer {
                     else if (de.type === 'mine') { color = 0xff4500; geo = new THREE.SphereGeometry(de.radius || 0.5, 8, 8); }
                     // Explosion for R upgrade
                     else if (de.type === 'explosion') { color = 0xffff00; geo = new THREE.SphereGeometry(de.radius || 5, 32, 32); }
+                    // Basic & Mutated Ultimates zones
+                    else if (de.type === 'pulso_arcano') { color = 0x8A2BE2; geo = new THREE.SphereGeometry(de.radius || 8, 16, 16); }
+                    else if (de.type === 'chuva_tetraedros_zone') { color = 0xff4500; geo = new THREE.TetrahedronGeometry(de.radius || 4); }
+                    else if (de.type === 'singularidade_zone') { color = 0x4b0082; geo = new THREE.IcosahedronGeometry(de.radius || 6, 1); }
+                    else if (de.type === 'distorcao_temporal_zone') { color = 0x00ffff; geo = new THREE.RingGeometry(de.radius || 8, (de.radius || 8) + 0.2, 32); }
+                    else if (de.type === 'terremoto_geometrico_zone') { color = 0x39ff14; geo = new THREE.DodecahedronGeometry(de.radius || 8, 0); }
                     // Cão dos Infernos zones
                     else if (de.type === 'prismaSombrio') { color = 0x8B0000; geo = new THREE.IcosahedronGeometry(de.radius || 3, 0); }
-                    else if (de.type === 'investidaChannel' || de.type === 'investidaImpact') { color = 0xFF0000; geo = new THREE.CylinderGeometry(0.2, 0.2, 6, 8); }
-                    else if (de.type === 'eviscerarStart' || de.type === 'eviscerarSlam') { color = 0xFF4400; geo = new THREE.CylinderGeometry(de.radius || 2, de.radius || 2, 0.5, 16); }
+                    else if (de.type === 'investidaChannel') {
+                        color = 0xFF0000;
+                        const points = [
+                            new THREE.Vector3(0, 0.05, 0),
+                            new THREE.Vector3((de.extras?.targetX || 0) - de.x, 0.05, (de.extras?.targetZ || 0) - de.z)
+                        ];
+                        geo = new THREE.BufferGeometry().setFromPoints(points);
+                        isLine = true;
+                    }
+                    else if (de.type === 'investidaImpact') { color = 0xFF0000; geo = new THREE.CylinderGeometry(0.2, 0.2, 6, 8); }
+                    else if (de.type === 'eviscerarStart' || de.type === 'eviscerarSlam') { color = 0xFF4400; geo = new THREE.CylinderGeometry(1, 1, 0.5, 16); }
                     else if (de.type === 'chamadoAbismo') { color = 0x4A0000; geo = new THREE.IcosahedronGeometry(de.radius || 8, 1); }
-                    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, wireframe: de.type === 'w_campo_hemorragia' || de.type === 'prismaSombrio' || de.type === 'chamadoAbismo' });
-                    const mesh = new THREE.Mesh(geo, mat);
-                    mesh.rotation.x = -Math.PI / 2;
+                    else if (de.type === 'nuvem_esporos') { color = 0x39ff14; geo = new THREE.IcosahedronGeometry(de.radius || 8, 1); }
+                    else if (de.type === 'esporo_explosion') { color = 0x39ff14; geo = new THREE.SphereGeometry(de.radius || 3.5, 16, 16); }
+                    const mat = isLine
+                        ? new THREE.LineBasicMaterial({ color, linewidth: 4 })
+                        : new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, wireframe: de.type === 'w_campo_hemorragia' || de.type === 'prismaSombrio' || de.type === 'chamadoAbismo' || de.type === 'nuvem_esporos' || de.type === 'singularidade_zone' || de.type === 'terremoto_geometrico_zone' });
+                    const mesh = isLine ? new THREE.Line(geo, mat) : new THREE.Mesh(geo, mat);
+                    if (!isLine && de.type !== 'eviscerarStart' && de.type !== 'eviscerarSlam') mesh.rotation.x = -Math.PI / 2;
                     mesh.position.y = 0.02;
                     this.scene.add(mesh);
-                    entry = { mesh };
+                    entry = { mesh, isLine };
                     this.zonePool.set(de.id, entry);
                 }
                 entry.mesh.position.set(de.x, 0.02, de.z);
-                entry.mesh.material.opacity = de.opacity != null ? de.opacity * 0.4 : 0.3;
+                if (entry.mesh.material) {
+                    entry.mesh.material.opacity = de.opacity != null ? de.opacity * 0.4 : 0.3;
+                }
                 // Vacuum upgrade: implode effect
                 if (de.type === 'w_vacuo_magnetico') {
                     const scale = 1 - (de.timer || 0) / (de.duration || 1);
                     entry.mesh.scale.set(scale, scale, scale);
                 }
+                // Esporo explosion: expand effect
+                if (de.type === 'esporo_explosion') {
+                    const scale = 1 - (de.timer || 0) / (de.duration || 1);
+                    entry.mesh.scale.set(scale, scale, scale);
+                }
+                // Ultimate zones scale/rotate effects
+                if (de.type === 'pulso_arcano' || de.type === 'terremoto_geometrico_zone') {
+                    const scale = 1 - (de.timer || 0) / (de.duration || 1);
+                    entry.mesh.scale.set(scale, scale, scale);
+                }
+                if (de.type === 'singularidade_zone') {
+                    const scale = 1.0 + Math.sin(Date.now() / 100) * 0.1;
+                    entry.mesh.scale.set(scale, scale, scale);
+                    entry.mesh.rotation.z += 0.02;
+                }
+                if (de.type === 'chuva_tetraedros_zone') {
+                    const scale = 1 - (de.timer || 0) / (de.duration || 1);
+                    entry.mesh.scale.set(scale, scale, scale);
+                    entry.mesh.rotation.z += 0.05;
+                }
+                // Eviscerar: expand cylinder shockwave
+                if (de.type === 'eviscerarStart' || de.type === 'eviscerarSlam') {
+                    const elapsed = (de.duration || 500) - (de.timer || 0);
+                    const progress = Math.max(0, Math.min(1, elapsed / (de.duration || 500)));
+                    const targetRadius = de.radius || 6;
+                    const scale = progress * targetRadius;
+                    entry.mesh.scale.set(scale, 1, scale);
+                }
                 // Investida: rotate cylinder to point direction
-                if (de.type === 'investidaChannel' || de.type === 'investidaImpact') {
+                if (!entry.isLine && (de.type === 'investidaChannel' || de.type === 'investidaImpact')) {
                     entry.mesh.rotation.y = Date.now() * 0.005;
                 }
             }
@@ -626,6 +866,7 @@ export class SnapshotRenderer {
                 if (entry.orbitingSoulMeshes) { while (entry.orbitingSoulMeshes.length > 0) { const sm = entry.orbitingSoulMeshes.pop(); entry.mesh.remove(sm); sm.geometry.dispose(); sm.material.dispose(); } }
                 if (entry.cylinderMesh) { entry.mesh.remove(entry.cylinderMesh); entry.cylinderMesh.geometry.dispose(); (entry.cylinderMesh.material).dispose(); }
                 if (entry.auraMesh) { entry.mesh.remove(entry.auraMesh); entry.auraMesh.geometry.dispose(); (entry.auraMesh.material).dispose(); }
+                if (entry.familiarMesh) { this.scene.remove(entry.familiarMesh); entry.familiarMesh.geometry.dispose(); entry.familiarMesh.material.dispose(); }
                 this.scene.remove(entry.mesh);
                 if (entry.mesh.geometry) entry.mesh.geometry.dispose();
                 if (entry.mesh.material) {
