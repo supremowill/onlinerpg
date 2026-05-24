@@ -314,9 +314,11 @@ export class ServerPlayer {
         if (this.doubleDamageSuperLowHp && (this.hp / this.maxHp) < 0.20) base *= 2.0;
         
         // Critical hits
-        const totalCritChance = 0.05 + this.bonusCritChance;
+        const baseCritChance = pConf.critChance !== undefined ? pConf.critChance : (CONFIG.PLAYER as any).CRIT_CHANCE || 0.05;
+        const critDmgMult = pConf.critDamageMultiplier !== undefined ? pConf.critDamageMultiplier : (CONFIG.PLAYER as any).CRIT_DAMAGE_MULTIPLIER || 2.0;
+        const totalCritChance = baseCritChance + this.bonusCritChance;
         if (Math.random() < totalCritChance) {
-            base *= 2.0;
+            base *= critDmgMult;
             this.lastHitWasCrit = true;
         } else {
             this.lastHitWasCrit = false;

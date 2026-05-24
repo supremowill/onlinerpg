@@ -34,6 +34,8 @@ export const CONFIG = {
         LEVEL_HP_MULTIPLIER: 1.5,
         BASE_DAMAGE: 40,
         LEVEL_DAMAGE_MULTIPLIER: 2.0,
+        CRIT_CHANCE: 0.05,
+        CRIT_DAMAGE_MULTIPLIER: 2.0,
         UPGRADE_LEVELS: [5, 10, 15, 20],
 
         // Skill Q - Dash

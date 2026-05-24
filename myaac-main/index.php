@@ -2845,6 +2845,8 @@ if ($subtopic === 'player_builds') {
             $gameData['player']['levelHpMultiplier'] = floatval($_POST['levelHpMultiplier']);
             $gameData['player']['baseDamage'] = intval($_POST['baseDamage'] ?? 40);
             $gameData['player']['levelDamageMultiplier'] = floatval($_POST['levelDamageMultiplier'] ?? 2.0);
+            $gameData['player']['critChance'] = floatval($_POST['critChance']) / 100.0;
+            $gameData['player']['critDamageMultiplier'] = floatval($_POST['critDamageMultiplier'] ?? 2.0);
         } else {
             // Edit Enemy
             if (isset($gameData['enemies'][$entity])) {
@@ -2963,6 +2965,14 @@ if ($subtopic === 'player_builds') {
                 <tr bgcolor="#D4C0A1" style="color:#000;">
                     <td><b>Multiplicador de Ataque por Level (atq/lv):</b></td>
                     <td><input type="number" step="0.1" name="levelDamageMultiplier" value="' . floatval($pStats['levelDamageMultiplier'] ?? 2.0) . '" style="width:90%;" required /> <span style="font-size:9px; color:#555;">(Ex: 2.0 = dobra o dano a cada nível base)</span></td>
+                </tr>
+                <tr bgcolor="#F1E0C6" style="color:#000;">
+                    <td><b>Chance de Crítico Base (%):</b></td>
+                    <td><input type="number" step="0.1" name="critChance" value="' . floatval(($pStats['critChance'] ?? 0.05) * 100) . '" style="width:90%;" required /> <span style="font-size:9px; color:#555;">(Ex: 5 = 5% de chance base de crítico)</span></td>
+                </tr>
+                <tr bgcolor="#D4C0A1" style="color:#000;">
+                    <td><b>Multiplicador de Dano Crítico:</b></td>
+                    <td><input type="number" step="0.1" name="critDamageMultiplier" value="' . floatval($pStats['critDamageMultiplier'] ?? 2.0) . '" style="width:90%;" required /> <span style="font-size:9px; color:#555;">(Ex: 2.0 = 200% de dano normal)</span></td>
                 </tr>
             </table>
             <br/>

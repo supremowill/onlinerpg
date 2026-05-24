@@ -12,6 +12,8 @@
     "levelHpMultiplier": 1.3,
     "baseDamage": 40,
     "levelDamageMultiplier": 2.0,
+    "critChance": 0.05,
+    "critDamageMultiplier": 2.0,
     "upgradeLevels": [
       5,
       10,
