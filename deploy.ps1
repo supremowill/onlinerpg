@@ -111,7 +111,7 @@ chmod 666 onlinerpg/client/updates.json onlinerpg/server/game_data.json
 
 echo "--> Atualizando containers no Docker Compose..."
 cd onlinerpg
-sudo docker compose build --no-cache && sudo docker compose up -d
+sudo docker compose build && sudo docker compose up -d
 
 echo "--> Limpando pacotes antigos..."
 rm -f /home/ubuntu/onlinerpg.tar.gz
