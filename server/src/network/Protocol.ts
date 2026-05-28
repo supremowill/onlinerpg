@@ -7,7 +7,7 @@
 // ============================================================
 
 export interface PlayerBuild {
-    buildingColor: 'red' | 'green' | 'purple';
+    buildingColor: 'red' | 'green' | 'purple' | 'poison';
     floor1: number; // Selected index (0, 1, or 2)
     floor2: number;
     floor3: number;
@@ -19,7 +19,7 @@ export type ClientMessage =
     | { type: 'JOIN_QUEUE'; payload: { name?: string; token?: string; build?: PlayerBuild } }
     | { type: 'SELECT_PLATFORM'; payload: { platform: 'pc' | 'mobile' } }
     | { type: 'INPUT_STATE'; payload: InputState }
-    | { type: 'USE_SKILL'; payload: { skill: 'q' | 'w' | 'e' | 'r' } }
+    | { type: 'USE_SKILL'; payload: { skill: 'q' | 'w' | 'e' | 'r' | 'jump' } }
     | { type: 'MOVE_TO'; payload: { x: number; z: number } }
     | { type: 'ATTACK_START' }
     | { type: 'ATTACK_STOP' }
@@ -111,6 +111,7 @@ export interface PlayerSnapshot {
     id: string;
     name: string;
     x: number;
+    y?: number;
     z: number;
     rotY: number;
     hp: number;
@@ -138,6 +139,12 @@ export interface PlayerSnapshot {
     skillUpgrades?: { q?: string; w?: string; e?: string; r?: string };
     isSelectingUpgrade?: boolean;
     build?: PlayerBuild;
+    damage?: number;
+    defense?: number;
+    critChance?: number;
+    critDamageMultiplier?: number;
+    speed?: number;
+    attackSpeed?: number;
 }
 
 export interface EnemySnapshot {
@@ -177,7 +184,8 @@ export interface EnemySnapshot {
     julgamentoSafeX?: number;
     isRaioWarning?: boolean;
     raioTargetX?: number;
-    raioTargetZ?: number;
+    isEmerging?: boolean;
+    isEnraged?: boolean;
 }
 
 export interface ProjectileSnapshot {
@@ -208,6 +216,7 @@ export interface DynamicEntitySnapshot {
     radius?: number;
     opacity?: number;
     color?: number;
+    rotY?: number;
 }
 
 export interface BossSnapshot {

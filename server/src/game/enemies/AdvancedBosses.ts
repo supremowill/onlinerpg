@@ -101,94 +101,408 @@ export class FeiticeiroImortalEnemy extends ServerEnemy {
 }
 
 /** LichKing - frost aura, frost cone, prison, skull summon, blizzard ultimate, revival queue */
+/** LichKing - reworked boss with enrage, scaling, Frostmourne stacks, PredDefile, HexCrown rings, Twin Valkyrs, and Sindragosa Wrath */
 export class LichKingEnemy extends ServerEnemy {
     public auraRadius: number;
-    public revivalQueue: { reviveAt: number; position: Vec3; originalType: string }[] = [];
-    private habilidades = {
-        explosao: { cooldown: 6000, lastUsed: 0 },
-        prisao: { cooldown: 12000, lastUsed: 0 },
-        chamado: { cooldown: 15000, lastUsed: 0 },
-        ultimate: { cooldown: 35000, lastUsed: 0, isChanneling: false, timer: 0 },
-    };
-    public pendingProjectiles: { dir: Vec3; damage: number; specialEffect?: string }[] = [];
+    public timeAlive: number = 0;
+    public phase: number = 1;
+    public introTimer: number = 3000;
+    public auraDamageTimer: number = 0;
+    public ghoulSpawnTimer: number = 12000;
+    public lastAttackTime: number = 0;
+    public attackCooldown: number = 2000;
+
+    public pendingMeleeAttacks: { targetId: string; damage: number; stun?: number }[] = [];
+    public pendingProjectiles: { dir: Vec3; damage: number; specialEffect?: string; speed?: number }[] = [];
     public pendingAbilities: any[] = [];
+
+    private habilidades = {
+        defile: { cooldown: 10000, lastUsed: 0 },
+        colapso: { cooldown: 18000, lastUsed: 0 },
+        valkyr: { cooldown: 35000, lastUsed: 0 },
+        sindragosa: { cooldown: 50000, lastUsed: 0 }
+    };
 
     constructor(pos: Vec3, globalMult: number, playerLevel: number, playerMaxHp: number) {
         super(pos);
-        this.type = 'LichKing'; this.name = 'Lich King';
+        this.type = 'LichKing';
+        this.name = 'Lich King';
         const c = CONFIG.LICH_KING;
-        this.maxHp = 32000 + (450 * playerLevel) + (playerMaxHp * 0.7); this.hp = this.maxHp;
+        this.maxHp = c.BASE_HP + (450 * playerLevel) + (playerMaxHp * 0.7);
+        this.hp = this.maxHp;
         this.damage = 350 + (playerMaxHp * 0.15);
-        this.speed = this.getRegSpeed(c.SPEED); this.originalSpeed = this.getRegSpeed(c.SPEED);
-        this.auraRadius = c.AURA_RADIUS;
-        this.xp = this.getRegXp(c.XP); this.score = this.getRegScore(c.SCORE); this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
+        this.speed = this.getRegSpeed(c.SPEED);
+        this.originalSpeed = this.speed;
+        this.auraRadius = c.AURA_RADIUS || 4;
+        this.xp = this.getRegXp(c.XP);
+        this.score = this.getRegScore(c.SCORE);
+        this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
+        this.isInvulnerable = true;
     }
 
-    addToRevivalQueue(position: Vec3, originalType: string): void {
-        this.revivalQueue.push({ reviveAt: Date.now() + 5000, position: position.clone(), originalType });
+    applySlow(duration: number, amount = 0.5): void {
+        // Armadura Reativa de Saronita: Imunidade total
+    }
+
+    applyKnockback(direction: Vec3, force: number): void {
+        // Armadura Reativa de Saronita: Imunidade total
+    }
+
+    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true, hpPercent = 0, isTrueDamage = false): void {
+        if (this.isInvulnerable || this.isDestroyed) return;
+        
+        const hpBefore = this.hp;
+        super.takeDamage(amount, instigator, countsForPassive, hpPercent, isTrueDamage);
+        const damageDealt = hpBefore - this.hp;
+
+        // Armadura Reativa de Saronita: Refletir 5% de todo dano recebido como losangos perseguidores
+        if (damageDealt > 0 && instigator) {
+            const reflectedAmount = Math.max(1, Math.round(damageDealt * 0.05));
+            const dir = instigator.position.clone().sub(this.position);
+            dir.y = 0;
+            if (dir.lengthSq() > 0.01) {
+                dir.normalize();
+                this.pendingProjectiles.push({
+                    dir,
+                    damage: reflectedAmount,
+                    specialEffect: 'reactive_saronite_shard',
+                    speed: 12.0
+                });
+            }
+        }
     }
 
     update(dt: number, players: ServerPlayer[], gameTime: number): void {
         if (this.isDestroyed) return;
-        const target = this.getClosestPlayer(players);
-        if (!target) return;
-        const now = Date.now(); const ms = dt * 1000;
-        const dist = this.position.distanceToXZ(target.position);
 
-        // Revival queue
-        for (let i = this.revivalQueue.length - 1; i >= 0; i--) {
-            if (now >= this.revivalQueue[i].reviveAt) {
-                const item = this.revivalQueue.splice(i, 1)[0];
-                this.pendingAbilities.push({ type: 'spawnEspectro', x: item.position.x, z: item.position.z, originalType: item.originalType });
-            }
-        }
+        const ms = dt * 1000;
 
-        // Frost aura: damage + slow nearby players
-        for (const p of players) {
-            if (p.isDead) continue;
-            if (this.position.distanceToXZ(p.position) < this.auraRadius) {
-                p.takeDamage(p.maxHp * 0.02 * dt, false);
-                p.applySlow(500, 0.3);
-            }
-        }
-
-        // Ultimate channeling
-        if (this.habilidades.ultimate.isChanneling) {
-            this.habilidades.ultimate.timer -= ms;
-            if (this.habilidades.ultimate.timer <= 0) {
-                this.habilidades.ultimate.isChanneling = false;
-                this.pendingAbilities.push({ type: 'nevascaZone', x: this.position.x, z: this.position.z, radius: 6, duration: 3000, damagePerSec: 600 + (target.maxHp * 0.4) });
+        // --- Animação de Entrada ---
+        if (this.introTimer > 0) {
+            this.introTimer -= ms;
+            if (this.introTimer <= 0) {
+                this.isInvulnerable = false;
+                // Explode o cilindro: dano, repulsão e ativa zona visual
+                this.pendingAbilities.push({
+                    type: 'ice_cylinder_explode',
+                    x: this.position.x,
+                    z: this.position.z,
+                    radius: 5.0,
+                    duration: 1000
+                });
                 for (const p of players) {
-                    if (!p.isDead) { p.applySlow(4000, 0.5); p.statusEffects.lichKingLifeDrain.isActive = true; p.statusEffects.lichKingLifeDrain.timer = 4000; p.statusEffects.lichKingLifeDrain.damagePerSecond = p.maxHp * 0.05; }
+                    if (p.isDead) continue;
+                    const d = this.position.distanceToXZ(p.position);
+                    if (d < 5.0) {
+                        p.takeDamage(this.damage * 0.40, false);
+                        const kbDir = p.position.clone().sub(this.position);
+                        kbDir.y = 0;
+                        if (kbDir.lengthSq() > 0.01) {
+                            p.applyKnockback(kbDir.normalize(), 15.0);
+                        }
+                    }
                 }
             }
             return;
         }
 
-        // Ability priority
-        if (now > this.habilidades.ultimate.lastUsed + this.habilidades.ultimate.cooldown) {
-            this.habilidades.ultimate.lastUsed = now; this.habilidades.ultimate.isChanneling = true; this.habilidades.ultimate.timer = 3000;
-        } else if (now > this.habilidades.chamado.lastUsed + this.habilidades.chamado.cooldown) {
-            this.habilidades.chamado.lastUsed = now;
-            this.pendingAbilities.push({ type: 'spawnCaveiras', x: this.position.x, z: this.position.z, count: 5, damage: 200 + (target.maxHp * 0.03) });
-        } else if (now > this.habilidades.prisao.lastUsed + this.habilidades.prisao.cooldown) {
-            this.habilidades.prisao.lastUsed = now;
-            this.pendingAbilities.push({ type: 'lichPrison', targetId: target.id, duration: 2000 });
-        } else if (now > this.habilidades.explosao.lastUsed + this.habilidades.explosao.cooldown) {
-            this.habilidades.explosao.lastUsed = now;
-            const baseDir = target.position.clone().sub(this.position); baseDir.y = 0; baseDir.normalize();
-            for (let i = -1; i <= 1; i++) {
-                this.pendingProjectiles.push({ dir: baseDir.clone().applyAxisAngleY(i * 0.2), damage: 300 + (target.maxHp * 0.04), specialEffect: 'freezingCone' });
+        const target = this.getClosestPlayer(players);
+        if (!target) return;
+
+        this.timeAlive += dt;
+        const now = Date.now();
+        const dist = this.position.distanceToXZ(target.position);
+
+        // --- Escalonamento a cada 60s vivo ---
+        const scalingTicks = Math.floor(this.timeAlive / 60);
+        const scalingMult = 1.0 + scalingTicks * 0.08;
+        this.sizeMultiplier = scalingMult;
+
+        // --- Fase 2 (Enrage) aos 50% HP ---
+        if (this.phase === 1 && this.hp / this.maxHp <= 0.50) {
+            this.phase = 2;
+            this.speed = this.originalSpeed * 1.20;
+        }
+
+        // --- Passiva 1: Aura de Inverno Impiedoso ---
+        this.auraDamageTimer -= ms;
+        if (this.auraDamageTimer <= 0) {
+            this.auraDamageTimer = 500;
+            const currentAuraRadius = this.auraRadius * scalingMult;
+            for (const p of players) {
+                if (p.isDead) continue;
+                if (this.position.distanceToXZ(p.position) < currentAuraRadius) {
+                    p.takeDamage(this.damage * 0.05 * scalingMult, false, true);
+                    p.applySlow(600, 0.20);
+                    // Ceifador de Almas: cura 1.5% do HP máximo
+                    this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.015);
+                }
             }
         }
+
+        // --- Passiva 4: Legião do Flagelo ---
+        this.ghoulSpawnTimer -= ms;
+        if (this.ghoulSpawnTimer <= 0) {
+            this.ghoulSpawnTimer = 12000;
+            this.pendingAbilities.push({
+                type: 'spawnGhouls',
+                x: this.position.x,
+                z: this.position.z,
+                count: 4,
+                damage: this.damage * 0.3
+            });
+        }
+
+        // --- Ataque Básico: Golpe de Frostmourne ---
+        if (dist <= 2.8) {
+            const currentCooldown = this.phase === 2 ? this.attackCooldown / 2 : this.attackCooldown;
+            if (now > this.lastAttackTime + currentCooldown && this.canUseAbility()) {
+                this.lastAttackTime = now;
+                
+                target.takeDamage(this.damage * scalingMult, false);
+                this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.015);
+
+                // Mecânica de Stacks (Gelo Cadavérico)
+                let stacks = (target.statusEffects as any).geloCadaviricStacks || 0;
+                stacks++;
+                if (stacks >= 4) {
+                    stacks = 0;
+                    target.applyRoot(1500);
+                    target.takeDamage(this.damage * 0.5 * scalingMult, false);
+                    
+                    this.pendingAbilities.push({
+                        type: 'estilhacar_explosion',
+                        x: target.position.x,
+                        z: target.position.z,
+                        radius: 4.0 * scalingMult,
+                        damage: this.damage * 0.4 * scalingMult
+                    });
+                }
+                (target.statusEffects as any).geloCadaviricStacks = stacks;
+            }
+        }
+
+        // --- IA de Habilidades Ativas ---
+        const defileCd = this.phase === 2 ? this.habilidades.defile.cooldown / 2 : this.habilidades.defile.cooldown;
+        const colapsoCd = this.phase === 2 ? this.habilidades.colapso.cooldown / 2 : this.habilidades.colapso.cooldown;
+        const valkyrCd = this.phase === 2 ? this.habilidades.valkyr.cooldown / 2 : this.habilidades.valkyr.cooldown;
+        const sindragosaCd = this.phase === 2 ? this.habilidades.sindragosa.cooldown / 2 : this.habilidades.sindragosa.cooldown;
+
+        if (this.canUseAbility()) {
+            if (now > this.habilidades.sindragosa.lastUsed + sindragosaCd) {
+                this.habilidades.sindragosa.lastUsed = now;
+                this.pendingAbilities.push({
+                    type: 'sindragosa_wrath',
+                    x: this.position.x,
+                    z: this.position.z,
+                    damage: this.damage * 1.5 * scalingMult,
+                    sizeMultiplier: scalingMult,
+                    sourceId: this.id
+                });
+            }
+            else if (now > this.habilidades.valkyr.lastUsed + valkyrCd) {
+                this.habilidades.valkyr.lastUsed = now;
+                this.pendingAbilities.push({
+                    type: 'spawnValkyrs',
+                    targetId: target.id,
+                    damage: this.damage * 0.4 * scalingMult,
+                    bossId: this.id
+                });
+                
+                if (this.phase === 2) {
+                    this.habilidades.colapso.lastUsed = now;
+                    this.pendingAbilities.push({
+                        type: 'icecrown_collapse',
+                        x: this.position.x,
+                        z: this.position.z,
+                        damage: this.damage * 0.8 * scalingMult,
+                        sizeMultiplier: scalingMult,
+                        sourceId: this.id
+                    });
+                }
+            }
+            else if (now > this.habilidades.colapso.lastUsed + colapsoCd) {
+                this.habilidades.colapso.lastUsed = now;
+                this.pendingAbilities.push({
+                    type: 'icecrown_collapse',
+                    x: this.position.x,
+                    z: this.position.z,
+                    damage: this.damage * 0.8 * scalingMult,
+                    sizeMultiplier: scalingMult,
+                    sourceId: this.id
+                });
+            }
+            else if (now > this.habilidades.defile.lastUsed + defileCd) {
+                this.habilidades.defile.lastUsed = now;
+                const velocity = target.slideVelocity || new Vec3(0, 0, 0);
+                const targetPos = target.position.clone().add(velocity.clone().multiplyScalar(1.0));
+                
+                this.pendingAbilities.push({
+                    type: 'defile',
+                    x: targetPos.x,
+                    z: targetPos.z,
+                    radius: 2.0 * scalingMult,
+                    damage: 120 * scalingMult,
+                    duration: 10000,
+                    sourceId: this.id
+                });
+            }
+        }
+
         this.moveTowards(target.position, dt);
         this.lookAt(target.position);
     }
 
     toSnapshot() {
         const s = super.toSnapshot();
-        s.isChanneling = this.habilidades.ultimate.isChanneling;
+        s.isEmerging = this.introTimer > 0;
+        s.isEnraged = this.phase === 2;
         return s;
+    }
+}
+
+/** Ghoul - Cubo cinza ágil do Flagelo */
+export class GhoulEnemy extends ServerEnemy {
+    constructor(pos: Vec3, damage: number, globalMult: number) {
+        super(pos);
+        this.type = 'Ghoul';
+        this.name = 'Ghoul';
+        this.maxHp = 600 * globalMult;
+        this.hp = this.maxHp;
+        this.damage = damage;
+        this.speed = 4.2;
+        this.originalSpeed = 4.2;
+        this.xp = 50;
+        this.score = 200;
+        this.hitboxRadius = 0.5;
+        this.position.y = 0.4;
+    }
+
+    update(dt: number, players: ServerPlayer[], gameTime: number): void {
+        if (this.isDestroyed || this.updateStatus(dt)) return;
+        const target = this.getClosestPlayer(players);
+        if (!target) return;
+        
+        const dist = this.position.distanceToXZ(target.position);
+        if (dist <= 1.2) {
+            target.takeDamage(this.damage, false);
+            this.isDestroyed = true;
+        } else {
+            this.moveTowards(target.position, dt);
+        }
+        this.lookAt(target.position);
+    }
+}
+
+/** Valkyr - Pirâmide branca voadora flanqueadora */
+export class ValkyrEnemy extends ServerEnemy {
+    public chargeDir: Vec3 = new Vec3(0, 0, 0);
+    public warningTimer: number = 1500;
+    public chargeTimer: number = 3000;
+    public isCharging: boolean = false;
+    public grabbedPlayer: ServerPlayer | null = null;
+    public grabTimer: number = 0;
+    public targetPos: Vec3 = new Vec3(0, 0, 0);
+
+    constructor(pos: Vec3, damage: number, globalMult: number) {
+        super(pos);
+        this.type = 'Valkyr';
+        this.name = 'Val\'kyr Gêmea';
+        this.maxHp = 2000 * globalMult;
+        this.hp = this.maxHp;
+        this.damage = damage;
+        this.speed = 12.0;
+        this.originalSpeed = 12.0;
+        this.xp = 300;
+        this.score = 1000;
+        this.hitboxRadius = 0.8;
+        this.position.y = 3.5;
+    }
+
+    update(dt: number, players: ServerPlayer[], gameTime: number): void {
+        if (this.isDestroyed || this.updateStatus(dt)) {
+            if (this.grabbedPlayer) {
+                this.releasePlayer();
+            }
+            return;
+        }
+
+        const target = this.getClosestPlayer(players);
+        if (!target && !this.grabbedPlayer) return;
+
+        const ms = dt * 1000;
+
+        if (this.grabbedPlayer) {
+            this.grabTimer -= ms;
+            const moveAmt = this.speed * dt;
+            this.position.add(this.chargeDir.clone().multiplyScalar(moveAmt));
+            this.grabbedPlayer.position.copy(this.position);
+            this.grabbedPlayer.position.y = 0.5;
+
+            if (this.grabTimer <= 0) {
+                this.grabbedPlayer.jumpTimer = 800;
+                this.grabbedPlayer.statusEffects.silenced.isActive = false;
+                this.grabbedPlayer.statusEffects.rooted.isActive = false;
+                const pToDamage = this.grabbedPlayer;
+                setTimeout(() => {
+                    if (!pToDamage.isDead) {
+                        pToDamage.takeDamage(pToDamage.maxHp * 0.25, false);
+                    }
+                }, 800);
+                this.grabbedPlayer = null;
+                this.isDestroyed = true;
+            }
+            return;
+        }
+
+        if (this.warningTimer > 0) {
+            this.warningTimer -= ms;
+            if (target) {
+                this.targetPos.copy(target.position);
+                this.lookAt(this.targetPos);
+            }
+            if (this.warningTimer <= 0) {
+                this.isCharging = true;
+                this.chargeDir.copy(this.targetPos).sub(this.position);
+                this.chargeDir.y = 0;
+                if (this.chargeDir.lengthSq() > 0.01) {
+                    this.chargeDir.normalize();
+                } else {
+                    this.chargeDir.set(0, 0, -1);
+                }
+            }
+            return;
+        }
+
+        if (this.isCharging) {
+            this.chargeTimer -= ms;
+            const moveAmt = this.speed * dt;
+            this.position.add(this.chargeDir.clone().multiplyScalar(moveAmt));
+            
+            if (target) {
+                const dist = this.position.distanceToXZ(target.position);
+                if (dist < 1.5) {
+                    this.grabbedPlayer = target;
+                    this.grabTimer = 1000;
+                    target.statusEffects.silenced.isActive = true;
+                    target.statusEffects.silenced.timer = 2000;
+                    target.statusEffects.rooted.isActive = true;
+                    target.statusEffects.rooted.timer = 2000;
+                }
+            }
+
+            if (this.chargeTimer <= 0) {
+                this.isDestroyed = true;
+            }
+        }
+    }
+
+    private releasePlayer(): void {
+        if (this.grabbedPlayer) {
+            this.grabbedPlayer.statusEffects.silenced.isActive = false;
+            this.grabbedPlayer.statusEffects.rooted.isActive = false;
+            this.grabbedPlayer = null;
+        }
     }
 }
 

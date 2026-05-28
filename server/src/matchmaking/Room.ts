@@ -93,16 +93,15 @@ export class Room {
             case 'INPUT_STATE':
                 player.input = msg.payload;
                 if (player.platform === 'pc') {
-                    const mx = msg.payload.mouseX ?? 0;  // -1..1, right is positive
-                    const my = msg.payload.mouseY ?? 0;  // -1..1, up is positive
-                    // Screen-space rotation: atan2(screenX, -screenY) makes character
-                    // always face toward mouse position on screen regardless of camera tilt.
-                    player.rotationY = Math.atan2(mx, -my);
-                    // Use raycaster world coords for projectile direction
+                    // Use raycaster world coords for both projectile direction AND visual rotation
                     if (msg.payload.worldX !== undefined && msg.payload.worldZ !== undefined) {
-                        player.setFacingDirectionOnly(msg.payload.worldX, msg.payload.worldZ);
+                        // setFacingDirection updates both facingDirection AND rotationY from world coords
+                        player.setFacingDirection(msg.payload.worldX, msg.payload.worldZ);
                     } else {
-                        // fallback: derive facing from screen direction
+                        // Fallback: derive from screen-space mouse position
+                        const mx = msg.payload.mouseX ?? 0;
+                        const my = msg.payload.mouseY ?? 0;
+                        player.rotationY = Math.atan2(mx, -my);
                         player.setFacingDirectionFromScreen(mx, -my);
                     }
                 }

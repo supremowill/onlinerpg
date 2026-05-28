@@ -1,5 +1,119 @@
 [
   {
+    "hash": "e9f8032",
+    "date": "2026-05-24T18:26:39-03:00",
+    "message": "chore(balance): auto-save balance tweaks and updates from editor",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "8bbdf53",
+    "date": "2026-05-24T16:10:23-03:00",
+    "message": "Adiciona configurações de Chance de Crítico e Multiplicador de Crítico ao Player no admin do site",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "e1871f2",
+    "date": "2026-05-24T15:46:31-03:00",
+    "message": "Adiciona configuração e formulário de atq/lv (dano base e multiplicador por level) do player, e adiciona ajuda explicativa de xpMultiplier",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "f934888",
+    "date": "2026-05-24T15:37:15-03:00",
+    "message": "Sincronização dos inimigos com o EnemyRegistry e correção de contabilização de pontuação/XP ao abater inimigos",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "cbab3fa",
+    "date": "2026-05-24T13:12:39-03:00",
+    "message": "chore(balance): auto-save balance tweaks and updates from editor",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "03c23e6",
+    "date": "2026-05-24T11:56:41-03:00",
+    "message": "chore(balance): auto-save balance tweaks and updates from editor",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "1eab5fd",
+    "date": "2026-05-24T11:46:48-03:00",
+    "message": "fix: resolve theme boxes 404 images on the website by using correct PNG/GIF paths",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "20783b3",
+    "date": "2026-05-24T11:42:32-03:00",
+    "message": "feat: display weekly leader banner, render updates on news page, and configure weekly winner cron job",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "972bb32",
+    "date": "2026-05-24T11:06:30-03:00",
+    "message": "Add Farao and EscaravelhoFarao to game_data.json and load stats from registry in Farao.ts",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "e7059b9",
+    "date": "2026-05-24T10:48:58-03:00",
+    "message": "Implement scalable defense and damage math, electron support, admin panel with hot-reload",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "a039195",
+    "date": "2026-05-23T23:38:23-03:00",
+    "message": "feat(admin): implement user block management, password change and real-time block checks",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "2c3cf82",
+    "date": "2026-05-23T22:07:40-03:00",
+    "message": "chore(balance): auto-save balance tweaks and updates from editor",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "9d79714",
+    "date": "2026-05-23T20:17:43-03:00",
+    "message": "chore(balance): auto-save balance tweaks and updates from editor",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "c3354da",
+    "date": "2026-05-22T23:57:59-03:00",
+    "message": "chore(balance): auto-save balance tweaks and updates from editor",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "d98346f",
+    "date": "2026-05-22T21:54:43-03:00",
+    "message": "chore(balance): auto-save balance tweaks and updates from editor",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "cd69358",
+    "date": "2026-05-21T21:34:13-03:00",
+    "message": "chore(balance): auto-save balance tweaks and updates from editor",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "a49830d",
+    "date": "2026-05-21T20:51:52-03:00",
+    "message": "chore(balance): auto-save balance tweaks and updates from editor",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "742deb4",
+    "date": "2026-05-21T20:46:22-03:00",
+    "message": "feat: implement game updates panel, AWS sync and ignore build/key files",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "4115e1e",
+    "date": "2026-05-18T09:22:59-03:00",
+    "message": "Added HTML summary of game details (players, enemies, and others)",
+    "author": "WILLIAM DOUGLAS MARTINS DE SOUZA"
+  },
+  {
     "hash": "701e6e3",
     "date": "2026-05-17T21:00:03-03:00",
     "message": "style(ui): redesign player stats dashboard to premium glassmorphic cyber-rpg theme",
@@ -183,120 +297,6 @@
     "hash": "cd6659f",
     "date": "2026-05-03T15:23:34-03:00",
     "message": "fix: executar SQL do schema imediatamente (não lazy) no Render",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "8ad8564",
-    "date": "2026-05-03T15:22:29-03:00",
-    "message": "fix: adicionar endpoint /api/debug para verificar tabelas no Render",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "ce30c23",
-    "date": "2026-05-03T14:21:57-03:00",
-    "message": "fix: adicionar SQL fallback para Render (init.sql embutido)",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "5468d38",
-    "date": "2026-05-03T14:20:35-03:00",
-    "message": "fix: adicionar logs de erro detalhados no registro/login",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "21a81e7",
-    "date": "2026-05-03T13:46:01-03:00",
-    "message": "fix: corrigir sistema de contas (registro/login) para produção",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "72aaad7",
-    "date": "2026-05-03T11:20:44-03:00",
-    "message": "chore: adicionar jsonwebtoken e bcryptjs nas dependencias",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "805f4db",
-    "date": "2026-05-03T11:07:17-03:00",
-    "message": "feat: sistema de contas com autenticação JWT",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "323a3d3",
-    "date": "2026-05-03T10:31:55-03:00",
-    "message": "feat: adicionar Espectro de Raziel (boss) + skill /newboss",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "6d8d122",
-    "date": "2026-05-02T22:51:17-03:00",
-    "message": "fix: corrigir configurações dos bosses do Limbo e erros de build (CONFIG.GUARDIAO_DO_LIMBO etc.)",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "f0bb72c",
-    "date": "2026-05-02T22:46:45-03:00",
-    "message": "fix: tornar banco opcional no startup para evitar crash no Render",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "89f1366",
-    "date": "2026-05-02T22:38:00-03:00",
-    "message": "fix: usar Node.js 22 no Dockerfile para compatibilidade com dependências",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "bc27c30",
-    "date": "2026-05-02T22:35:57-03:00",
-    "message": "fix: exigir DATABASE_URL e tratar erros de conexão com PostgreSQL no Render",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "593ff15",
-    "date": "2026-05-02T22:34:10-03:00",
-    "message": "fix: usar npm install em vez de npm ci no Dockerfile para maior compatibilidade",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "ac8ea8f",
-    "date": "2026-05-02T22:33:24-03:00",
-    "message": "fix: pular inicialização do DB se DATABASE_URL não fornecida (Render)",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "81a2d43",
-    "date": "2026-05-02T22:31:09-03:00",
-    "message": "fix: remover HEALTHCHECK do Dockerfile e tornar falha de DB não-fatal para deploy no Render",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "23424d5",
-    "date": "2026-05-02T22:29:14-03:00",
-    "message": "fix: habilitar novos bosses do Limbo (Círculos 1-9) e preparar deploy no Render",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "5dbed23",
-    "date": "2026-05-02T21:01:16-03:00",
-    "message": "feat: add configs for 9 new bosses (Círculos 1-9)",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "2703c3c",
-    "date": "2026-05-02T19:30:12-03:00",
-    "message": "fix: replace clone spawning with CloneIlusorio and limit to 1",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "c88ab02",
-    "date": "2026-05-02T18:57:07-03:00",
-    "message": "fix: remove volume mounts in docker-compose for production",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "4cc9515",
-    "date": "2026-05-02T18:55:13-03:00",
-    "message": "fix: set NODE_ENV=production in Dockerfile and docker-compose",
     "author": "williamdouglasmsouza"
   }
 ]

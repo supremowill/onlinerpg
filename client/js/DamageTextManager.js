@@ -36,7 +36,7 @@ const DMG_STYLE = `
 .dmg-text.dmg-normal { color: #ffffff; }
 .dmg-text.dmg-heal   { color: #00ff44; font-size: 13px; }
 .dmg-text.dmg-shield { color: #ffd700; }
-.dmg-text.dmg-toxic  { color: #39ff14; font-size: 11px; }
+.dmg-text.dmg-toxic  { color: #39ff14; font-size: 13px; font-weight: bold; }
 .dmg-text.dmg-thorns { color: #ff7700; font-size: 11px; }
 .dmg-text.dmg-spellvamp { color: #bc13fe; font-size: 11px; }
 .dmg-text.dmg-lifesteal { color: #ff1493; font-size: 11px; }
@@ -164,7 +164,9 @@ export class DamageTextManager {
 
         // Format value: compact for large numbers
         let text;
-        if (value >= 1_000_000) {
+        if (value === 0 || type === 'MISS') {
+            text = 'MISS';
+        } else if (value >= 1_000_000) {
             text = (value / 1_000_000).toFixed(1) + 'M';
         } else if (value >= 10_000) {
             text = Math.round(value / 1000) + 'K';
@@ -173,12 +175,12 @@ export class DamageTextManager {
         }
 
         // Format based on type
-        if (type === 'HEAL') text = '+' + text;
-        else if (type === 'TOXIC') text = 'TOXIC: ' + text;
-        else if (type === 'THORNS') text = 'REFLECT: ' + text;
-        else if (type === 'SPELLVAMP') text = 'VAMP: +' + text;
-        else if (type === 'LIFESTEAL') text = 'LIFE: +' + text;
-        else if (type === 'CRIT') text = text + '!';
+        if (type === 'HEAL' && text !== 'MISS') text = '+' + text;
+        else if (type === 'TOXIC' && text !== 'MISS') text = '☠️ ' + text;
+        else if (type === 'THORNS' && text !== 'MISS') text = 'REFLECT: ' + text;
+        else if (type === 'SPELLVAMP' && text !== 'MISS') text = 'VAMP: +' + text;
+        else if (type === 'LIFESTEAL' && text !== 'MISS') text = 'LIFE: +' + text;
+        else if (type === 'CRIT' && text !== 'MISS') text = text + '!';
 
         // Position
         div.style.left = `${screen.x + jitter}px`;

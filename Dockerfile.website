@@ -8,4 +8,11 @@ RUN apt-get update && apt-get install -y libpq-dev \
 # Enable rewrite module for Apache
 RUN a2enmod rewrite
 
+# Custom entrypoint to fix permissions on mounted volumes before Apache starts
+RUN echo '#!/bin/bash\nchmod 666 /var/www/html/game_data.json /var/www/html/updates.json 2>/dev/null || true\nexec docker-php-entrypoint "$@"' > /usr/local/bin/custom-entrypoint.sh \
+    && chmod +x /usr/local/bin/custom-entrypoint.sh
+
+ENTRYPOINT ["custom-entrypoint.sh"]
+CMD ["apache2-foreground"]
+
 EXPOSE 80

@@ -54,6 +54,7 @@ export class HUDManager {
         this.scoreboardEl = document.getElementById('multiplayer-scoreboard');
         // Tower badge HUD
         this.towerBadgeHud = document.getElementById('tower-badge-hud');
+        this.isStatsOpen = false;
     }
 
     update(snapshot) {
@@ -80,6 +81,12 @@ export class HUDManager {
                 ['Dano extra após skill', 'Escudo Defletor', 'Vampirismo Mágico'],
                 ['10% Esquiva', 'Ataques dão Slow', 'Orbes extras no hit'],
                 ['Kill reseta CDs', 'Hitbox magias +30%', 'Aura tóxica DPS']
+            ]},
+            poison: { name: 'Torre do Veneno', color: '#10b981', icon: '☠️', passives: [
+                ['+20% Attack Speed', '+15% Move Speed permanent', 'Tiro Tóxico'],
+                ['Passos Leves (+20% MS)', 'Presas Gêmeas (Heal)', 'Dardo Cegante (Cegueira)'],
+                ['Miasma Menor (Poça morte)', 'Toxina Paralisante (Slow)', 'Foco Infeccioso (+20% dmg)'],
+                ['Contaminação (Detonação)', 'Armadilha Cúbica (Shroom)', 'Espalhar a Peste (Transfer Stacks)']
             ]}
         };
 
@@ -107,7 +114,10 @@ export class HUDManager {
                         r_armadura_reativa: 'Armadura Reativa',
                         r_singularidade: 'Singularidade',
                         r_distorcao_temporal_mut: 'Distorção Temporal',
-                        r_reset_dimensional: 'Reset Dimensional'
+                        r_reset_dimensional: 'Reset Dimensional',
+                        r_campo_fungos: 'Campo de Fungos',
+                        r_olhar_gorgona: 'Olhar da Górgona',
+                        r_raio_peste: 'Raio da Peste'
                     }[me.skillUpgrades.r] || 'Mutação Desperta';
                     html += `<div style="font-weight:bold; color:#ffcc00; margin-top:2px;">✨ ${ultUpgradeName}</div>`;
                 }
@@ -131,11 +141,14 @@ export class HUDManager {
                         r_armadura_reativa: 'REAC.',
                         r_singularidade: 'SING.',
                         r_distorcao_temporal_mut: 'DIST.',
-                        r_reset_dimensional: 'RESET'
+                        r_reset_dimensional: 'RESET',
+                        r_campo_fungos: 'FUNG.',
+                        r_olhar_gorgona: 'GÓRG.',
+                        r_raio_peste: 'PESTE'
                     }[me.skillUpgrades.r] || 'ULT';
                     ultText = ultShort;
                 } else {
-                    ultText = { red: 'RAIO', green: 'ESCU', purple: 'PULS' }[me.build.buildingColor] || 'R';
+                    ultText = { red: 'RAIO', green: 'ESCU', purple: 'PULS', poison: 'FRAS' }[me.build.buildingColor] || 'R';
                 }
                 
                 const rSlot = this.skillSlots.r;
@@ -441,6 +454,11 @@ export class HUDManager {
 
         // Multiplayer scoreboard
         this.updateScoreboard(snapshot.players);
+
+        // Update stats overlay if open
+        if (this.isStatsOpen) {
+            this.updateStatsOverlay(me);
+        }
     }
 
     updateScoreboard(players) {
@@ -512,5 +530,35 @@ export class HUDManager {
             return `${mins}m ${secs}s`;
         }
         return `${s.toFixed(1)}s`;
+    }
+
+    setStatsOpen(open) {
+        this.isStatsOpen = open;
+        const el = document.getElementById('player-stats-overlay');
+        if (el) {
+            if (open) {
+                el.style.display = 'block';
+                el.classList.add('active');
+            } else {
+                el.style.display = 'none';
+                el.classList.remove('active');
+            }
+        }
+    }
+
+    updateStatsOverlay(me) {
+        const attackEl = document.getElementById('stats-attack-value');
+        const defenseEl = document.getElementById('stats-defense-value');
+        const attackSpeedEl = document.getElementById('stats-attack-speed-value');
+        const critChanceEl = document.getElementById('stats-crit-chance-value');
+        const critMultEl = document.getElementById('stats-crit-mult-value');
+        const speedEl = document.getElementById('stats-speed-value');
+
+        if (attackEl && me.damage !== undefined) attackEl.textContent = me.damage;
+        if (defenseEl && me.defense !== undefined) defenseEl.textContent = me.defense;
+        if (attackSpeedEl && me.attackSpeed !== undefined) attackSpeedEl.textContent = `${me.attackSpeed.toFixed(2)}/s`;
+        if (critChanceEl && me.critChance !== undefined) critChanceEl.textContent = `${Math.round(me.critChance * 100)}%`;
+        if (critMultEl && me.critDamageMultiplier !== undefined) critMultEl.textContent = `${me.critDamageMultiplier.toFixed(1)}x`;
+        if (speedEl && me.speed !== undefined) speedEl.textContent = me.speed.toFixed(1);
     }
 }

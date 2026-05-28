@@ -155,6 +155,7 @@ class MockTwig {
                   <input type="radio" name="vote" value="red"/> Vermelha<br/>
                   <input type="radio" name="vote" value="green"/> Verde<br/>
                   <input type="radio" name="vote" value="purple"/> Roxa<br/>
+                  <input type="radio" name="vote" value="poison"/> Veneno<br/>
                   <input type="submit" value="Votar" style="background:#505050; color:#FFF; border:1px solid #000; font-size:9px; cursor:pointer; padding:2px 5px; margin-top:5px;"/>
                 </form>
               </div>
@@ -204,7 +205,7 @@ function tickers() {
         <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050">
             <tr bgcolor="#D4C0A1">
                 <td style="color:#000; font-size:10px; font-weight:bold; padding:5px;">
-                    ✨ Ticker de Notícias: Bem-vindo ao Survival 3D! Monte sua build usando as Torres de Essência Vermelha, Verde ou Roxa. Dispute o topo nos Rankings!
+                    ✨ Ticker de Notícias: Bem-vindo ao Survival 3D! Monte sua build usando as Torres de Essência Vermelha, Verde, Roxa ou Veneno. Dispute o topo nos Rankings!
                 </td>
             </tr>
         </table>
@@ -277,7 +278,7 @@ function get_template_menus() {
         ],
         MENU_CATEGORY_LIBRARY => [
             ['name' => 'Wiki do Jogo', 'link' => 'wiki', 'link_full' => '?subtopic=wiki', 'target_blank' => '', 'style_color' => 'style="color: #00ffff !important;"'],
-            ['name' => 'Criaturas & Chefes', 'link' => 'creatures', 'link_full' => '?subtopic=creatures', 'target_blank' => '', 'style_color' => ''],
+            ['name' => 'Criaturas & Chefes', 'link' => 'wiki&tab=bestiary', 'link_full' => '?subtopic=wiki&tab=bestiary', 'target_blank' => '', 'style_color' => ''],
         ]
     ];
     return $menus;
@@ -302,13 +303,20 @@ $GLOBAL_PASSIVES = [
         ['Dano extra após skill', 'Escudo Defletor', 'Vampirismo Mágico'],
         ['10% Esquiva', 'Ataques dão Slow', 'Orbes extras no hit'],
         ['Kill reseta CDs', 'Hitbox magias +30%', 'Aura tóxica DPS']
+    ],
+    'poison' => [
+        ['+20% Attack Speed', '+15% Move Speed', 'Tiro Tóxico'],
+        ['Passos Leves (+20% MS)', 'Presas Gêmeas (Heal)', 'Dardo Cegante (Cegueira)'],
+        ['Miasma Menor (Poça morte)', 'Toxina Paralisante (Slow)', 'Foco Infeccioso (+20% dmg)'],
+        ['Contaminação (Detonação)', 'Armadilha Cúbica (Shroom)', 'Espalhar a Peste']
     ]
 ];
 
 $GLOBAL_ULTIMATES = [
     'red' => ['Sobrecarga Cósmica', 'Chuva de Tetraedros', 'Raio do Oblívio', 'Corte Dimensional'],
     'green' => ['Sobrecarga Cósmica', 'Bastião de Titânio', 'Terremoto Geométrico', 'Armadura Reativa'],
-    'purple' => ['Sobrecarga Cósmica', 'Singularidade', 'Distorção Temporal', 'Reset Dimensional']
+    'purple' => ['Sobrecarga Cósmica', 'Singularidade', 'Distorção Temporal', 'Reset Dimensional'],
+    'poison' => ['Frasco de Peçonha', 'Campo de Fungos', 'Olhar da Górgona', 'Raio da Peste']
 ];
 
 // Modal HTML block for all pages (Rankings, My Account, Melhores Builds)
@@ -396,6 +404,7 @@ $modalHtml = '
 .build-badge-red { background: linear-gradient(to bottom, #dc2626, #991b1b); }
 .build-badge-green { background: linear-gradient(to bottom, #16a34a, #14532d); }
 .build-badge-purple { background: linear-gradient(to bottom, #7c3aed, #581c87); }
+.build-badge-poison { background: linear-gradient(to bottom, #10b981, #065f46); }
 
 .build-card-grid {
     display: grid;
@@ -474,10 +483,12 @@ function showPlayerBuilds(name) {
                 let badgeClass = \'build-badge-red\';
                 if (build.color === \'green\') badgeClass = \'build-badge-green\';
                 if (build.color === \'purple\') badgeClass = \'build-badge-purple\';
+                if (build.color === \'poison\') badgeClass = \'build-badge-poison\';
                 
                 let borderHex = \'#ff3333\';
                 if (build.color === \'green\') borderHex = \'#22c55e\';
                 if (build.color === \'purple\') borderHex = \'#a855f7\';
+                if (build.color === \'poison\') borderHex = \'#10b981\';
                 
                 html += \'<div class="build-card" style="border-left: 5px solid \' + borderHex + \';">\';
                 html += \'  <div class="build-card-header">\';
@@ -585,7 +596,7 @@ if ($subtopic === 'player_builds') {
                 'deaths' => $row['deaths'],
                 'duration' => $duration,
                 'color' => $color,
-                'colorName' => ($color === 'red' ? 'Vermelha' : ($color === 'green' ? 'Verde' : 'Roxa')),
+                'colorName' => ($color === 'red' ? 'Vermelha' : ($color === 'green' ? 'Verde' : ($color === 'poison' ? 'Veneno' : 'Roxa'))),
                 'passives' => $passives,
                 'ultimate' => $ultimate,
                 'date' => date('d/m/Y H:i', strtotime($row['created_at']))
@@ -642,10 +653,11 @@ if ($subtopic === 'player_builds') {
     <div class="Headline" style="font-weight:bold; font-size:14px; color:#5A2800; border-bottom:1px solid #5A2800; padding-bottom:5px; margin-bottom:10px;">Bem-vindo ao Survival 3D!</div>
     <div class="Text" style="font-size:11px; line-height:140%; color:#000;">
         O <strong>Survival 3D</strong> é um jogo de RPG de sobrevivência multijogador em tempo real executado direto no seu navegador. Enfrente hordas de monstros geométricos e personalize seu estilo com as Torres de Essência:
-        <ul>
+        <ul style="font-size:11px; margin-top:5px; padding-left:18px; line-height:180%; color:#000;">
             <li><span style="color:#ff3333; font-weight:bold;">Torre Vermelha (Dano/Lifesteal/Crítico):</span> Aumente seu dano base, obtenha cura por roubo de vida, desfira acertos críticos e ataque alvos próximos em área (cleave).</li>
             <li><span style="color:#228b22; font-weight:bold;">Torre Verde (Defesa/Vida/Espinhos):</span> Ganhe bônus de HP máximo, regenere vida passivamente, reflita dano como espinhos e sobreviva a um golpe fatal com invulnerabilidade temporária (Cheat Death).</li>
             <li><span style="color:#800080; font-weight:bold;">Torre Roxa (Magia/CDR/Vampirismo):</span> Reduza o tempo de recarga de suas magias, cure-se ao causar dano mágico (spellvamp), esquive de golpes e crie uma aura tóxica prejudicial a inimigos ao redor.</li>
+            <li><span style="color:#10b981; font-weight:bold;">Torre de Veneno (DoT/Kiting/Evasão):</span> Aplique stacks de veneno, cegue inimigos, crie poças tóxicas no campo e espalhe a peste entre hordas inimigas.</li>
         </ul>
         <br/>
         <strong>Pronto para a batalha?</strong> Registre uma conta gratuita, clique em Jogar para entrar na arena multiplayer e desafiar os monstros mais terríveis do Limbo!
@@ -1063,7 +1075,7 @@ if ($subtopic === 'player_builds') {
     $title = "Melhores Builds";
     
     // Tower Stats query
-    $tower_stats = ['red' => 0, 'green' => 0, 'purple' => 0];
+    $tower_stats = ['red' => 0, 'green' => 0, 'purple' => 0, 'poison' => 0];
     $total_runs = 0;
     if ($pdo) {
         try {
@@ -1081,6 +1093,7 @@ if ($subtopic === 'player_builds') {
     $pct_red = $total_runs > 0 ? round(($tower_stats['red'] / $total_runs) * 100, 1) : 0;
     $pct_green = $total_runs > 0 ? round(($tower_stats['green'] / $total_runs) * 100, 1) : 0;
     $pct_purple = $total_runs > 0 ? round(($tower_stats['purple'] / $total_runs) * 100, 1) : 0;
+    $pct_poison = $total_runs > 0 ? round(($tower_stats['poison'] / $total_runs) * 100, 1) : 0;
     
     // Top 10 builds query
     $top_builds_html = '';
@@ -1113,9 +1126,9 @@ if ($subtopic === 'player_builds') {
                 ];
                 $ultimate = $GLOBAL_ULTIMATES[$color][$f5] ?? 'Sobrecarga Cósmica';
                 
-                $colorName = ($color === 'red' ? 'Vermelha' : ($color === 'green' ? 'Verde' : 'Roxa'));
-                $colorHex = ($color === 'red' ? '#ff3333' : ($color === 'green' ? '#22c55e' : '#a855f7'));
-                $colorEmoji = ($color === 'red' ? '🔺' : ($color === 'green' ? '🟩' : '🟣'));
+                $colorName = ($color === 'red' ? 'Vermelha' : ($color === 'green' ? 'Verde' : ($color === 'poison' ? 'Veneno' : 'Roxa')));
+                $colorHex = ($color === 'red' ? '#ff3333' : ($color === 'green' ? '#22c55e' : ($color === 'poison' ? '#10b981' : '#a855f7')));
+                $colorEmoji = ($color === 'red' ? '🔺' : ($color === 'green' ? '🟩' : ($color === 'poison' ? '☠️' : '🟣')));
                 
                 $top_builds_html .= '
                 <tr bgcolor="' . $bgColor . '" style="color:#000; font-size:11px;">
@@ -1181,6 +1194,17 @@ if ($subtopic === 'player_builds') {
             </div>
             <div style="background:#bba88e; border:1px solid #776655; height:12px; border-radius:3px; overflow:hidden;">
                 <div style="background:linear-gradient(to right, #a855f7, #7c3aed); width:' . $pct_purple . '%; height:100%; box-shadow:inset 0 1px 3px rgba(255,255,255,0.3);"></div>
+            </div>
+        </div>
+
+        <!-- Poison Tower -->
+        <div style="margin-bottom:8px;">
+            <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:bold; margin-bottom:3px;">
+                <span style="color:#059669;">☠️ Torre de Veneno (DoT/Kiting/Evasão)</span>
+                <span>' . $pct_poison . '% (' . $tower_stats['poison'] . ' partidas)</span>
+            </div>
+            <div style="background:#bba88e; border:1px solid #776655; height:12px; border-radius:3px; overflow:hidden;">
+                <div style="background:linear-gradient(to right, #10b981, #059669); width:' . $pct_poison . '%; height:100%; box-shadow:inset 0 1px 3px rgba(255,255,255,0.3);"></div>
             </div>
         </div>
     </div>
@@ -1394,8 +1418,10 @@ if ($subtopic === 'player_builds') {
         }
 
         $matchesHtml = '';
+        $bestMatchesHtml = '';
         if ($pdo) {
             try {
+                // Query 1: Recent Matches (ordered by created_at DESC)
                 $stmt = $pdo->prepare("
                     SELECT score, collapse_level, kills, deaths, survival_time_seconds, created_at,
                            build_color, build_floor1, build_floor2, build_floor3, build_floor4, build_floor5
@@ -1428,9 +1454,9 @@ if ($subtopic === 'player_builds') {
                     ];
                     $ultimate = $GLOBAL_ULTIMATES[$color][$f5] ?? 'Sobrecarga Cósmica';
                     
-                    $colorEmoji = ($color === 'red' ? '🔺' : ($color === 'green' ? '🟩' : '🟣'));
-                    $colorName = ($color === 'red' ? 'Vermelha' : ($color === 'green' ? 'Verde' : 'Roxa'));
-                    $colorHex = ($color === 'red' ? '#ff3333' : ($color === 'green' ? '#22c55e' : '#a855f7'));
+                    $colorEmoji = ($color === 'red' ? '🔺' : ($color === 'green' ? '🟩' : ($color === 'poison' ? '☠️' : '🟣')));
+                    $colorName = ($color === 'red' ? 'Vermelha' : ($color === 'green' ? 'Verde' : ($color === 'poison' ? 'Veneno' : 'Roxa')));
+                    $colorHex = ($color === 'red' ? '#ff3333' : ($color === 'green' ? '#22c55e' : ($color === 'poison' ? '#10b981' : '#a855f7')));
                     
                     $buildTitle = "Passivas:\n• Andar 1: " . $passives[0] . "\n• Andar 2: " . $passives[1] . "\n• Andar 3: " . $passives[2] . "\n• Andar 4: " . $passives[3] . "\nUltimate:\n" . $ultimate;
                     
@@ -1457,8 +1483,73 @@ if ($subtopic === 'player_builds') {
                 if ($rank === 1) {
                     $matchesHtml = '<tr bgcolor="#F1E0C6"><td colspan="7" align="center" style="color:#000;">Nenhuma partida registrada para esta conta. Entre no jogo e divirta-se!</td></tr>';
                 }
+
+                // Query 2: Best Matches (ordered by score DESC)
+                $stmtBest = $pdo->prepare("
+                    SELECT score, collapse_level, kills, deaths, survival_time_seconds, created_at,
+                           build_color, build_floor1, build_floor2, build_floor3, build_floor4, build_floor5
+                    FROM ranking 
+                    WHERE LOWER(player_name) = LOWER(:name) 
+                    ORDER BY score DESC 
+                    LIMIT 10
+                ");
+                $stmtBest->execute([':name' => $player_name]);
+                $rankBest = 1;
+                while ($row = $stmtBest->fetch(PDO::FETCH_ASSOC)) {
+                    $bgColor = ($rankBest % 2 == 0) ? '#D4C0A1' : '#F1E0C6';
+                    $minutes = floor($row['survival_time_seconds'] / 60);
+                    $seconds = $row['survival_time_seconds'] % 60;
+                    $timeStr = sprintf("%02d:%02d", $minutes, $seconds);
+                    
+                    // Build processing
+                    $color = $row['build_color'] ?: 'red';
+                    $f1 = (int)$row['build_floor1'];
+                    $f2 = (int)$row['build_floor2'];
+                    $f3 = (int)$row['build_floor3'];
+                    $f4 = (int)$row['build_floor4'];
+                    $f5 = (int)$row['build_floor5'];
+                    
+                    $passives = [
+                        $GLOBAL_PASSIVES[$color][0][$f1] ?? 'Desconhecido',
+                        $GLOBAL_PASSIVES[$color][1][$f2] ?? 'Desconhecido',
+                        $GLOBAL_PASSIVES[$color][2][$f3] ?? 'Desconhecido',
+                        $GLOBAL_PASSIVES[$color][3][$f4] ?? 'Desconhecido',
+                    ];
+                    $ultimate = $GLOBAL_ULTIMATES[$color][$f5] ?? 'Sobrecarga Cósmica';
+                    
+                    $colorEmoji = ($color === 'red' ? '🔺' : ($color === 'green' ? '🟩' : ($color === 'poison' ? '☠️' : '🟣')));
+                    $colorName = ($color === 'red' ? 'Vermelha' : ($color === 'green' ? 'Verde' : ($color === 'poison' ? 'Veneno' : 'Roxa')));
+                    $colorHex = ($color === 'red' ? '#ff3333' : ($color === 'green' ? '#22c55e' : ($color === 'poison' ? '#10b981' : '#a855f7')));
+                    
+                    $buildTitle = "Passivas:\n• Andar 1: " . $passives[0] . "\n• Andar 2: " . $passives[1] . "\n• Andar 3: " . $passives[2] . "\n• Andar 4: " . $passives[3] . "\nUltimate:\n" . $ultimate;
+                    
+                    $buildSummaryHtml = '
+                    <div style="font-weight:bold; color:' . $colorHex . '; cursor:help;" title="' . htmlspecialchars($buildTitle) . '">
+                        ' . $colorEmoji . ' ' . $colorName . '
+                    </div>
+                    <div style="font-size:9px; color:#555; cursor:help;" title="' . htmlspecialchars($buildTitle) . '">
+                        ' . htmlspecialchars($ultimate) . '
+                    </div>';
+                    
+                    $bestMatchesHtml .= '
+                    <tr bgcolor="' . $bgColor . '" style="color:#000; font-size:11px;">
+                        <td align="center"><strong>' . $rankBest . 'º</strong></td>
+                        <td>' . date('d/m/Y H:i', strtotime($row['created_at'])) . '</td>
+                        <td>' . $row['score'] . '</td>
+                        <td>' . $buildSummaryHtml . '</td>
+                        <td>Andar ' . $row['collapse_level'] . '</td>
+                        <td>' . $row['kills'] . '</td>
+                        <td>' . $row['deaths'] . '</td>
+                        <td>' . $timeStr . '</td>
+                    </tr>';
+                    $rankBest++;
+                }
+                if ($rankBest === 1) {
+                    $bestMatchesHtml = '<tr bgcolor="#F1E0C6"><td colspan="8" align="center" style="color:#000;">Nenhuma partida registrada para esta conta. Entre no jogo e divirta-se!</td></tr>';
+                }
             } catch (Exception $e) {
                 $matchesHtml = '<tr bgcolor="#F1E0C6"><td colspan="7" align="center" style="color:red;">Erro: ' . $e->getMessage() . '</td></tr>';
+                $bestMatchesHtml = '<tr bgcolor="#F1E0C6"><td colspan="8" align="center" style="color:red;">Erro: ' . $e->getMessage() . '</td></tr>';
             }
         }
 
@@ -1473,61 +1564,145 @@ if ($subtopic === 'player_builds') {
         $content .= '
         <div style="font-size:12px; margin-bottom:15px; color:#000;">Bem-vindo de volta, <strong>' . htmlspecialchars($player_name) . '</strong>! Veja abaixo os dados da sua conta e estatísticas das suas partidas.</div>
         
-        <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050">
-            <tr bgcolor="#D4C0A1">
-                <td colspan="2" style="color:#000; font-weight:bold;"><b>Informações do Usuário</b></td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000; font-size:11px;">
-                <td width="30%"><strong>Nome da Conta:</strong></td>
-                <td>' . htmlspecialchars($player_name) . '</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000; font-size:11px;">
-                <td><strong>Status:</strong></td>
-                <td><span style="color:green; font-weight:bold;">Conta Ativa</span></td>
-            </tr>
-        </table>
-        <br/>
-
-        <form method="post" action="?subtopic=account/manage">
+        <style>
+        .account-tabs {
+            display: flex;
+            border-bottom: 2px solid #5A2800;
+            margin-bottom: 15px;
+            gap: 4px;
+        }
+        .account-tab-btn {
+            background-color: #D4C0A1;
+            color: #000;
+            border: 1px solid #5A2800;
+            border-bottom: none;
+            padding: 6px 14px;
+            font-weight: bold;
+            cursor: pointer;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+            font-size: 11px;
+            font-family: Verdana, Arial, sans-serif;
+            transition: all 0.2s;
+        }
+        .account-tab-btn:hover {
+            background-color: #F1E0C6;
+        }
+        .account-tab-btn.active {
+            background-color: #5A2800;
+            color: #FFF;
+        }
+        .account-tab-content {
+            display: none;
+        }
+        .account-tab-content.active {
+            display: block;
+        }
+        </style>
+        
+        <script>
+        function openAccountTab(evt, tabId) {
+            var i, contents, tabs;
+            contents = document.getElementsByClassName("account-tab-content");
+            for (i = 0; i < contents.length; i++) {
+                contents[i].style.display = "none";
+            }
+            tabs = document.getElementsByClassName("account-tab-btn");
+            for (i = 0; i < tabs.length; i++) {
+                tabs[i].classList.remove("active");
+            }
+            document.getElementById(tabId).style.display = "block";
+            evt.currentTarget.classList.add("active");
+        }
+        </script>
+        
+        <div class="account-tabs">
+            <button class="account-tab-btn active" onclick="openAccountTab(event, \'tab-general\')">Painel Geral</button>
+            <button class="account-tab-btn" onclick="openAccountTab(event, \'tab-recent\')">Partidas Recentes</button>
+            <button class="account-tab-btn" onclick="openAccountTab(event, \'tab-best\')">🏆 10 Melhores Partidas</button>
+        </div>
+        
+        <!-- TAB GENERAL -->
+        <div id="tab-general" class="account-tab-content" style="display: block;">
             <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050">
                 <tr bgcolor="#D4C0A1">
-                    <td colspan="2" style="color:#000; font-weight:bold;"><b>Alterar Senha</b></td>
+                    <td colspan="2" style="color:#000; font-weight:bold;"><b>Informações do Usuário</b></td>
                 </tr>
                 <tr bgcolor="#F1E0C6" style="color:#000; font-size:11px;">
-                    <td width="30%"><strong>Senha Antiga:</strong></td>
-                    <td><input type="password" name="old_password" style="width:200px;" required /></td>
+                    <td width="30%"><strong>Nome da Conta:</strong></td>
+                    <td>' . htmlspecialchars($player_name) . '</td>
                 </tr>
                 <tr bgcolor="#F1E0C6" style="color:#000; font-size:11px;">
-                    <td><strong>Nova Senha:</strong></td>
-                    <td><input type="password" name="new_password" style="width:200px;" required /></td>
-                </tr>
-                <tr bgcolor="#F1E0C6" style="color:#000; font-size:11px;">
-                    <td><strong>Confirmar Nova Senha:</strong></td>
-                    <td><input type="password" name="confirm_password" style="width:200px;" required /></td>
+                    <td><strong>Status:</strong></td>
+                    <td><span style="color:green; font-weight:bold;">Conta Ativa</span></td>
                 </tr>
             </table>
             <br/>
-            <center>
-                <button type="submit" name="change_password" style="background-color:#D4C0A1; color:#000; border:1px solid #505050; padding:5px 12px; font-weight:bold; cursor:pointer; font-size:11px; border-radius:2px;">Alterar Senha</button>
-            </center>
-        </form>
-        <br/>
+
+            <form method="post" action="?subtopic=account/manage">
+                <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050">
+                    <tr bgcolor="#D4C0A1">
+                        <td colspan="2" style="color:#000; font-weight:bold;"><b>Alterar Senha</b></td>
+                    </tr>
+                    <tr bgcolor="#F1E0C6" style="color:#000; font-size:11px;">
+                        <td width="30%"><strong>Senha Antiga:</strong></td>
+                        <td><input type="password" name="old_password" style="width:200px;" required /></td>
+                    </tr>
+                    <tr bgcolor="#F1E0C6" style="color:#000; font-size:11px;">
+                        <td><strong>Nova Senha:</strong></td>
+                        <td><input type="password" name="new_password" style="width:200px;" required /></td>
+                    </tr>
+                    <tr bgcolor="#F1E0C6" style="color:#000; font-size:11px;">
+                        <td><strong>Confirmar Nova Senha:</strong></td>
+                        <td><input type="password" name="confirm_password" style="width:200px;" required /></td>
+                    </tr>
+                </table>
+                <br/>
+                <center>
+                    <button type="submit" name="change_password" style="background-color:#D4C0A1; color:#000; border:1px solid #505050; padding:5px 12px; font-weight:bold; cursor:pointer; font-size:11px; border-radius:2px;">Alterar Senha</button>
+                </center>
+            </form>
+        </div>
         
-        <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050">
-            <tr bgcolor="#D4C0A1">
-                <td colspan="7" style="color:#000; font-weight:bold;"><b>Registro de Partidas Recentes</b></td>
-            </tr>
-            <tr bgcolor="#505050">
-                <td style="color:white; font-weight:bold; font-size:11px;">Data</td>
-                <td style="color:white; font-weight:bold; font-size:11px;">Pontos</td>
-                <td style="color:white; font-weight:bold; font-size:11px;">Build Utilizada</td>
-                <td style="color:white; font-weight:bold; font-size:11px;">Andar Atingido</td>
-                <td style="color:white; font-weight:bold; font-size:11px;">Abates (Kills)</td>
-                <td style="color:white; font-weight:bold; font-size:11px;">Mortes</td>
-                <td style="color:white; font-weight:bold; font-size:11px;">Tempo de Sobrevivência</td>
-            </tr>
-            ' . $matchesHtml . '
-        </table>
+        <!-- TAB RECENT -->
+        <div id="tab-recent" class="account-tab-content" style="display: none;">
+            <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050">
+                <tr bgcolor="#D4C0A1">
+                    <td colspan="7" style="color:#000; font-weight:bold;"><b>Registro de Partidas Recentes</b></td>
+                </tr>
+                <tr bgcolor="#505050">
+                    <td style="color:white; font-weight:bold; font-size:11px;">Data</td>
+                    <td style="color:white; font-weight:bold; font-size:11px;">Pontos</td>
+                    <td style="color:white; font-weight:bold; font-size:11px;">Build Utilizada</td>
+                    <td style="color:white; font-weight:bold; font-size:11px;">Andar Atingido</td>
+                    <td style="color:white; font-weight:bold; font-size:11px;">Abates (Kills)</td>
+                    <td style="color:white; font-weight:bold; font-size:11px;">Mortes</td>
+                    <td style="color:white; font-weight:bold; font-size:11px;">Tempo de Sobrevivência</td>
+                </tr>
+                ' . $matchesHtml . '
+            </table>
+        </div>
+        
+        <!-- TAB BEST -->
+        <div id="tab-best" class="account-tab-content" style="display: none;">
+            <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050">
+                <tr bgcolor="#D4C0A1">
+                    <td colspan="8" style="color:#000; font-weight:bold;"><b>🏆 As 10 Melhores Partidas do Usuário</b></td>
+                </tr>
+                <tr bgcolor="#505050">
+                    <td style="color:white; font-weight:bold; font-size:11px; text-align:center;">Posição</td>
+                    <td style="color:white; font-weight:bold; font-size:11px;">Data</td>
+                    <td style="color:white; font-weight:bold; font-size:11px;">Pontos</td>
+                    <td style="color:white; font-weight:bold; font-size:11px;">Build Utilizada</td>
+                    <td style="color:white; font-weight:bold; font-size:11px;">Andar Atingido</td>
+                    <td style="color:white; font-weight:bold; font-size:11px;">Abates (Kills)</td>
+                    <td style="color:white; font-weight:bold; font-size:11px;">Mortes</td>
+                    <td style="color:white; font-weight:bold; font-size:11px;">Tempo de Sobrevivência</td>
+                </tr>
+                ' . $bestMatchesHtml . '
+            </table>
+        </div>
+        
         <br/>
         <center>
             <a href="?subtopic=account/logout"><img src="templates/tibiacom/images/global/buttons/_sbutton_logout.gif" style="border:0;" /></a>
@@ -1594,983 +1769,8 @@ if ($subtopic === 'player_builds') {
         </center>
     </div>';
 } else if ($subtopic === 'monsters' || $subtopic === 'creatures' || $subtopic === 'bosses') {
-    $title = "Criaturas & Chefes";
-    
-    $enemies = [];
-    if (file_exists('game_data.json')) {
-        $gameData = json_decode(file_get_contents('game_data.json'), true);
-        $enemies = $gameData['enemies'] ?? [];
-    }
-
-    // Translation and detail mapping for bestiary
-    $bestiaryDetails = [
-        'PurpleCube' => [
-            'name' => 'Cubo Roxo',
-            'difficulty' => 'E',
-            'shape' => 'box',
-            'lore' => 'A unidade básica da infestação geométrica. Move-se de forma errática em direção ao jogador e ataca à curta distância.',
-            'skills' => []
-        ],
-        'RedCone' => [
-            'name' => 'Cone Vermelho',
-            'difficulty' => 'D',
-            'shape' => 'cone',
-            'lore' => 'Uma sentinela defensiva imóvel de alta resistência que dispara projéteis lineares rápidos em qualquer um em sua linha de visão.',
-            'skills' => []
-        ],
-        'EnemyTower' => [
-            'name' => 'Torre Inimiga',
-            'difficulty' => 'D',
-            'shape' => 'cylinder',
-            'lore' => 'Estruturas cilíndricas que disparam feixes defensivos de longo alcance para afastar os jogadores de áreas seguras.',
-            'skills' => []
-        ],
-        'GuardianGuerreiro' => [
-            'name' => 'Guardião Guerreiro',
-            'difficulty' => 'C',
-            'shape' => 'box',
-            'lore' => 'Um soldado de infantaria pesado de cor vermelha escura que usa escudo de energia para atordoar invasores.',
-            'skills' => [
-                ['name' => 'Golpe Impactante (Ativa)', 'type' => 'active', 'desc' => 'Desfere um golpe frontal que atordoa o jogador afetado por 1.5s.']
-            ]
-        ],
-        'GuardianMago' => [
-            'name' => 'Guardião Mago',
-            'difficulty' => 'C',
-            'shape' => 'octahedron',
-            'lore' => 'Um canalizador octaédrico de cor azul escura que ataca a longas distâncias usando magias de congelamento.',
-            'skills' => [
-                ['name' => 'Estase de Gelo (Ativa)', 'type' => 'active', 'desc' => 'Atira um projétil de gelo que congela o jogador por 2 segundos ao impacto.']
-            ]
-        ],
-        'GuardianArqueiro' => [
-            'name' => 'Guardião Arqueiro',
-            'difficulty' => 'C',
-            'shape' => 'cone',
-            'lore' => 'Um batedor cônico verde escuro extremamente veloz. Ele tenta manter distância segura do jogador e disparar flechas de precisão.',
-            'skills' => [
-                ['name' => 'Disparo de Retirada (Passiva)', 'type' => 'passive', 'desc' => 'Corra para trás se o jogador se aproximar a menos de 6 metros.']
-            ]
-        ],
-        'CaoDosInfernos' => [
-            'name' => 'Cão dos Infernos',
-            'difficulty' => 'A',
-            'shape' => 'cao',
-            'lore' => 'Um predador implacável forjado na essência das chamas cúbicas. Ele lidera uma matilha assassina e caça ativamente o jogador com velocidade formidável, tirando proveito de efeitos de sangramento e ataques velozes em área.',
-            'skills' => [
-                ['name' => 'Matilha Geométrica (Passiva)', 'type' => 'passive', 'desc' => 'Invoca e mantém até 4 lobos menores que auxiliam nos ataques físicos.'],
-                ['name' => 'Investida Implacável (Ativa)', 'type' => 'active', 'desc' => 'Mira por 1s e realiza uma investida rápida a velocidade 25, causando 50 de dano e atordoando por 0.5s quem estiver no caminho.'],
-                ['name' => 'Prismas Sombrios (Ativa)', 'type' => 'active', 'desc' => 'Morde o alvo aplicando sangramento de 10 de dano por segundo por 4s e curando o Cão em 15% do dano causado.'],
-                ['name' => 'Evisceração Cúbica (Ativa)', 'type' => 'active', 'desc' => 'Causa 40 de dano em área (raio 6m) e regenera a vida de toda a matilha aliada próxima.'],
-                ['name' => 'Chamado do Abismo (Ativa)', 'type' => 'active', 'desc' => 'Entra em frenesi por 15s: aumenta 1.2x de tamanho, duplica sua velocidade, ganha um escudo de 2000 HP e invoca a matilha máxima.']
-            ]
-        ],
-        'SuperBoss' => [
-            'name' => 'Super Boss',
-            'difficulty' => 'B',
-            'shape' => 'sphere',
-            'lore' => 'Uma anomalia esférica violeta gigante que atrai gravitacionalmente os jogadores para perto, drenando suas vidas.',
-            'skills' => [
-                ['name' => 'Sucção de Matéria (Passiva)', 'type' => 'passive', 'desc' => 'Atrai jogadores em um raio de 8 metros com força gravitacional contínua.']
-            ]
-        ],
-        'RainhaDasTrevas' => [
-            'name' => 'Rainha das Trevas',
-            'difficulty' => 'S',
-            'shape' => 'cylinder',
-            'lore' => 'A soberana da escuridão absoluta. Ela flutua a altas velocidades cortando a luz da arena com seu corpo cilíndrico de energia escura.',
-            'skills' => []
-        ],
-        'Gangplank' => [
-            'name' => 'Gangplank',
-            'difficulty' => 'A',
-            'shape' => 'box',
-            'lore' => 'O flagelo dos mares cúbicos. Ele possui alta defesa natural de 10% e dispara barris de pólvora explosivos que causam enorme dano em área.',
-            'skills' => [
-                ['name' => 'Barril de Pólvora (Ativa)', 'type' => 'active', 'desc' => 'Coloca barris explosivos na arena que explodem em cadeia se forem atingidos.'],
-                ['name' => 'Determinação Ferrosa (Passiva)', 'type' => 'passive', 'desc' => 'Reduz todo dano recebido em 10% através de sua blindagem natural.']
-            ]
-        ],
-        'PlantaCarnivora' => [
-            'name' => 'Planta Carnívora Rainha',
-            'difficulty' => 'B',
-            'shape' => 'cylinder',
-            'lore' => 'Um organismo vegetal hostil gigante. Embora estática, sua mordida causa danos enormes a curta distância com veneno poderoso.',
-            'skills' => []
-        ],
-        'FeiticeiroImortal' => [
-            'name' => 'Lord Vouldemord',
-            'difficulty' => 'A',
-            'shape' => 'sphere',
-            'lore' => 'Um mestre das artes sombrias que transcendeu a morte física através de rituais proibidos. Ele flutua como uma esfera índigo.',
-            'skills' => []
-        ],
-        'LichKing' => [
-            'name' => 'Lich King',
-            'difficulty' => 'S',
-            'shape' => 'box',
-            'lore' => 'O soberano da morte e do gelo. Ele caminha de forma lenta, mas gera uma aura de congelamento mortal de 4m ao seu redor que pune jogadores desavisados.',
-            'skills' => [
-                ['name' => 'Geada do Necro (Passiva)', 'type' => 'passive', 'desc' => 'Congela jogadores que entrarem em sua aura gélida por muito tempo.']
-            ]
-        ],
-        'TheMightyOne' => [
-            'name' => 'O Poderoso',
-            'difficulty' => 'S',
-            'shape' => 'box',
-            'lore' => 'Um colosso maciço de granito escuro que se move a passos lentos, mas exerce uma força gravitacional gigantesca na arena, puxando todos os oponentes para si.',
-            'skills' => [
-                ['name' => 'Aura Gravitacional (Passiva)', 'type' => 'passive', 'desc' => 'Exerce uma força de atração em uma área de 25m, puxando jogadores para perto de seu corpo massivo.'],
-                ['name' => 'Esmagamento Cúbico (Ativa)', 'type' => 'active', 'desc' => 'Descarrega um golpe de 100 de dano instantâneo na área de sua hitbox colossal de 4 metros.']
-            ]
-        ],
-        'BruxaDoGelo' => [
-            'name' => 'Bruxa do Gelo',
-            'difficulty' => 'C',
-            'shape' => 'sphere',
-            'lore' => 'Uma feiticeira congelante que desacelera e congela jogadores à distância.',
-            'skills' => []
-        ],
-        'MestraDaIlusao' => [
-            'name' => 'Mestra da Ilusão',
-            'difficulty' => 'B',
-            'shape' => 'tetrahedron',
-            'lore' => 'Uma ladra de mentes que esquiva de golpes com facilidade.',
-            'skills' => []
-        ],
-        'BombardeiroInsano' => [
-            'name' => 'Bombardeiro Insano',
-            'difficulty' => 'B',
-            'shape' => 'cube',
-            'lore' => 'Um servo piromaníaco que incinera tudo o que vê.',
-            'skills' => []
-        ],
-        'Farao' => [
-            'name' => 'O Faraó',
-            'difficulty' => 'SS',
-            'shape' => 'farao',
-            'lore' => 'A entidade suprema e governante das areias do Limbo. O Faraó flutua silenciosamente na arena e se move apenas por teletransporte, canalizando as forças cósmicas e antigas pragas para expurgar quem ousar entrar em sua tumba.',
-            'skills' => [
-                ['name' => 'Divindade Intocável (Passiva)', 'type' => 'passive', 'desc' => 'Imunidade total contra qualquer tipo de lentidão, enraizamento, sangramento, silenciamento ou debuff.'],
-                ['name' => 'Maldição Dourada (Passiva)', 'type' => 'passive', 'desc' => 'Reflete 10% de todo dano recebido diretamente de volta para o atacante.'],
-                ['name' => 'Areias do Tempo (Passiva)', 'type' => 'passive', 'desc' => 'Jogadores que ficam parados acumulam lentidão de 1% por segundo (limite de 70% slow). Voltar a se mover limpa o acúmulo.'],
-                ['name' => 'Escaravelhos da Tumba (Passiva)', 'type' => 'passive', 'desc' => 'A cada 12 segundos, invoca 3 Escaravelhos guiados de 200 HP que perseguem o jogador mais próximo e explodem causando 50 de dano.'],
-                ['name' => 'Raio de Rá (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 15s. Sinaliza uma área por 1.5s e dispara um feixe de luz divina que causa 30% da vida máxima como dano real e inflige queimadura de 20 DPS por 5s.'],
-                ['name' => 'Prisão de Gizé (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 25s. Envolve o jogador e dá apenas 1 segundo para escapar de seu raio. Caso contrário, enraíza o alvo por 3 segundos.'],
-                ['name' => 'Julgamento de Osíris (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 45s. Limita a zona segura verde a uma metade aleatória da arena por 4s. Quem estiver fora dela ao fim do temporizador sofre 99% da vida máxima como dano verdadeiro.'],
-                ['name' => 'Praga de Gafanhotos (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 20s. Dispara nuvem de insetos guiados que causam cegueira por 4s e 10 de dano por segundo.'],
-                ['name' => 'Colapso Monumental (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 65s (apenas abaixo de 50% HP). Levita no céu por 3s e faz chover 8 colossais blocos de templo que causam 500 de dano e barram o mapa por 10s.']
-            ]
-        ],
-        'SenhorDoenca' => [
-            'name' => 'Senhor Doença',
-            'difficulty' => 'A',
-            'shape' => 'sphere',
-            'lore' => 'O Senhor Doença (Doutor Doença) espalha pragas e patógenos mortais. Ele tenta manter distância dos jogadores para atacá-los com debuffs debilitantes de sua roleta de vírus.',
-            'skills' => [
-                ['name' => 'Roleta de Patógenos (Passiva)', 'type' => 'passive', 'desc' => 'Ataques básicos têm 35% de chance de aplicar Febre, Paralisia, Mão Trêmula, Imunidade Baixa, Visão Turva, Cansaço Viral, Incapacidade ou Hemorragia.'],
-                ['name' => 'Sobrevivência Viral (Passiva)', 'type' => 'passive', 'desc' => 'Regenera 5 HP/s por doença ativa no jogador (máx 15 HP/s).'],
-                ['name' => 'Injeção Geométrica (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 6s. Dispara pirâmide que causa 100% de dano e garante a aplicação de um vírus aleatório.'],
-                ['name' => 'Nuvem de Esporos (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 12s. Cria nuvem venenosa (raio 8) por 5 segundos que causa 10 de dano/s e tenta infectar com patógenos.'],
-                ['name' => 'Surto Epidêmico (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 20s. Pulso radial que eleva o nível/acúmulo dos patógenos no jogador, ou aplica um novo patógeno.']
-            ]
-        ],
-        'Smith' => [
-            'name' => 'Agent Smith',
-            'difficulty' => 'S',
-            'shape' => 'smith',
-            'lore' => 'Uma anomalia de sistema na forma de uma inteligência artificial autogerida e altamente invasiva. Ele se replica continuamente, infectando e substituindo dados na matriz de simulação para sobrecarregar a memória dos desafiantes.',
-            'skills' => [
-                ['name' => 'Sobrescrita Global (Ativa)', 'type' => 'active', 'desc' => 'Inicia ciclos de multiplicação, criando clones exatos de si mesmo que perseguem o jogador.'],
-                ['name' => 'Contaminação Metódica (Passiva)', 'type' => 'passive', 'desc' => 'Cada golpe desferido por seus clones rouba 1% da experiência (XP) do jogador, impedindo sua progressão.'],
-                ['name' => 'Protocolo de Resiliência (Passiva)', 'type' => 'passive', 'desc' => 'Cada clone ativo em batalha aumenta o dano bruto do Agent Smith original em 2% de forma cumulativa.'],
-                ['name' => 'Salto de Protocolo (Ativa)', 'type' => 'active', 'desc' => 'Teleporta-se em distâncias de até 15 metros se for cercado ou receber muito dano concentrado.'],
-                ['name' => 'Tela Azul de Erro (Passiva)', 'type' => 'passive', 'desc' => 'Ao ser eliminado, aciona um dump de tela azul no visor que simula travamento do sistema por alguns segundos.']
-            ]
-        ]
-    ];
-
-    $finalBestiary = [];
-    foreach ($enemies as $id => $enemy) {
-        $details = $bestiaryDetails[$id] ?? [
-            'name' => $enemy['name'] ?? $id,
-            'difficulty' => 'C',
-            'shape' => $enemy['visuals']['shape'] ?? 'box',
-            'lore' => 'Uma criatura hostil habitando a arena geométrica.',
-            'skills' => []
-        ];
-        
-        $speed = $enemy['stats']['speed'] ?? 0;
-        if ($speed > 0 && $speed < 0.1) {
-            $speed = $speed * 100;
-        }
-        
-        $finalBestiary[] = [
-            'id' => $id,
-            'name' => $details['name'],
-            'category' => $enemy['category'] ?? 'comum',
-            'difficulty' => $details['difficulty'],
-            'color' => $enemy['visuals']['color'] ?? '#fff',
-            'shape' => $details['shape'],
-            'hp' => $enemy['stats']['hp'] ?? 0,
-            'speed' => $speed,
-            'xp' => $enemy['stats']['xp'] ?? 0,
-            'score' => $enemy['stats']['score'] ?? 0,
-            'spawn' => isset($enemy['spawn']['timer']) ? "Renasce a cada " . $enemy['spawn']['timer'] . " segundos." : "Spawn periódico padrão.",
-            'lore' => $details['lore'],
-            'skills' => $details['skills']
-        ];
-    }
-    
-    // Append scripted Farao and Doutor Doenca (Senhor Doenca) if not parsed from JSON
-    $hasFarao = false;
-    $hasDoenca = false;
-    foreach ($finalBestiary as $b) {
-        if ($b['id'] === 'Farao' || $b['id'] === 'farao') $hasFarao = true;
-        if ($b['id'] === 'SenhorDoenca' || $b['id'] === 'DoutorDoenca' || $b['id'] === 'SenhorDoença') $hasDoenca = true;
-    }
-    
-    if (!$hasFarao) {
-        $finalBestiary[] = [
-            'id' => 'Farao',
-            'name' => 'O Faraó',
-            'category' => 'deus',
-            'difficulty' => 'SS',
-            'color' => '#ffd700',
-            'shape' => 'farao',
-            'hp' => 150000,
-            'speed' => 0,
-            'xp' => 1000000,
-            'score' => 100000,
-            'spawn' => 'Spawn único global que se manifesta após 5 minutos (300 segundos) de partida.',
-            'lore' => $bestiaryDetails['Farao']['lore'],
-            'skills' => $bestiaryDetails['Farao']['skills']
-        ];
-    }
-    if (!$hasDoenca) {
-        $finalBestiary[] = [
-            'id' => 'SenhorDoenca',
-            'name' => 'Senhor Doença',
-            'category' => 'boss',
-            'difficulty' => 'A',
-            'color' => '#00ff00',
-            'shape' => 'sphere',
-            'hp' => 20000,
-            'speed' => 3.5,
-            'xp' => 10000,
-            'score' => 5000,
-            'spawn' => 'Renasce periodicamente na arena.',
-            'lore' => $bestiaryDetails['SenhorDoenca']['lore'],
-            'skills' => $bestiaryDetails['SenhorDoenca']['skills']
-        ];
-    }
-
-    $bestiaryJson = json_encode($finalBestiary, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-
-    $content = '
-    <div class="Headline" style="font-weight:bold; font-size:13px; color:#5A2800; border-bottom:1px solid #5A2800; padding-bottom:5px; margin-bottom:10px;">Bestiário Oficial do Survival 3D</div>
-    <p style="font-size:10px; color:#000; margin-top:0; margin-bottom:12px;">Consulte o guia estatístico e as habilidades de todos os adversários na arena de simulação.</p>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    
-    <style>
-        .bestiary-container {
-            display: flex;
-            gap: 15px;
-            height: 600px;
-            font-family: Arial, sans-serif;
-            color: #333;
-        }
-        .bestiary-list {
-            width: 45%;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            border-right: 1px solid #b29b7a;
-            padding-right: 10px;
-            overflow-y: auto;
-        }
-        .bestiary-search {
-            width: 100%;
-            padding: 6px;
-            border: 1px solid #5A2800;
-            background: #FFF;
-            color: #000;
-            border-radius: 3px;
-            box-sizing: border-box;
-            font-size: 11px;
-            margin-bottom: 5px;
-        }
-        .bestiary-filter-tabs {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 3px;
-            margin-bottom: 8px;
-        }
-        .filter-btn {
-            background: #d4c0a1;
-            border: 1px solid #5A2800;
-            color: #5A2800;
-            padding: 3px 5px;
-            font-size: 9px;
-            cursor: pointer;
-            border-radius: 2px;
-        }
-        .filter-btn.active, .filter-btn:hover {
-            background: #5A2800;
-            color: #FFF;
-        }
-        .creature-card {
-            background: #e7dbcd;
-            border: 1px solid #b29b7a;
-            border-radius: 4px;
-            padding: 6px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.2s ease;
-        }
-        .creature-card:hover, .creature-card.selected {
-            background: #d4c0a1;
-            border-color: #5A2800;
-        }
-        .creature-shape-dot {
-            width: 12px;
-            height: 12px;
-            border: 1px solid #000;
-            display: inline-block;
-        }
-        .creature-card-info {
-            flex: 1;
-        }
-        .creature-card-name {
-            font-weight: bold;
-            font-size: 11px;
-            color: #5A2800;
-        }
-        .creature-card-cat {
-            font-size: 8px;
-            color: #666;
-            text-transform: uppercase;
-        }
-        .creature-card-difficulty {
-            font-weight: bold;
-            font-size: 9px;
-            padding: 1px 4px;
-            border-radius: 2px;
-            color: #FFF;
-            float: right;
-        }
-        
-        .bestiary-dossier {
-            width: 55%;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            overflow-y: auto;
-            padding-right: 5px;
-        }
-        .dossier-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid #5A2800;
-            padding-bottom: 3px;
-        }
-        .dossier-name {
-            font-size: 14px;
-            font-weight: bold;
-            color: #5A2800;
-            margin: 0;
-        }
-        .dossier-category {
-            font-size: 9px;
-            color: #666;
-            text-transform: uppercase;
-        }
-        .dossier-lore {
-            font-size: 10.5px;
-            line-height: 140%;
-            color: #333;
-            font-style: italic;
-            background: #f9f4ec;
-            border-left: 3px solid #5A2800;
-            padding: 5px 8px;
-            margin: 0;
-        }
-        .dossier-section-title {
-            font-size: 10px;
-            font-weight: bold;
-            color: #5A2800;
-            border-bottom: 1px solid #b29b7a;
-            padding-bottom: 2px;
-            margin-bottom: 5px;
-            text-transform: uppercase;
-        }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 6px;
-        }
-        .stat-box {
-            background: #f9f4ec;
-            border: 1px solid #b29b7a;
-            border-radius: 3px;
-            padding: 4px 6px;
-        }
-        .stat-label {
-            font-size: 8px;
-            text-transform: uppercase;
-            color: #666;
-        }
-        .stat-val {
-            font-size: 11px;
-            font-weight: bold;
-            color: #000;
-        }
-        .dossier-tabs {
-            display: flex;
-            border-bottom: 1px solid #b29b7a;
-            margin-bottom: 6px;
-        }
-        .dossier-tab-btn {
-            background: transparent;
-            border: none;
-            padding: 4px 8px;
-            font-size: 10px;
-            cursor: pointer;
-            color: #666;
-            border-bottom: 2px solid transparent;
-        }
-        .dossier-tab-btn.active {
-            color: #5A2800;
-            font-weight: bold;
-            border-bottom-color: #5A2800;
-        }
-        .dossier-tab-panel {
-            display: none;
-        }
-        .dossier-tab-panel.active {
-            display: block;
-        }
-        .skill-item {
-            background: #f9f4ec;
-            border: 1px solid #b29b7a;
-            border-radius: 3px;
-            padding: 6px;
-            margin-bottom: 5px;
-        }
-        .skill-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 2px;
-        }
-        .skill-name {
-            font-weight: bold;
-            font-size: 10px;
-            color: #5A2800;
-        }
-        .skill-badge {
-            font-size: 8px;
-            padding: 1px 3px;
-            border-radius: 2px;
-            text-transform: uppercase;
-            color: #FFF;
-        }
-        .skill-desc {
-            font-size: 9.5px;
-            color: #444;
-            line-height: 130%;
-        }
-        @keyframes scan {
-            0% { top: 0%; }
-            50% { top: 100%; }
-            100% { top: 0%; }
-        }
-    </style>
-    
-    <div class="bestiary-container">
-        <!-- Lista de Inimigos (Esquerda) -->
-        <div class="bestiary-list">
-            <input type="text" id="bestiary-search" class="bestiary-search" placeholder="Procurar criatura..." />
-            <div class="bestiary-filter-tabs">
-                <button class="filter-btn active" data-filter="all">Todos</button>
-                <button class="filter-btn" data-filter="comum">Comuns</button>
-                <button class="filter-btn" data-filter="guardião">Guardiões</button>
-                <button class="filter-btn" data-filter="boss">Chefes</button>
-            </div>
-            <div id="cards-wrapper" style="display:flex; flex-direction:column; gap:6px; overflow-y:auto; flex:1;">
-                <!-- Populado por JS -->
-            </div>
-        </div>
-        
-        <!-- Detalhes do Inimigo (Direita) -->
-        <div class="bestiary-dossier" id="bestiary-dossier">
-            <!-- Port de Visualização Holográfica 3D -->
-            <div class="dossier-viewport" style="height: 150px; position: relative; background: radial-gradient(circle at 50% 70%, rgba(212, 167, 0, 0.15) 0%, rgba(241, 224, 198, 0) 70%); border: 1px solid #5A2800; border-radius: 4px; overflow: hidden; margin-bottom: 8px;">
-                <div class="scanner-line" style="position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, #d4a700, transparent); animation: scan 3s linear infinite; z-index: 2; pointer-events: none; opacity: 0.6;"></div>
-                <div id="canvas-container" style="width: 100%; height: 100%;"></div>
-                <div class="viewport-hud" style="position: absolute; bottom: 5px; left: 10px; right: 10px; z-index: 2; pointer-events: none; font-size: 8px; color: #5A2800; display: flex; justify-content: space-between; font-weight: bold;">
-                    <span>ESCANEAMENTO MÁGICO [ATIVO]</span>
-                    <span id="shape-info">CUBO</span>
-                </div>
-            </div>
-            
-            <div class="dossier-header">
-                <div>
-                    <h3 class="dossier-name" id="dossier-name">Nome do Monstro</h3>
-                    <span class="dossier-category" id="dossier-category">Categoria</span>
-                </div>
-                <span class="creature-card-difficulty" id="dossier-difficulty" style="font-size: 11px; padding: 2px 6px;">C</span>
-            </div>
-            
-            <p class="dossier-lore" id="dossier-lore">Lore descritivo da criatura.</p>
-            
-            <div>
-                <div class="dossier-section-title">Atributos de Combate</div>
-                <div class="stats-grid">
-                    <div class="stat-box">
-                        <span class="stat-label">Vida Máxima (HP)</span>
-                        <div class="stat-val" id="stat-hp">0</div>
-                    </div>
-                    <div class="stat-box">
-                        <span class="stat-label">Velocidade</span>
-                        <div class="stat-val" id="stat-speed">0</div>
-                    </div>
-                    <div class="stat-box">
-                        <span class="stat-label">XP Concedida</span>
-                        <div class="stat-val" id="stat-xp">0</div>
-                    </div>
-                    <div class="stat-box">
-                        <span class="stat-label">Pontuação Base</span>
-                        <div class="stat-val" id="stat-score">0</div>
-                    </div>
-                </div>
-            </div>
-            
-            <div>
-                <div class="dossier-tabs">
-                    <button class="dossier-tab-btn active" data-tab="skills">Habilidades</button>
-                    <button class="dossier-tab-btn" data-tab="spawn">Spawn & SpawnTimer</button>
-                </div>
-                <div class="dossier-tab-panel active" id="panel-skills">
-                    <div id="skills-wrapper">
-                        <!-- Populado por JS -->
-                    </div>
-                </div>
-                <div class="dossier-tab-panel" id="panel-spawn">
-                    <div class="skill-item" id="spawn-text" style="font-size: 10px; line-height:140%;">
-                        Informações sobre o temporizador e localizadores de renascimento do monstro.
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <script>
-        const bestiaryData = ' . $bestiaryJson . ';
-        let activeId = "Farao";
-        let currentFilter = "all";
-        let searchQuery = "";
-        
-        let scene, camera, renderer, currentMesh;
-        
-        function init3D() {
-            const container = document.getElementById("canvas-container");
-            if (!container) return;
-            
-            if(typeof THREE === "undefined") {
-                container.innerHTML = "<div style=\'text-align:center; padding-top:50px; font-size:10px; color:#5A2800;\'>[Erro ao carregar renderizador 3D]</div>";
-                return;
-            }
-            
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
-            camera.position.set(0, 1.8, 6.5);
-            camera.lookAt(0, 0.5, 0);
-            
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(container.clientWidth, container.clientHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            container.appendChild(renderer.domElement);
-            
-            const ambient = new THREE.AmbientLight(0xffffff, 0.6);
-            scene.add(ambient);
-            
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            dirLight.position.set(4, 8, 5);
-            scene.add(dirLight);
-            
-            const glowLight = new THREE.PointLight(0xd4a700, 0.9, 8);
-            glowLight.position.set(0, 1.5, 1.5);
-            scene.add(glowLight);
-            
-            const gridHelper = new THREE.GridHelper(8, 12, 0x5a2800, 0x5a2800);
-            gridHelper.position.y = -0.8;
-            scene.add(gridHelper);
-            
-            const ringGeo = new THREE.RingGeometry(1.6, 1.65, 32);
-            const ringMat = new THREE.MeshBasicMaterial({ color: 0xd4a700, side: THREE.DoubleSide, transparent: true, opacity: 0.3 });
-            const ring = new THREE.Mesh(ringGeo, ringMat);
-            ring.rotation.x = Math.PI / 2;
-            ring.position.y = -0.79;
-            scene.add(ring);
-            
-            let isDragging = false;
-            let previousMousePosition = { x: 0, y: 0 };
-            
-            container.addEventListener("mousedown", (e) => {
-                isDragging = true;
-                previousMousePosition = { x: e.clientX, y: e.clientY };
-            });
-            
-            container.addEventListener("mousemove", (e) => {
-                if (!isDragging || !currentMesh) return;
-                const deltaMove = {
-                    x: e.clientX - previousMousePosition.x,
-                    y: e.clientY - previousMousePosition.y
-                };
-                currentMesh.rotation.y += deltaMove.x * 0.005;
-                currentMesh.rotation.x += deltaMove.y * 0.005;
-                previousMousePosition = { x: e.clientX, y: e.clientY };
-            });
-            
-            window.addEventListener("mouseup", () => { isDragging = false; });
-            
-            function animate() {
-                requestAnimationFrame(animate);
-                if (currentMesh && !isDragging) {
-                    currentMesh.rotation.y += 0.008;
-                }
-                ring.rotation.z += 0.002;
-                renderer.render(scene, camera);
-            }
-            animate();
-        }
-        
-        function update3DModel(shapeType, colorHex) {
-            if (typeof THREE === "undefined" || !scene) return;
-            if (currentMesh) scene.remove(currentMesh);
-            
-            const group = new THREE.Group();
-            const colorVal = parseInt(colorHex.replace("#", "0x"));
-            
-            const mat = new THREE.MeshStandardMaterial({
-                color: colorVal,
-                emissive: colorVal,
-                emissiveIntensity: 0.25,
-                metalness: shapeType === "farao" || shapeType === "smith" ? 0.7 : 0.3,
-                roughness: 0.4
-            });
-            
-            document.getElementById("shape-info").textContent = shapeType.toUpperCase();
-            
-            if (shapeType === "farao") {
-                const bodyGeo = new THREE.BoxGeometry(1.1, 1.5, 0.7);
-                const body = new THREE.Mesh(bodyGeo, mat);
-                body.position.y = 0.75;
-                group.add(body);
-                
-                const headGeo = new THREE.BoxGeometry(0.7, 0.5, 0.5);
-                const headMat = new THREE.MeshStandardMaterial({ color: 0xd4a700, metalness: 0.8 });
-                const head = new THREE.Mesh(headGeo, headMat);
-                head.position.y = 1.7;
-                group.add(head);
-                
-                const crownGeo = new THREE.ConeGeometry(0.25, 0.7, 4);
-                const crownMat = new THREE.MeshStandardMaterial({ color: 0xffd700, emissive: 0xffd700 });
-                const crown = new THREE.Mesh(crownGeo, crownMat);
-                crown.position.y = 2.3;
-                crown.rotation.y = Math.PI / 4;
-                group.add(crown);
-            } else if (shapeType === "smith") {
-                const bodyGeo = new THREE.BoxGeometry(1.1, 1.1, 1.1);
-                const body = new THREE.Mesh(bodyGeo, mat);
-                body.position.y = 0.55;
-                group.add(body);
-                
-                const headGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-                const headMat = new THREE.MeshStandardMaterial({ color: 0x505050 });
-                const head = new THREE.Mesh(headGeo, headMat);
-                head.position.y = 1.35;
-                group.add(head);
-                
-                const visorGeo = new THREE.BoxGeometry(0.4, 0.1, 0.08);
-                const visorMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-                const visor = new THREE.Mesh(visorGeo, visorMat);
-                visor.position.set(0, 1.35, 0.26);
-                group.add(visor);
-            } else if (shapeType === "cao") {
-                const bodyGeo = new THREE.BoxGeometry(1.4, 0.7, 0.7);
-                const body = new THREE.Mesh(bodyGeo, mat);
-                body.position.y = 0.35;
-                group.add(body);
-                
-                const headGeo = new THREE.BoxGeometry(0.45, 0.45, 0.45);
-                const head = new THREE.Mesh(headGeo, mat);
-                head.position.set(0.8, 0.55, 0);
-                group.add(head);
-                
-                const spikeGeo = new THREE.ConeGeometry(0.15, 0.4, 4);
-                const spikeMat = new THREE.MeshStandardMaterial({ color: 0x8b0000 });
-                const spike1 = new THREE.Mesh(spikeGeo, spikeMat);
-                spike1.position.set(-0.2, 0.7, 0);
-                const spike2 = spike1.clone();
-                spike2.position.x = 0.2;
-                group.add(spike1);
-                group.add(spike2);
-            } else if (shapeType === "box" || shapeType === "cube") {
-                const geo = new THREE.BoxGeometry(1.2, 1.2, 1.2);
-                const mesh = new THREE.Mesh(geo, mat);
-                mesh.position.y = 0.6;
-                group.add(mesh);
-            } else if (shapeType === "cone") {
-                const geo = new THREE.ConeGeometry(0.8, 1.8, 8);
-                const mesh = new THREE.Mesh(geo, mat);
-                mesh.position.y = 0.9;
-                group.add(mesh);
-            } else if (shapeType === "cylinder") {
-                const geo = new THREE.CylinderGeometry(0.6, 0.8, 1.8, 12);
-                const mesh = new THREE.Mesh(geo, mat);
-                mesh.position.y = 0.9;
-                group.add(mesh);
-            } else if (shapeType === "sphere") {
-                const geo = new THREE.SphereGeometry(0.85, 24, 24);
-                const mesh = new THREE.Mesh(geo, mat);
-                mesh.position.y = 0.85;
-                group.add(mesh);
-            } else if (shapeType === "octahedron") {
-                const geo = new THREE.OctahedronGeometry(0.9, 0);
-                const mesh = new THREE.Mesh(geo, mat);
-                mesh.position.y = 0.9;
-                group.add(mesh);
-            } else if (shapeType === "tetrahedron") {
-                const geo = new THREE.TetrahedronGeometry(0.9, 0);
-                const mesh = new THREE.Mesh(geo, mat);
-                mesh.position.y = 0.9;
-                group.add(mesh);
-            } else if (shapeType === "icosahedron") {
-                const geo = new THREE.IcosahedronGeometry(0.9, 0);
-                const mesh = new THREE.Mesh(geo, mat);
-                mesh.position.y = 0.9;
-                group.add(mesh);
-            } else if (shapeType === "dodecahedron") {
-                const geo = new THREE.DodecahedronGeometry(0.9, 0);
-                const mesh = new THREE.Mesh(geo, mat);
-                mesh.position.y = 0.9;
-                group.add(mesh);
-            } else if (shapeType === "torus") {
-                const geo = new THREE.TorusGeometry(0.6, 0.2, 8, 24);
-                const mesh = new THREE.Mesh(geo, mat);
-                mesh.position.y = 0.8;
-                mesh.rotation.x = Math.PI / 3;
-                group.add(mesh);
-            } else {
-                const geo = new THREE.BoxGeometry(1, 1, 1);
-                const mesh = new THREE.Mesh(geo, mat);
-                mesh.position.y = 0.5;
-                group.add(mesh);
-            }
-            
-            currentMesh = group;
-            scene.add(currentMesh);
-        }
-        
-        function renderCards() {
-            const container = document.getElementById("cards-wrapper");
-            container.innerHTML = "";
-            
-            const categoryMap = {
-                comum: "Comum",
-                minion: "Comum",
-                structure: "Estrutura",
-                guardião: "Guardião",
-                defender: "Defensor",
-                boss: "Chefe",
-                miniboss: "Mini Chefe",
-                deus: "Deus"
-            };
-            
-            const difficultyColors = {
-                E: "#4caf50",
-                D: "#0288d1",
-                C: "#9c27b0",
-                B: "#ff9800",
-                A: "#e65100",
-                S: "#d32f2f",
-                SS: "#ffd700"
-            };
-            
-            const filtered = bestiaryData.filter(item => {
-                const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
-                
-                let matchesCategory = false;
-                if (currentFilter === "all") {
-                    matchesCategory = true;
-                } else if (currentFilter === "comum") {
-                    matchesCategory = (item.category === "comum" || item.category === "minion" || item.category === "structure");
-                } else if (currentFilter === "guardião") {
-                    matchesCategory = (item.category === "guardião" || item.category === "defender");
-                } else if (currentFilter === "boss") {
-                    matchesCategory = (item.category === "boss" || item.category === "miniboss" || item.category === "deus");
-                }
-                
-                return matchesSearch && matchesCategory;
-            });
-            
-            if (filtered.length === 0) {
-                container.innerHTML = "<div style=\'text-align:center; padding:20px; font-size:10px; color:#5A2800; font-style:italic;\'>Nenhuma criatura encontrada.</div>";
-                return;
-            }
-            
-            filtered.forEach(item => {
-                const card = document.createElement("div");
-                card.className = "creature-card" + (item.id === activeId ? " selected" : "");
-                
-                const catName = categoryMap[item.category] || item.category;
-                const diffColor = difficultyColors[item.difficulty] || "#505050";
-                
-                card.innerHTML = `
-                    <div class="creature-icon-placeholder">
-                        <span class="creature-shape-dot" style="background-color: ${item.color}; border-radius: ${item.shape === "sphere" ? "50%" : "0"}"></span>
-                    </div>
-                    <div class="creature-card-info">
-                        <div class="creature-card-name">${item.name}</div>
-                        <div class="creature-card-cat">${catName}</div>
-                    </div>
-                    <span class="creature-card-difficulty" style="background-color: ${diffColor}">${item.difficulty}</span>
-                `;
-                
-                card.addEventListener("click", () => {
-                    selectCreature(item.id);
-                });
-                
-                container.appendChild(card);
-            });
-        }
-        
-        function selectCreature(id) {
-            activeId = id;
-            
-            // Re-render cards to show selected status
-            document.querySelectorAll(".creature-card").forEach(c => c.classList.remove("selected"));
-            renderCards();
-            
-            const item = bestiaryData.find(b => b.id === id);
-            if (!item) return;
-            
-            // Populate Dossier
-            document.getElementById("dossier-name").textContent = item.name;
-            
-            const categoryMap = {
-                comum: "Criatura Comum (Sentinela)",
-                minion: "Criatura Comum (Minion)",
-                structure: "Estrutura Defensiva",
-                guardião: "Guardião de Elite",
-                defender: "Guardião Defensor",
-                boss: "Chefe de Simulação (Boss)",
-                miniboss: "Mini Chefe de Limbo",
-                deus: "Entidade Divina Suprema (Boss Final)"
-            };
-            document.getElementById("dossier-category").textContent = categoryMap[item.category] || item.category;
-            
-            const difficultyColors = {
-                E: "#4caf50",
-                D: "#0288d1",
-                C: "#9c27b0",
-                B: "#ff9800",
-                A: "#e65100",
-                S: "#d32f2f",
-                SS: "#ffd700"
-            };
-            const diffColor = difficultyColors[item.difficulty] || "#505050";
-            const diffElement = document.getElementById("dossier-difficulty");
-            diffElement.textContent = item.difficulty;
-            diffElement.style.backgroundColor = diffColor;
-            
-            document.getElementById("dossier-lore").textContent = item.lore;
-            
-            document.getElementById("stat-hp").textContent = item.hp.toLocaleString();
-            document.getElementById("stat-speed").textContent = item.speed === 0 ? "Imóvel / Teleporte" : item.speed.toFixed(1) + " u/s";
-            document.getElementById("stat-xp").textContent = item.xp.toLocaleString() + " XP";
-            document.getElementById("stat-score").textContent = item.score.toLocaleString() + " pts";
-            
-            // Populate Skills Tab
-            const skillsWrapper = document.getElementById("skills-wrapper");
-            skillsWrapper.innerHTML = "";
-            
-            if (item.skills && item.skills.length > 0) {
-                item.skills.forEach(skill => {
-                    const el = document.createElement("div");
-                    el.className = "skill-item";
-                    const badgeBg = skill.type === "passive" ? "#0288d1" : "#e65100";
-                    const badgeText = skill.type === "passive" ? "Passiva" : "Ativa";
-                    
-                    el.innerHTML = `
-                        <div class="skill-header">
-                            <span class="skill-name">${skill.name}</span>
-                            <span class="skill-badge" style="background-color: ${badgeBg}">${badgeText}</span>
-                        </div>
-                        <p class="skill-desc">${skill.desc}</p>
-                    `;
-                    skillsWrapper.appendChild(el);
-                });
-            } else {
-                skillsWrapper.innerHTML = `
-                    <div style="font-size:10px; color:#666; font-style:italic; padding: 10px 0; text-align:center;">
-                        Esta criatura não possui habilidades especiais ativas. Causa dano físico padrão de contato.
-                    </div>
-                `;
-            }
-            
-            // Populate Spawn Tab
-            document.getElementById("spawn-text").innerHTML = `
-                <p style="margin: 0 0 6px 0;"><strong>Temporizador de Respawn:</strong></p>
-                <p style="margin: 0 0 10px 0; color:#000;">${item.spawn}</p>
-                <p style="margin: 0 0 6px 0;"><strong>Recompensa de Abate:</strong></p>
-                <p style="margin: 0; color:#000;">Derrubar esta entidade recompensa os jogadores com <strong>${item.xp.toLocaleString()} XP</strong> e adiciona <strong>${item.score.toLocaleString()} pontos</strong> ao ranking geral da partida.</p>
-            `;
-            
-            // Update model
-            update3DModel(item.shape, item.color);
-        }
-        
-        // Search Input Event
-        document.getElementById("bestiary-search").addEventListener("input", (e) => {
-            searchQuery = e.target.value;
-            renderCards();
-        });
-        
-        // Filter Tabs Event
-        document.querySelectorAll(".filter-btn").forEach(btn => {
-            btn.addEventListener("click", (e) => {
-                document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
-                e.target.classList.add("active");
-                currentFilter = e.target.dataset.filter;
-                renderCards();
-            });
-        });
-        
-        // Tab Views inside dossier
-        document.querySelectorAll(".dossier-tab-btn").forEach(btn => {
-            btn.addEventListener("click", (e) => {
-                document.querySelectorAll(".dossier-tab-btn").forEach(b => b.classList.remove("active"));
-                document.querySelectorAll(".dossier-tab-panel").forEach(p => p.classList.remove("active"));
-                
-                e.target.classList.add("active");
-                document.getElementById("panel-" + e.target.dataset.tab).classList.add("active");
-            });
-        });
-        
-        // Start Bestiary UI
-        window.addEventListener("DOMContentLoaded", () => {
-            init3D();
-            renderCards();
-            selectCreature(activeId);
-        });
-    </script>';
+    header('Location: ?subtopic=wiki&tab=bestiary');
+    exit;
 } else if ($subtopic === 'updates' || $subtopic === 'changelogs') {
     $title = "Notas de Atualização";
     $content = '<p style="font-size:11px; color:#000; margin-bottom:15px;">Fique por dentro de todos os buffs, nerfs, ajustes e correções que foram realizados no Survival 3D.</p>';
@@ -2624,7 +1824,7 @@ if ($subtopic === 'player_builds') {
     $error = '';
     $success = '';
 
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['post_update_x'])) { // input type="image" submits as name_x
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') { // input type="image" submits as name_x
         $type = $_POST['type'] ?? 'Novidade';
         $target = trim($_POST['target'] ?? '');
         $description = trim($_POST['description'] ?? '');
@@ -2861,6 +2061,32 @@ if ($subtopic === 'player_builds') {
                 $gameData['enemies'][$entity]['stats']['hitboxRadius'] = floatval($_POST['hitboxRadius']);
                 $gameData['enemies'][$entity]['stats']['xp'] = intval($_POST['xp']);
                 $gameData['enemies'][$entity]['stats']['score'] = intval($_POST['score']);
+
+                // Boss/Spawn fields
+                if (isset($_POST['spawnTimer'])) {
+                    if (!isset($gameData['enemies'][$entity]['spawn'])) $gameData['enemies'][$entity]['spawn'] = [];
+                    $gameData['enemies'][$entity]['spawn']['timer'] = intval($_POST['spawnTimer']);
+                    $gameData['enemies'][$entity]['spawn']['isBoss'] = isset($_POST['isBoss']);
+                    $gameData['enemies'][$entity]['spawn']['isUnique'] = isset($_POST['isUnique']);
+                }
+                // AI fields
+                if (isset($_POST['aggroRange'])) {
+                    if (!isset($gameData['enemies'][$entity]['ai'])) $gameData['enemies'][$entity]['ai'] = ['profile' => 'chaser'];
+                    $gameData['enemies'][$entity]['ai']['aggroRange'] = intval($_POST['aggroRange']);
+                    if (isset($_POST['auraRadius'])) {
+                        if (!isset($gameData['enemies'][$entity]['ai']['params'])) $gameData['enemies'][$entity]['ai']['params'] = [];
+                        $gameData['enemies'][$entity]['ai']['params']['auraRadius'] = intval($_POST['auraRadius']);
+                    }
+                }
+                // Visual fields
+                if (isset($_POST['visualColor'])) {
+                    if (!isset($gameData['enemies'][$entity]['visuals'])) $gameData['enemies'][$entity]['visuals'] = [];
+                    $gameData['enemies'][$entity]['visuals']['color'] = $_POST['visualColor'];
+                    $gameData['enemies'][$entity]['visuals']['scale'] = floatval($_POST['visualScale'] ?? 1);
+                    if (!empty($_POST['visualEmissive'])) {
+                        $gameData['enemies'][$entity]['visuals']['emissive'] = $_POST['visualEmissive'];
+                    }
+                }
             }
         }
 
@@ -3002,6 +2228,8 @@ if ($subtopic === 'player_builds') {
                                 <option value="basic"' . (($enemyDef['category'] ?? '') === 'basic' ? ' selected' : '') . '>Basic (Básico)</option>
                                 <option value="boss"' . (($enemyDef['category'] ?? '') === 'boss' ? ' selected' : '') . '>Boss (Chefe)</option>
                                 <option value="structure"' . (($enemyDef['category'] ?? '') === 'structure' ? ' selected' : '') . '>Structure (Estrutura)</option>
+                                <option value="defender"' . (($enemyDef['category'] ?? '') === 'defender' ? ' selected' : '') . '>Defender (Defensor)</option>
+                                <option value="minion"' . (($enemyDef['category'] ?? '') === 'minion' ? ' selected' : '') . '>Minion (Lacaio)</option>
                             </select>
                         </td>
                     </tr>
@@ -3042,6 +2270,51 @@ if ($subtopic === 'player_builds') {
                         <td><input type="number" name="score" value="' . intval($eStats['score'] ?? 0) . '" style="width:90%;" required /></td>
                     </tr>
                 </table>
+
+                <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050" style="margin-top:10px;">
+                    <tr bgcolor="#D4C0A1">
+                        <td colspan="2" style="color:#000; font-weight:bold; font-size:11px;"><b>⚔️ Spawn & AI</b></td>
+                    </tr>
+                    <tr bgcolor="#F1E0C6" style="color:#000;">
+                        <td width="40%"><b>Tempo de Spawn (seg):</b></td>
+                        <td><input type="number" name="spawnTimer" value="' . intval($enemyDef['spawn']['timer'] ?? 0) . '" style="width:90%;" /> <span style="font-size:9px; color:#555;">(0 = spawn padrão por wave)</span></td>
+                    </tr>
+                    <tr bgcolor="#D4C0A1" style="color:#000;">
+                        <td><b>É Boss:</b></td>
+                        <td><input type="checkbox" name="isBoss" value="1"' . (!empty($enemyDef['spawn']['isBoss']) ? ' checked' : '') . ' /> <span style="font-size:9px; color:#555;">(Aparece como boss especial)</span></td>
+                    </tr>
+                    <tr bgcolor="#F1E0C6" style="color:#000;">
+                        <td><b>É Único:</b></td>
+                        <td><input type="checkbox" name="isUnique" value="1"' . (!empty($enemyDef['spawn']['isUnique']) ? ' checked' : '') . ' /> <span style="font-size:9px; color:#555;">(Apenas 1 por partida)</span></td>
+                    </tr>
+                    <tr bgcolor="#D4C0A1" style="color:#000;">
+                        <td><b>Raio de Aggro:</b></td>
+                        <td><input type="number" name="aggroRange" value="' . intval($enemyDef['ai']['aggroRange'] ?? 20) . '" style="width:90%;" /></td>
+                    </tr>
+                    <tr bgcolor="#F1E0C6" style="color:#000;">
+                        <td><b>Raio da Aura:</b></td>
+                        <td><input type="number" name="auraRadius" value="' . intval($enemyDef['ai']['params']['auraRadius'] ?? 0) . '" style="width:90%;" /> <span style="font-size:9px; color:#555;">(0 = sem aura)</span></td>
+                    </tr>
+                </table>
+
+                <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050" style="margin-top:10px;">
+                    <tr bgcolor="#D4C0A1">
+                        <td colspan="2" style="color:#000; font-weight:bold; font-size:11px;"><b>🎨 Visual</b></td>
+                    </tr>
+                    <tr bgcolor="#F1E0C6" style="color:#000;">
+                        <td width="40%"><b>Cor Principal:</b></td>
+                        <td><input type="color" name="visualColor" value="' . htmlspecialchars($enemyDef['visuals']['color'] ?? '#FF0000') . '" style="width:50px; height:25px; cursor:pointer;" /> <span style="font-size:9px; color:#555;">' . htmlspecialchars($enemyDef['visuals']['color'] ?? '#FF0000') . '</span></td>
+                    </tr>
+                    <tr bgcolor="#D4C0A1" style="color:#000;">
+                        <td><b>Escala (Tamanho):</b></td>
+                        <td><input type="number" step="0.1" name="visualScale" value="' . floatval($enemyDef['visuals']['scale'] ?? 1) . '" style="width:90%;" /></td>
+                    </tr>
+                    <tr bgcolor="#F1E0C6" style="color:#000;">
+                        <td><b>Cor Emissiva (Glow):</b></td>
+                        <td><input type="color" name="visualEmissive" value="' . htmlspecialchars($enemyDef['visuals']['emissive'] ?? '#000000') . '" style="width:50px; height:25px; cursor:pointer;" /> <span style="font-size:9px; color:#555;">' . htmlspecialchars($enemyDef['visuals']['emissive'] ?? '#000000') . '</span></td>
+                    </tr>
+                </table>
+
                 <br/>
                 <center>
                     <input type="submit" value="Salvar Alterações" style="font-weight:bold; padding:5px 15px; cursor:pointer;" />
@@ -3077,166 +2350,1504 @@ if ($subtopic === 'player_builds') {
     </table>';
 } else if ($subtopic === 'wiki') {
     $title = "Biblioteca Wiki";
-    $content = '
-    <div class="Headline" style="font-weight:bold; font-size:13px; color:#5A2800; border-bottom:1px solid #5A2800; padding-bottom:5px; margin-bottom:15px;">Guia Geral do Jogador: Atributos, Magias e Torres de Essência</div>
-    <div class="Text" style="font-size:11px; line-height:140%; color:#000;">
-        Bem-vindo à Wiki oficial do <strong>Survival 3D</strong>! Abaixo você encontrará os dados completos sobre a evolução do herói, o funcionamento detalhado de suas habilidades ativas e a árvore de passivas de cada Torre de Essência.
-        <br/><br/>
+    $activeTab = $_GET['tab'] ?? 'hero';
+    
+    // Read game_data.json to populate the bestiary dynamically
+    $enemies = [];
+    if (file_exists('game_data.json')) {
+        $gameData = json_decode(file_get_contents('game_data.json'), true);
+        $enemies = $gameData['enemies'] ?? [];
+    }
+    
+    // Detail mapping for bestiary
+    $bestiaryDetails = [
+        'PurpleCube' => [
+            'name' => 'Cubo Roxo',
+            'difficulty' => 'E',
+            'shape' => 'box',
+            'lore' => 'A unidade básica da infestação geométrica. Move-se de forma errática em direção ao jogador e ataca à curta distância.',
+            'skills' => []
+        ],
+        'EscaravelhoFarao' => [
+            'name' => 'Escaravelho Sagrado',
+            'difficulty' => 'D',
+            'shape' => 'sphere',
+            'lore' => 'Insetos sagrados despertados pela presença invasora na tumba. Eles atacam em enxames rápidos e implacáveis.',
+            'skills' => [
+                ['name' => 'Investida Rápida (Passiva)', 'type' => 'passive', 'desc' => 'Persegue o jogador com extrema velocidade (8.0 u/s) e ataque feroz de contato.']
+            ]
+        ],
+        'RedCone' => [
+            'name' => 'Cone Vermelho',
+            'difficulty' => 'D',
+            'shape' => 'cone',
+            'lore' => 'Uma sentinela defensiva imóvel de alta resistência que dispara projéteis lineares rápidos em qualquer um em sua linha de visão.',
+            'skills' => []
+        ],
+        'EnemyTower' => [
+            'name' => 'Torre Inimiga',
+            'difficulty' => 'D',
+            'shape' => 'cylinder',
+            'lore' => 'Estruturas cilíndricas que disparam feixes defensivos de longo alcance para afastar os jogadores de áreas seguras.',
+            'skills' => []
+        ],
+        'GuardianGuerreiro' => [
+            'name' => 'Guardião Guerreiro',
+            'difficulty' => 'C',
+            'shape' => 'box',
+            'lore' => 'Um soldado de infantaria pesado de cor vermelha escura que usa escudo de energia para atordoar invasores.',
+            'skills' => [
+                ['name' => 'Golpe Impactante (Passiva)', 'type' => 'passive', 'desc' => 'Desfere um golpe de contato que atordoa o jogador afetado por 1.0s (100% de chance).']
+            ]
+        ],
+        'GuardianMago' => [
+            'name' => 'Guardião Mago',
+            'difficulty' => 'C',
+            'shape' => 'octahedron',
+            'lore' => 'Um canalizador octaédrico de cor azul escura que ataca a longas distâncias usando magias de congelamento.',
+            'skills' => [
+                ['name' => 'Estase de Gelo (Passiva)', 'type' => 'passive', 'desc' => 'Ataques mágicos aplicam congelamento de 2 segundos ao impacto.']
+            ]
+        ],
+        'GuardianArqueiro' => [
+            'name' => 'Guardião Arqueiro',
+            'difficulty' => 'C',
+            'shape' => 'cone',
+            'lore' => 'Um batedor cônico verde escuro extremamente veloz. Ele tenta manter distância segura do jogador e disparar flechas de precisão.',
+            'skills' => [
+                ['name' => 'Disparo de Retirada (Passiva)', 'type' => 'passive', 'desc' => 'Corra para trás se o jogador se aproximar a menos de 6 metros.']
+            ]
+        ],
+        'MatilhaGeometra' => [
+            'name' => 'Lobo Geométrico',
+            'difficulty' => 'D',
+            'shape' => 'box',
+            'lore' => 'Crias velozes criadas pelas chamas do Cão dos Infernos. Caçam em conjunto e atacam em bandos coordenados.',
+            'skills' => []
+        ],
+        'CloneIlusorio' => [
+            'name' => 'Clone Ilusório',
+            'difficulty' => 'E',
+            'shape' => 'tetrahedron',
+            'lore' => 'Cópias falsas geradas para enganar os desafiantes. Embora tenham apenas 1 HP, seu toque desorienta completamente o herói.',
+            'skills' => [
+                ['name' => 'Toque Desorientador (Passiva)', 'type' => 'passive', 'desc' => 'Causa desorientação por 1 segundo ao tocar o jogador.']
+            ]
+        ],
+        'BruxaDoGelo' => [
+            'name' => 'Bruxa do Gelo',
+            'difficulty' => 'C',
+            'shape' => 'sphere',
+            'lore' => 'Uma feiticeira congelante que desacelera e congela jogadores à distância.',
+            'skills' => [
+                ['name' => 'Crio-toque (Passiva)', 'type' => 'passive', 'desc' => 'Habilidades e ataques mágicos aplicam congelamento de 2.0s.']
+            ]
+        ],
+        'MestraDaIlusao' => [
+            'name' => 'Mestra da Ilusão',
+            'difficulty' => 'B',
+            'shape' => 'tetrahedron',
+            'lore' => 'Uma ladra de mentes que esquiva de golpes com facilidade.',
+            'skills' => [
+                ['name' => 'Esquiva Ilusória (Passiva)', 'type' => 'passive', 'desc' => 'Garante 25% de chance de esquivar de qualquer dano.']
+            ]
+        ],
+        'BombardeiroInsano' => [
+            'name' => 'Bombardeiro Insano',
+            'difficulty' => 'B',
+            'shape' => 'cube',
+            'lore' => 'Um servo piromaníaco pesado que incinera tudo o que vê.',
+            'skills' => [
+                ['name' => 'Ignorar Perigo (Passiva)', 'type' => 'passive', 'desc' => 'Aplica queimadura de 10 de dano por 5 segundos nos ataques básicos.']
+            ]
+        ],
+        'GuardiaoDoLimbo' => [
+            'name' => 'Guardião do Limbo',
+            'difficulty' => 'C',
+            'shape' => 'cylinder',
+            'lore' => 'Sentinela primordial das profundezas. Move-se quase imperceptivelmente lento, mas seus golpes reduzem a velocidade do herói.',
+            'skills' => [
+                ['name' => 'Toque do Limbo (Passiva)', 'type' => 'passive', 'desc' => 'Lentidão de 15% por 3 segundos em ataques básicos.']
+            ]
+        ],
+        'Minos' => [
+            'name' => 'Minos, o Árbitro',
+            'difficulty' => 'B',
+            'shape' => 'box',
+            'lore' => 'O juiz das almas perdidas no limbo. Pune intrusos com ataques massivos à distância.',
+            'skills' => []
+        ],
+        'Cerbero' => [
+            'name' => 'Cérbero Geométrico',
+            'difficulty' => 'B',
+            'shape' => 'cao',
+            'lore' => 'A fera tricefálica do submundo digital. Suas mordidas regeneram sua vida.',
+            'skills' => [
+                ['name' => 'Sede Vampírica (Passiva)', 'type' => 'passive', 'desc' => 'Regenera 5% do dano físico causado como vida.']
+            ]
+        ],
+        'Plutao' => [
+            'name' => 'Plutão, o Dourado',
+            'difficulty' => 'B',
+            'shape' => 'sphere',
+            'lore' => 'Uma entidade divina dourada do limbo que canaliza orbes estelares de energia de alta precisão.',
+            'skills' => []
+        ],
+        'Furia' => [
+            'name' => 'Fúria, o Furioso',
+            'difficulty' => 'B',
+            'shape' => 'octahedron',
+            'lore' => 'A encarnação geométrica de pura raiva concentrada. Move-se rápido e ataca impiedosamente.',
+            'skills' => []
+        ],
+        'Megera' => [
+            'name' => 'Megera das Chamas',
+            'difficulty' => 'A',
+            'shape' => 'cone',
+            'lore' => 'Uma bruxa de fogo elemental imune a efeitos de controle.',
+            'skills' => [
+                ['name' => 'Mente Inflexível (Passiva)', 'type' => 'passive', 'desc' => 'Imunidade total a qualquer efeito de controle de grupo (CC).']
+            ]
+        ],
+        'Minotauro' => [
+            'name' => 'Minotauro de Sangue',
+            'difficulty' => 'B',
+            'shape' => 'box',
+            'lore' => 'Besta feroz sedenta por batalhas prolongadas na arena.',
+            'skills' => [
+                ['name' => 'Frenesi Vampírico (Passiva)', 'type' => 'passive', 'desc' => 'Regenera 5% do dano causado como vida.']
+            ]
+        ],
+        'Geriao' => [
+            'name' => 'Gerião, a Ilusão',
+            'difficulty' => 'A',
+            'shape' => 'tetrahedron',
+            'lore' => 'Espírito que dobra as dimensões espaciais para evadir ameaças.',
+            'skills' => [
+                ['name' => 'Distorção de Desvio (Passiva)', 'type' => 'passive', 'desc' => 'Garante 20% de chance de esquivar de qualquer ataque.']
+            ]
+        ],
+        'EspectroDeRaziel' => [
+            'name' => 'Espectro de Raziel',
+            'difficulty' => 'A',
+            'shape' => 'sphere',
+            'lore' => 'Espírito guerreiro ancestral. Suas lâminas perfuram a defesa do herói, tirando uma parcela da sua força vital.',
+            'skills' => [
+                ['name' => 'Ataque Vampírico (Passiva)', 'type' => 'passive', 'desc' => 'Ataques causam dano real de 5% da vida máxima do herói.']
+            ]
+        ],
+        'Smith' => [
+            'name' => 'Agent Smith',
+            'difficulty' => 'S',
+            'shape' => 'smith',
+            'lore' => 'Uma anomalia de sistema na forma de uma inteligência artificial autogerida e altamente invasiva. Ele se replica continuamente, infectando e substituindo dados na matriz de simulação para sobrecarregar a memória dos desafiantes.',
+            'skills' => [
+                ['name' => 'Sobrescrita Global (Ativa)', 'type' => 'active', 'desc' => 'Inicia ciclos de multiplicação, criando clones exatos de si mesmo que perseguem o jogador.'],
+                ['name' => 'Contaminação Metódica (Passiva)', 'type' => 'passive', 'desc' => 'Cada golpe desferido por seus clones rouba 1% da experiência (XP) do jogador, impedindo sua progressão.'],
+                ['name' => 'Protocolo de Resiliência (Passiva)', 'type' => 'passive', 'desc' => 'Cada clone ativo em batalha aumenta o dano bruto do Agent Smith original em 2% de forma cumulativa.'],
+                ['name' => 'Salto de Protocolo (Ativa)', 'type' => 'active', 'desc' => 'Teleporta-se em distâncias de até 15 metros se for cercado ou receber muito dano concentrado.'],
+                ['name' => 'Tela Azul de Erro (Passiva)', 'type' => 'passive', 'desc' => 'Ao ser eliminado, aciona um dump de tela azul no visor que simula travamento do sistema por alguns segundos.']
+            ]
+        ],
+        'CaoDosInfernos' => [
+            'name' => 'Cão dos Infernos',
+            'difficulty' => 'A',
+            'shape' => 'cao',
+            'lore' => 'Um predador implacável forjado na essência das chamas cúbicas. Ele lidera uma matilha assassina e caça ativamente o jogador com velocidade formidável, tirando proveito de efeitos de sangramento e ataques velozes em área.',
+            'skills' => [
+                ['name' => 'Matilha Geométrica (Passiva)', 'type' => 'passive', 'desc' => 'Invoca e mantém até 4 lobos menores que auxiliam nos ataques físicos.'],
+                ['name' => 'Investida Implacável (Ativa)', 'type' => 'active', 'desc' => 'Mira por 1s e realiza uma investida rápida a velocidade 25, causando 50 de dano e atordoando por 0.5s quem estiver no caminho.'],
+                ['name' => 'Prismas Sombrios (Ativa)', 'type' => 'active', 'desc' => 'Morde o alvo aplicando sangramento de 10 de dano por segundo por 4s e curando o Cão em 15% do dano causado.'],
+                ['name' => 'Evisceração Cúbica (Ativa)', 'type' => 'active', 'desc' => 'Causa 40 de dano em área (raio 6m) e regenera a vida de toda a matilha aliada próxima.'],
+                ['name' => 'Chamado do Abismo (Ativa)', 'type' => 'active', 'desc' => 'Entra em frenesi por 15s: aumenta 1.2x de tamanho, duplica sua velocidade, ganha um escudo de 2000 HP e invoca a matilha máxima.']
+            ]
+        ],
+        'SuperBoss' => [
+            'name' => 'Super Boss',
+            'difficulty' => 'B',
+            'shape' => 'sphere',
+            'lore' => 'Uma anomalia esférica violeta gigante que atrai gravitacionalmente os jogadores para perto, drenando suas vidas.',
+            'skills' => [
+                ['name' => 'Sucção de Matéria (Passiva)', 'type' => 'passive', 'desc' => 'Atrai jogadores em um raio de 8 metros com força gravitacional contínua.']
+            ]
+        ],
+        'RainhaDasTrevas' => [
+            'name' => 'Rainha das Trevas',
+            'difficulty' => 'S',
+            'shape' => 'cylinder',
+            'lore' => 'A soberana da escuridão absoluta. Ela flutua a altas velocidades cortando a luz da arena com seu corpo cilíndrico de energia escura.',
+            'skills' => []
+        ],
+        'Gangplank' => [
+            'name' => 'Gangplank',
+            'difficulty' => 'A',
+            'shape' => 'box',
+            'lore' => 'O flagelo dos mares cúbicos. Ele possui alta defesa natural de 10% e dispara barris de pólvora explosivos que causam enorme dano em área.',
+            'skills' => [
+                ['name' => 'Barril de Pólvora (Ativa)', 'type' => 'active', 'desc' => 'Coloca barris explosivos na arena que explodem em cadeia se forem atingidos.'],
+                ['name' => 'Determinação Ferrosa (Passiva)', 'type' => 'passive', 'desc' => 'Reduz todo dano recebido em 10% através de sua blindagem natural.']
+            ]
+        ],
+        'PlantaCarnivora' => [
+            'name' => 'Planta Carnívora Rainha',
+            'difficulty' => 'B',
+            'shape' => 'cylinder',
+            'lore' => 'Um organismo vegetal hostil gigante. Embora estática, sua mordida causa danos enormes a curta distância com veneno poderoso.',
+            'skills' => [
+                ['name' => 'Cuspe Ácido (Passiva)', 'type' => 'passive', 'desc' => 'Seus projéteis causam 8 de dano por segundo de veneno durante 3 segundos.']
+            ]
+        ],
+        'FeiticeiroImortal' => [
+            'name' => 'Lord Vouldemord',
+            'difficulty' => 'A',
+            'shape' => 'sphere',
+            'lore' => 'Um mestre das artes sombrias que transcendeu a morte física através de rituais proibidos. Ele flutua como uma esfera índigo.',
+            'skills' => []
+        ],
+        'LichKing' => [
+            'name' => 'Lich King',
+            'difficulty' => 'S',
+            'shape' => 'box',
+            'lore' => 'O soberano da morte and do gelo. Ele caminha de forma lenta, mas gera uma aura de congelamento mortal de 4m ao seu redor que pune jogadores desavisados.',
+            'skills' => [
+                ['name' => 'Geada do Necro (Passiva)', 'type' => 'passive', 'desc' => 'Desacelera em 30% a velocidade de qualquer jogador dentro da aura de 4m (1.5s de duração).']
+            ]
+        ],
+        'TheMightyOne' => [
+            'name' => 'O Poderoso',
+            'difficulty' => 'S',
+            'shape' => 'box',
+            'lore' => 'Um colosso maciço de granito escuro que se move a passos lentos, mas exerce uma força gravitacional gigantesca na arena, puxando todos os oponentes para si.',
+            'skills' => [
+                ['name' => 'Aura Gravitacional (Passiva)', 'type' => 'passive', 'desc' => 'Exerce uma força de atração em uma área de 25m, puxando jogadores para perto de seu corpo massivo.'],
+                ['name' => 'Esmagamento Cúbico (Ativa)', 'type' => 'active', 'desc' => 'Descarrega um golpe de 100 de dano instantâneo na área de sua hitbox colossal de 4 metros.']
+            ]
+        ],
+        'Lucifer' => [
+            'name' => 'Lúcifer Cósmico',
+            'difficulty' => 'S',
+            'shape' => 'icosahedron',
+            'lore' => 'O portador da luz das estrelas decaído. Ataca a distâncias extremas de 50 metros com lentidão gélida de 90%.',
+            'skills' => [
+                ['name' => 'Grito da Estrela Caída (Passiva)', 'type' => 'passive', 'desc' => 'Ataques de longa distância causam slow extremo de 90% por um longo período.']
+            ]
+        ],
+        'Farao' => [
+            'name' => 'O Faraó',
+            'difficulty' => 'SS',
+            'shape' => 'farao',
+            'lore' => 'A entidade suprema e governante das areias do Limbo. O Faraó flutua silenciosamente na arena e se move apenas por teletransporte, canalizando as forças cósmicas e antigas pragas para expurgar quem ousar entrar em sua tumba.',
+            'skills' => [
+                ['name' => 'Divindade Intocável (Passiva)', 'type' => 'passive', 'desc' => 'Imunidade total contra qualquer tipo de lentidão, enraizamento, sangramento, silenciamento ou debuff.'],
+                ['name' => 'Maldição Dourada (Passiva)', 'type' => 'passive', 'desc' => 'Reflete 10% de todo dano recebido diretamente de volta para o atacante.'],
+                ['name' => 'Areias do Tempo (Passiva)', 'type' => 'passive', 'desc' => 'Jogadores que ficam parados acumulam lentidão de 1% por segundo (limite de 70% slow). Voltar a se mover limpa o acúmulo.'],
+                ['name' => 'Escaravelhos da Tumba (Passiva)', 'type' => 'passive', 'desc' => 'A cada 12 segundos, invoca 3 Escaravelhos guiados de 200 HP que perseguem o jogador mais próximo e explodem causando 50 de dano.'],
+                ['name' => 'Raio de Rá (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 15s. Sinaliza uma área por 1.5s e dispara um feixe de luz divina que causa 30% da vida máxima como dano real e inflige queimadura de 20 DPS por 5s.'],
+                ['name' => 'Prisão de Gizé (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 25s. Envolve o jogador e dá apenas 1 segundo para escapar de seu raio. Caso contrário, enraíza o alvo por 3 segundos.'],
+                ['name' => 'Julgamento de Osíris (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 45s. Limita a zona segura verde a uma metade aleatória da arena por 4s. Quem estiver fora dela ao fim do temporizador sofre 99% da vida máxima como dano verdadeiro.'],
+                ['name' => 'Praga de Gafanhotos (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 20s. Dispara nuvem de insetos guiados que causam cegueira por 4s e 10 de dano por segundo.'],
+                ['name' => 'Colapso Monumental (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 65s (apenas abaixo de 50% HP). Levita no céu por 3s e faz chover 8 colossais blocos de templo que causam 500 de dano e barram o mapa por 10s.']
+            ]
+        ],
+        'SenhorDoenca' => [
+            'name' => 'Senhor Doença',
+            'difficulty' => 'A',
+            'shape' => 'sphere',
+            'lore' => 'O Senhor Doença (Doutor Doença) espalha pragas e patógenos mortais. Ele tenta manter distância dos jogadores para atacá-los com debuffs debilitantes de sua roleta de vírus.',
+            'skills' => [
+                ['name' => 'Roleta de Patógenos (Passiva)', 'type' => 'passive', 'desc' => 'Ataques básicos têm 35% de chance de aplicar Febre, Paralisia, Mão Trêmula, Imunidade Baixa, Visão Turva, Cansaço Viral, Incapacidade ou Hemorragia.'],
+                ['name' => 'Sobrevivência Viral (Passiva)', 'type' => 'passive', 'desc' => 'Regenera 5 HP/s por doença ativa no jogador (máx 15 HP/s).'],
+                ['name' => 'Injeção Geométrica (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 6s. Dispara pirâmide que causa 100% de dano e garante a aplicação de um vírus aleatório.'],
+                ['name' => 'Nuvem de Esporos (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 12s. Cria nuvem venenosa (raio 8) por 5 segundos que causa 10 de dano/s e tenta infectar com patógenos.'],
+                ['name' => 'Surto Epidêmico (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 20s. Pulso radial que eleva o nível/acúmulo dos patógenos no jogador, ou aplica um novo patógeno.']
+            ]
+        ]
+    ];
+    
+    $finalBestiary = [];
+    foreach ($enemies as $id => $enemy) {
+        $details = $bestiaryDetails[$id] ?? [
+            'name' => $enemy['name'] ?? $id,
+            'difficulty' => 'C',
+            'shape' => $enemy['visuals']['shape'] ?? 'box',
+            'lore' => 'Uma criatura hostil habitando a arena geométrica.',
+            'skills' => []
+        ];
         
-        <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050" style="margin-bottom:20px;">
-            <tr bgcolor="#D4C0A1">
-                <td colspan="2" style="color:#000; font-weight:bold;"><b>1. Atributos Iniciais do Herói (Nível 1) & Crescimento</b></td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td width="35%"><strong>Vida Máxima (Max HP):</strong></td>
-                <td>100 HP <span style="color:#666;">(+50% de ganho exponencial a cada nível atingido: MaxHP * 1.5)</span></td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td><strong>Velocidade de Movimento:</strong></td>
-                <td>5.0 unidades por segundo</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td><strong>Ataque Básico:</strong></td>
-                <td>A cada 500ms (0.5 segundos, permitindo até 2 projéteis por segundo)</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td><strong>Escalonamento de Dano:</strong></td>
-                <td>Dano = 40 × (Nível × 2.0) <span style="color:#666;">(Nível 1 = 80 de dano, Nível 5 = 400, Nível 10 = 800, Nível 20 = 1600)</span></td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td><strong>Chance de Crítico:</strong></td>
-                <td>5% de chance base para todos os ataques e habilidades.</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td><strong>Curva de Progressão (XP):</strong></td>
-                <td>Nível 2 exige 10 XP. A partir disso, o custo para o próximo nível cresce em <strong>1.8x</strong> cumulativos.</td>
-            </tr>
-        </table>
-
-        <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050" style="margin-bottom:20px;">
-            <tr bgcolor="#D4C0A1">
-                <td colspan="3" style="color:#000; font-weight:bold;"><b>2. Habilidades Ativas Base (Q, W, E, R)</b></td>
-            </tr>
-            <tr bgcolor="#505050" style="color:#FFF; font-weight:bold; font-size:10px;">
-                <td width="12%" align="center">Tecla</td>
-                <td width="28%">Habilidade</td>
-                <td width="60%">Descrição e Cooldown</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td align="center"><strong>[ Q ]</strong></td>
-                <td><strong>Corrida Geométrica (Dash)</strong></td>
-                <td>O jogador corre rapidamente (0.2s, 30.0 u/s) na direção desejada com imunidade a controles. Ao terminar, dispara um leque de **8 projéteis** causando 40% do dano base do jogador. <br/><strong>Tempo de Recarga:</strong> 5.0 segundos.</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td align="center"><strong>[ W ]</strong></td>
-                <td><strong>Onda Defensiva (Repel)</strong></td>
-                <td>Emite uma onda circular de 10.0 unidades de raio que empurra inimigos próximos e reflete/reverte projéteis inimigos em voo de volta contra eles. <br/><strong>Tempo de Recarga:</strong> 8.0 segundos.</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td align="center"><strong>[ E ]</strong></td>
-                <td><strong>Escudo de Partículas (Shield)</strong></td>
-                <td>Gera um escudo protetor eletromagnético por 15 segundos que absorve dano de até **150% da vida máxima** do jogador. <br/><strong>Tempo de Recarga:</strong> 20.0 segundos.</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td align="center"><strong>[ R ]</strong></td>
-                <td><strong>Sobrecarga Cósmica (Ultimate)</strong></td>
-                <td>Ativa uma canalização divina que multiplica todo o dano causado pelo herói em **4.0x (400%)** por 25 segundos. No nível de skill 3, reduz o cooldown do ataque básico em 1.5x. <br/><strong>Tempo de Recarga:</strong> 50.0 segundos.</td>
-            </tr>
-        </table>
-
-        <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050" style="margin-bottom:20px;">
-            <tr bgcolor="#D4C0A1">
-                <td colspan="4" style="color:#000; font-weight:bold;"><b>3. Especialização das Torres (Passivas de Andares)</b></td>
-            </tr>
-            <tr bgcolor="#505050" style="color:#FFF; font-weight:bold; font-size:10px;">
-                <td width="10%">Andar</td>
-                <td width="30%" style="color:#ff3333;">Torre Vermelha (Dano)</td>
-                <td width="30%" style="color:#228b22;">Torre Verde (Defesa)</td>
-                <td width="30%" style="color:#800080;">Torre Roxa (Mágica/CDR)</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td align="center"><strong>Andar 1</strong></td>
-                <td><strong>+20% Chance Crítica:</strong> Eleva chance crítica para 25%.</td>
-                <td><strong>+25% Vida Máxima:</strong> Aumenta o HP máximo base.</td>
-                <td><strong>+30% CDR:</strong> Recarga das habilidades acelerada.</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td align="center"><strong>Andar 2</strong></td>
-                <td><strong>10% Lifesteal:</strong> Cura ao bater com ataques básicos.</td>
-                <td><strong>Reflexo de Espinhos:</strong> Devolve 15% do dano recebido.</td>
-                <td><strong>20% Spellvamp:</strong> Cura baseada no dano de habilidades.</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td align="center"><strong>Andar 3</strong></td>
-                <td><strong>Cleave Básico:</strong> Ataques causam dano em área.</td>
-                <td><strong>Escudo Estático:</strong> Escudo fora de combate. Ao quebrar detona.</td>
-                <td><strong>Spellblade:</strong> Próximo hit após magia ganha +30% de dano.</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td align="center"><strong>Andar 4</strong></td>
-                <td><strong>Tetraedro Explosion:</strong> 4º golpe gera explosão de dano.</td>
-                <td><strong>Cheat Death:</strong> Evita a morte fatal com imunidade por 2s.</td>
-                <td><strong>Aura Tóxica:</strong> Causa dano tóxico a inimigos próximos por segundo.</td>
-            </tr>
-        </table>
-
-        <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050" style="margin-bottom:20px;">
-            <tr bgcolor="#D4C0A1">
-                <td colspan="3" style="color:#000; font-weight:bold;"><b>4. Mutações de Ultimate no Nível 20 (Baseadas na Torre Ativa)</b></td>
-            </tr>
-            <tr bgcolor="#505050" style="color:#FFF; font-weight:bold; font-size:10px;">
-                <td width="20%">Torre Selecionada</td>
-                <td width="30%">Nome da Evolução</td>
-                <td width="50%">Efeito da Ultimate Mutada (R)</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td style="color:#ff3333; font-weight:bold;">Torre Vermelha</td>
-                <td><strong>Chuva de Tetraedros<br/>Raio do Oblívio<br/>Corte Dimensional</strong></td>
-                <td>Chuva de meteoros tetraédricos em área, causando dano massivo contínuo por 4s.<br/>Dispara um megashoot em linha reta de calor extremo que derrete inimigos.<br/>Dobra a velocidade e ataca inimigos em sequência com cortes críticos rápidos.</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td style="color:#228b22; font-weight:bold;">Torre Verde</td>
-                <td><strong>Bastião de Titânio<br/>Terremoto Geométrico<br/>Armadura Reativa</strong></td>
-                <td>Gera um escudo impenetrável de 100% do HP máximo e imunidade total por 6s.<br/>Cria terremotos contínuos ao seu redor que dão dano e Stun (1s) a cada pulso.<br/>Reflete 50% do dano sofrido e atordoa o atacante por 1s.</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td style="color:#800080; font-weight:bold;">Torre Roxa</td>
-                <td><strong>Singularidade<br/>Distorção Temporal<br/>Reset Dimensional</strong></td>
-                <td>Dispara um orbe que cria um buraco negro puxando inimigos próximos por 4s.<br/>Cria campo que congela inimigos e reduz tempo de recarga de suas magias em 80%.<br/>Blink à frente. Ao usar a ultimate, reseta instantaneamente os cooldowns de Q, W, E.</td>
-            </tr>
-        </table>
-
-        <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050">
-            <tr bgcolor="#D4C0A1">
-                <td colspan="3" style="color:#000; font-weight:bold;"><b>5. Árvore de Upgrades do Herói (Níveis 5, 10, 15 e 20 Geral)</b></td>
-            </tr>
-            <tr bgcolor="#505050" style="color:#FFF; font-weight:bold; font-size:10px;">
-                <td width="15%">Nível</td>
-                <td width="25%">Nome do Aprimoramento</td>
-                <td width="60%">Efeito de Modificação de Habilidade</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td align="center"><strong>Nível 5</strong></td>
-                <td><strong>Impacto Estilhaçante<br/>Rastro de Pólvora<br/>Convergência Assassina</strong></td>
-                <td>Esferas do dash aplicam Armor Fracture (-25% defesa, 4s). Cooldown reduzido em 1s.<br/>Durante o dash, deixa minas no chão a cada 0.1s. Inimigos que pisam sofrem dano + queimadura.<br/>Cone de disparo estreito. Se 3+ esferas acertam o mesmo alvo: Silence 2s + buff Attack Speed.</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td align="center"><strong>Nível 10</strong></td>
-                <td><strong>Campo de Hemorragia<br/>Refração Vital<br/>Vácuo Magnético</strong></td>
-                <td>Inimigos repelidos recebem Bleed (5s, 10% do seu dano atual por segundo).<br/>Cada projétil revertido cura 3% HP máx. Se reverter 3+, limpa todos os debuffs da tela.<br/>Em vez de empurrar, puxa inimigos para o centro e aplica Slow 70% por 3s.</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td align="center"><strong>Nível 15</strong></td>
-                <td><strong>Carapaça Reativa<br/>Bateria de Sobrecarga<br/>Fortaleza Inabalável</strong></td>
-                <td>Ao receber dano no escudo, dispara projétil automático no atacante (50% dano absorvido).<br/>10% do dano absorvido pelo escudo é convertido em XP.<br/>Shield HP dobra (3x vida máx). Imune a Stun/Freeze/Root enquanto ativo.</td>
-            </tr>
-            <tr bgcolor="#F1E0C6" style="color:#000;">
-                <td align="center"><strong>Nível 20 (Geral)</strong></td>
-                <td><strong>Fúria Infinita<br/>Distorção Temporal<br/>Singularidade do Colapso</strong></td>
-                <td>Cada abate durante a Ultimate adiciona +1s de duração.<br/>Durante a Ultimate, cooldowns de Q/W/E caem para 1 segundo.<br/>Armazena dano evitado. Ao fim da Ultimate, explode 200% do dano em raio 20.</td>
-            </tr>
-        </table>
-    </div>';
+        $speed = $enemy['stats']['speed'] ?? 0;
+        if ($speed > 0 && $speed < 0.1) {
+            $speed = $speed * 100;
+        }
+        
+        $finalBestiary[] = [
+            'id' => $id,
+            'name' => $details['name'],
+            'category' => $enemy['category'] ?? 'comum',
+            'difficulty' => $details['difficulty'],
+            'color' => $enemy['visuals']['color'] ?? '#fff',
+            'shape' => $details['shape'],
+            'hp' => $enemy['stats']['hp'] ?? 0,
+            'speed' => $speed,
+            'xp' => $enemy['stats']['xp'] ?? 0,
+            'score' => $enemy['stats']['score'] ?? 0,
+            'spawn' => isset($enemy['spawn']['timer']) ? "Renasce a cada " . $enemy['spawn']['timer'] . " segundos." : "Spawn periódico padrão.",
+            'lore' => $details['lore'],
+            'skills' => $details['skills']
+        ];
+    }
+    
+    // Add Farao and SenhorDoenca if missing
+    $hasFarao = false;
+    $hasDoenca = false;
+    foreach ($finalBestiary as $b) {
+        if ($b['id'] === 'Farao' || $b['id'] === 'farao') $hasFarao = true;
+        if ($b['id'] === 'SenhorDoenca' || $b['id'] === 'DoutorDoenca' || $b['id'] === 'SenhorDoença') $hasDoenca = true;
+    }
+    
+    if (!$hasFarao) {
+        $finalBestiary[] = [
+            'id' => 'Farao',
+            'name' => 'O Faraó',
+            'category' => 'deus',
+            'difficulty' => 'SS',
+            'color' => '#ffd700',
+            'shape' => 'farao',
+            'hp' => 150000,
+            'speed' => 0,
+            'xp' => 1000000,
+            'score' => 100000,
+            'spawn' => 'Spawn único global que se manifesta após 5 minutos de partida.',
+            'lore' => $bestiaryDetails['Farao']['lore'],
+            'skills' => $bestiaryDetails['Farao']['skills']
+        ];
+    }
+    if (!$hasDoenca) {
+        $finalBestiary[] = [
+            'id' => 'SenhorDoenca',
+            'name' => 'Senhor Doença',
+            'category' => 'boss',
+            'difficulty' => 'A',
+            'color' => '#00ff00',
+            'shape' => 'sphere',
+            'hp' => 20000,
+            'speed' => 3.5,
+            'xp' => 10000,
+            'score' => 5000,
+            'spawn' => 'Renasce periodicamente na arena.',
+            'lore' => $bestiaryDetails['SenhorDoenca']['lore'],
+            'skills' => $bestiaryDetails['SenhorDoenca']['skills']
+        ];
+    }
+    
+    $bestiaryJson = json_encode($finalBestiary, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    
+    // Tabs settings
+    $tabHeroActive = ($activeTab === 'hero') ? ' active' : '';
+    $tabTowersActive = ($activeTab === 'towers') ? ' active' : '';
+    $tabBestiaryActive = ($activeTab === 'bestiary') ? ' active' : '';
+    $tabBossesActive = ($activeTab === 'bosses') ? ' active' : '';
+    
+    $tabHeroStyle = ($activeTab === 'hero') ? 'display: block;' : 'display: none;';
+    $tabTowersStyle = ($activeTab === 'towers') ? 'display: block;' : 'display: none;';
+    $tabBestiaryStyle = ($activeTab === 'bestiary') ? 'display: block;' : 'display: none;';
+    $tabBossesStyle = ($activeTab === 'bosses') ? 'display: block;' : 'display: none;';
+    
+    $content = '
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        .wiki-container {
+            font-family: Arial, sans-serif;
+            margin-top: 10px;
+        }
+        .wiki-tabs {
+            display: flex;
+            border-bottom: 2px solid #5A2800;
+            background: #e7dbcd;
+            border-radius: 4px 4px 0 0;
+            padding: 5px 5px 0 5px;
+            gap: 4px;
+        }
+        .wiki-tablink {
+            background: #d4c0a1;
+            border: 1px solid #5A2800;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            color: #5A2800;
+            padding: 8px 14px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 11px;
+            transition: all 0.2s ease;
+        }
+        .wiki-tablink:hover {
+            background: #b29b7a;
+            color: #000;
+        }
+        .wiki-tablink.active {
+            background: #5A2800;
+            color: #FFF;
+            border-color: #5A2800;
+        }
+        .wiki-tabcontent {
+            background: #f9f4ec;
+            border: 1px solid #5A2800;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            padding: 15px;
+            animation: wikiFadeIn 0.3s ease;
+        }
+        @keyframes wikiFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .wiki-table {
+            border-collapse: collapse;
+            width: 100%;
+            border: 1px solid #505050;
+            margin-bottom: 20px;
+        }
+        .wiki-table tr.header {
+            background: #d4c0a1;
+            font-weight: bold;
+            color: #000;
+        }
+        .wiki-table th, .wiki-table td {
+            border: 1px solid #505050;
+            padding: 8px;
+            font-size: 11px;
+            color: #000;
+            vertical-align: top;
+        }
+        
+        .wiki-section-title {
+            font-weight: bold;
+            font-size: 13px;
+            color: #5A2800;
+            border-bottom: 1px solid #5A2800;
+            padding-bottom: 4px;
+            margin: 15px 0 10px 0;
+        }
+        
+        /* Bestiary styles */
+        .bestiary-container {
+            display: flex;
+            gap: 15px;
+            height: 600px;
+        }
+        .bestiary-list {
+            width: 45%;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            border-right: 1px solid #b29b7a;
+            padding-right: 10px;
+            overflow-y: auto;
+        }
+        .bestiary-search {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #5A2800;
+            background: #FFF;
+            color: #000;
+            border-radius: 3px;
+            box-sizing: border-box;
+            font-size: 11px;
+            margin-bottom: 5px;
+        }
+        .bestiary-filter-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            margin-bottom: 8px;
+        }
+        .filter-btn {
+            background: #d4c0a1;
+            border: 1px solid #5A2800;
+            color: #5A2800;
+            padding: 3px 5px;
+            font-size: 9px;
+            cursor: pointer;
+            border-radius: 2px;
+        }
+        .filter-btn.active, .filter-btn:hover {
+            background: #5A2800;
+            color: #FFF;
+        }
+        .creature-card {
+            background: #e7dbcd;
+            border: 1px solid #b29b7a;
+            border-radius: 4px;
+            padding: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+        .creature-card:hover, .creature-card.selected {
+            background: #d4c0a1;
+            border-color: #5A2800;
+        }
+        .creature-shape-dot {
+            width: 12px;
+            height: 12px;
+            border: 1px solid #000;
+            display: inline-block;
+        }
+        .creature-card-info {
+            flex: 1;
+        }
+        .creature-card-name {
+            font-weight: bold;
+            font-size: 11px;
+            color: #5A2800;
+        }
+        .creature-card-cat {
+            font-size: 8px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        .creature-card-difficulty {
+            font-weight: bold;
+            font-size: 9px;
+            padding: 1px 4px;
+            border-radius: 2px;
+            color: #FFF;
+            float: right;
+        }
+        
+        .bestiary-dossier {
+            width: 55%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+        .dossier-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #5A2800;
+            padding-bottom: 3px;
+        }
+        .dossier-name {
+            font-size: 14px;
+            font-weight: bold;
+            color: #5A2800;
+            margin: 0;
+        }
+        .dossier-category {
+            font-size: 9px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        .dossier-lore {
+            font-size: 10.5px;
+            line-height: 140%;
+            color: #333;
+            font-style: italic;
+            background: #f9f4ec;
+            border-left: 3px solid #5A2800;
+            padding: 5px 8px;
+            margin: 0;
+        }
+        .dossier-section-title {
+            font-size: 10px;
+            font-weight: bold;
+            color: #5A2800;
+            border-bottom: 1px solid #b29b7a;
+            padding-bottom: 2px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+        }
+        .stat-box {
+            background: #f9f4ec;
+            border: 1px solid #b29b7a;
+            border-radius: 3px;
+            padding: 4px 6px;
+        }
+        .stat-label {
+            font-size: 8px;
+            text-transform: uppercase;
+            color: #666;
+        }
+        .stat-val {
+            font-size: 11px;
+            font-weight: bold;
+            color: #000;
+        }
+        .dossier-tabs {
+            display: flex;
+            border-bottom: 1px solid #b29b7a;
+            margin-bottom: 6px;
+        }
+        .dossier-tab-btn {
+            background: transparent;
+            border: none;
+            padding: 4px 8px;
+            font-size: 10px;
+            cursor: pointer;
+            color: #666;
+            border-bottom: 2px solid transparent;
+        }
+        .dossier-tab-btn.active {
+            color: #5A2800;
+            font-weight: bold;
+            border-bottom-color: #5A2800;
+        }
+        .dossier-tab-panel {
+            display: none;
+        }
+        .dossier-tab-panel.active {
+            display: block;
+        }
+        .skill-item {
+            background: #f9f4ec;
+            border: 1px solid #b29b7a;
+            border-radius: 3px;
+            padding: 6px;
+            margin-bottom: 5px;
+        }
+        .skill-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2px;
+        }
+        .skill-name {
+            font-weight: bold;
+            font-size: 10px;
+            color: #5A2800;
+        }
+        .skill-badge {
+            font-size: 8px;
+            padding: 1px 3px;
+            border-radius: 2px;
+            text-transform: uppercase;
+            color: #FFF;
+        }
+        .skill-desc {
+            font-size: 9.5px;
+            color: #444;
+            line-height: 130%;
+        }
+        @keyframes scan {
+            0% { top: 0%; }
+            50% { top: 100%; }
+            100% { top: 0%; }
+        }
+    </style>
+    
+    <div class="wiki-container">
+        <!-- Wiki Tabs -->
+        <div class="wiki-tabs">
+            <button class="wiki-tablink' . $tabHeroActive . '" onclick="openWikiTab(event, \'tab-hero\')">🛡️ O Herói & Upgrades</button>
+            <button class="wiki-tablink' . $tabTowersActive . '" onclick="openWikiTab(event, \'tab-towers\')">🗼 Torres de Essência</button>
+            <button class="wiki-tablink' . $tabBestiaryActive . '" onclick="openWikiTab(event, \'tab-bestiary\')">📖 Bestiário 3D</button>
+            <button class="wiki-tablink' . $tabBossesActive . '" onclick="openWikiTab(event, \'tab-bosses\')">💀 Chefes & Drops Lendários</button>
+        </div>
+        
+        <!-- Tab 1: Hero & Upgrades -->
+        <div id="tab-hero" class="wiki-tabcontent" style="' . $tabHeroStyle . '">
+            <div class="wiki-section-title">1. Atributos Iniciais do Herói & Evolução de Nível</div>
+            <p style="font-size:11px; line-height:140%; color:#000;">
+                O Herói é a representação do jogador na arena de simulação 3D. Seus atributos bases e escalonamento são definidos conforme os parâmetros oficiais abaixo:
+            </p>
+            <table class="wiki-table">
+                <tr class="header">
+                    <th width="30%">Atributo</th>
+                    <th width="35%">Valor Base (Nível 1)</th>
+                    <th width="35%">Crescimento por Nível</th>
+                </tr>
+                <tr>
+                    <td><strong>Vida Máxima (Max HP)</strong></td>
+                    <td>120 HP</td>
+                    <td>Aumenta exponencialmente em <strong>1.3x (30%)</strong> a cada nível.</td>
+                </tr>
+                <tr>
+                    <td><strong>Dano Base (Ataque)</strong></td>
+                    <td>40 Dano</td>
+                    <td>Aumenta linearmente em <strong>2.0x</strong> por nível (Ex: Nível 5 = 400 dano, Nível 10 = 800, Nível 20 = 1600).</td>
+                </tr>
+                <tr>
+                    <td><strong>Velocidade de Movimento</strong></td>
+                    <td>5.0 unidades / segundo</td>
+                    <td>Constante (modificado por passivas ou itens).</td>
+                </tr>
+                <tr>
+                    <td><strong>Velocidade de Ataque (AS)</strong></td>
+                    <td>A cada 500ms (2 projéteis / segundo)</td>
+                    <td>Constante (pode ser reduzido na Ultimate Nível 3).</td>
+                </tr>
+                <tr>
+                    <td><strong>Chance Crítica Base</strong></td>
+                    <td>5% Chance</td>
+                    <td>Garante dano dobrado (200%) no acerto crítico.</td>
+                </tr>
+                <tr>
+                    <td><strong>Curva de Experiência (XP)</strong></td>
+                    <td>10 XP para o Nível 2</td>
+                    <td>Custo aumenta em <strong>1.5x</strong> por nível subsequente.</td>
+                </tr>
+                <tr>
+                    <td><strong>Hitbox & Defesa</strong></td>
+                    <td>Raio: 0.5m | Defesa: 90</td>
+                    <td>Defesa mitiga danos físicos e mágicos. Hitbox define o tamanho da colisão.</td>
+                </tr>
+            </table>
+            
+            <div class="wiki-section-title">2. Habilidades Ativas do Jogador</div>
+            <table class="wiki-table">
+                <tr class="header">
+                    <th width="10%">Tecla</th>
+                    <th width="20%">Habilidade</th>
+                    <th width="20%">Atributos Técnicos</th>
+                    <th width="50%">Efeito Detalhado</th>
+                </tr>
+                <tr>
+                    <td align="center"><strong>[ Q ]</strong></td>
+                    <td><strong>Corrida Geométrica</strong><br/><span style="color:#666;">(Dash)</span></td>
+                    <td>Cooldown: 5.0s<br/>Duração: 0.2s<br/>Velocidade: 30.0 u/s</td>
+                    <td>Avança rapidamente na direção atual com imunidade temporária a efeitos de controle (CC). Ao terminar, dispara um leque de <strong>8 esferas</strong>, cada uma causando 40% do dano de ataque do jogador.</td>
+                </tr>
+                <tr>
+                    <td align="center"><strong>[ W ]</strong></td>
+                    <td><strong>Onda Defensiva</strong><br/><span style="color:#666;">(Repel)</span></td>
+                    <td>Cooldown: 8.0s<br/>Raio de Ação: 10.0m</td>
+                    <td>Conjura um pulso de energia circular que empurra todos os inimigos próximos para longe e reverte a direção de projéteis inimigos na área, fazendo-os voar contra os monstros causadores.</td>
+                </tr>
+                <tr>
+                    <td align="center"><strong>[ E ]</strong></td>
+                    <td><strong>Escudo de Partículas</strong><br/><span style="color:#666;">(Shield)</span></td>
+                    <td>Cooldown: 20.0s<br/>Duração: 15.0s<br/>Escudo: 1.5x Max HP</td>
+                    <td>Gera uma bolha protetora eletromagnética que absorve danos equivalentes a até 150% do HP máximo do herói. A absorção protege contra golpes fatais enquanto ativa.</td>
+                </tr>
+                <tr>
+                    <td align="center"><strong>[ R ]</strong></td>
+                    <td><strong>Sobrecarga Cósmica</strong><br/><span style="color:#666;">(Ultimate)</span></td>
+                    <td>Cooldown: 50.0s<br/>Duração: 25.0s<br/>Multiplicador: 4.0x</td>
+                    <td>O herói entra em sobrecarga cósmica divina, aumentando todo o dano causado em <strong>4x (400%)</strong>. No nível de skill 3, a ultimate também acelera a velocidade dos ataques básicos em 1.5x.</td>
+                </tr>
+            </table>
+            
+            <div class="wiki-section-title">3. Árvore de Upgrades do Herói (Níveis 5, 10, 15 e 20)</div>
+            <p style="font-size:11px; line-height:140%; color:#000;">
+                Ao atingir determinados níveis na partida (5, 10, 15 e 20), o jogador escolhe uma especialização que modifica permanentemente suas habilidades básicas ou ultimate:
+            </p>
+            <table class="wiki-table">
+                <tr class="header">
+                    <th width="15%">Nível</th>
+                    <th width="25%">Nome do Upgrade</th>
+                    <th width="60%">Efeito da Modificação</th>
+                </tr>
+                <tr>
+                    <td rowspan="3" align="center" style="vertical-align:middle;"><strong>Nível 5</strong><br/><span style="color:#666;">(Aprimora Q)</span></td>
+                    <td><strong>Impacto Estilhaçante</strong></td>
+                    <td>As esferas do dash aplicam Fratura de Armadura (reduz defesa em 25% por 4s) e reduz o cooldown do Dash em 1.0s.</td>
+                </tr>
+                <tr>
+                    <td><strong>Rastro de Pólvora</strong></td>
+                    <td>Deixa minas explosivas no chão a cada 0.1s durante o dash. Inimigos que as pisarem sofrem dano físico e queimadura contínua.</td>
+                </tr>
+                <tr>
+                    <td><strong>Convergência Assassina</strong></td>
+                    <td>Fecha o leque do disparo do dash, tornando-o concentrado. Se 3+ esferas acertarem o mesmo alvo, aplica Silenciar por 2s e concede velocidade de ataque.</td>
+                </tr>
+                
+                <tr>
+                    <td rowspan="3" align="center" style="vertical-align:middle;"><strong>Nível 10</strong><br/><span style="color:#666;">(Aprimora W)</span></td>
+                    <td><strong>Campo de Hemorragia</strong></td>
+                    <td>Inimigos empurrados sofrem Sangramento (Bleed) por 5 segundos, sofrendo 10% do dano bruto do jogador por segundo.</td>
+                </tr>
+                <tr>
+                    <td><strong>Refração Vital</strong></td>
+                    <td>Cada projétil repelido cura 3% do HP máximo. Caso reflita 3 ou mais projéteis de uma só vez, limpa todos os debuffs aplicados ao herói.</td>
+                </tr>
+                <tr>
+                    <td><strong>Vácuo Magnético</strong></td>
+                    <td>Muda o repel. Em vez de empurrar, puxa todos os inimigos no raio para o centro e aplica lentidão extrema de 70% por 3 segundos.</td>
+                </tr>
+                
+                <tr>
+                    <td rowspan="3" align="center" style="vertical-align:middle;"><strong>Nível 15</strong><br/><span style="color:#666;">(Aprimora E)</span></td>
+                    <td><strong>Carapaça Reativa</strong></td>
+                    <td>Ao sofrer dano no escudo, rebate automaticamente disparos lasers contra o atacante, devolvendo 50% do dano mitigado.</td>
+                </tr>
+                <tr>
+                    <td><strong>Bateria de Sobrecarga</strong></td>
+                    <td>Converte 10% de todo dano absorvido pelo escudo de partículas diretamente em pontos de experiência (XP) para subir de nível.</td>
+                </tr>
+                <tr>
+                    <td><strong>Fortaleza Inabalável</strong></td>
+                    <td>Dobra a capacidade do escudo (passa para 3x a vida máxima do jogador) e concede imunidade a atordoamentos, congelamentos e enraizamentos enquanto o escudo durar.</td>
+                </tr>
+                
+                <tr>
+                    <td rowspan="3" align="center" style="vertical-align:middle;"><strong>Nível 20</strong><br/><span style="color:#666;">(Passivas Gerais)</span></td>
+                    <td><strong>Fúria Infinita</strong></td>
+                    <td>Durante a canalização da Ultimate, cada monstro abatido estende a duração total da Ultimate em +1.0 segundo.</td>
+                </tr>
+                <tr>
+                    <td><strong>Distorção Temporal</strong></td>
+                    <td>Distorce as recargas durante a Ultimate, fixando o tempo de recarga de Q, W e E em apenas 1.0 segundo.</td>
+                </tr>
+                <tr>
+                    <td><strong>Singularidade do Colapso</strong></td>
+                    <td>Armazena todos os danos evitados ou recebidos durante a Ultimate. Ao expirar, causa 200% desse valor acumulado como explosão em área (raio 20).</td>
+                </tr>
+            </table>
+        </div>
+        
+        <!-- Tab 2: Towers -->
+        <div id="tab-towers" class="wiki-tabcontent" style="' . $tabTowersStyle . '">
+            <div class="wiki-section-title">Especialização das Torres de Essência</div>
+            <p style="font-size:11px; line-height:140%; color:#000;">
+                As Torres de Essência são marcos estratégicos na arena. Os jogadores podem depositar essências colhidas para subir andares (1 ao 4) de uma torre activa, destravando passivas monumentais na partida. Apenas uma torre pode ser ativa de cada vez, mas os bônus acumulados são permanentes:
+            </p>
+            <table class="wiki-table">
+                <tr class="header">
+                    <th width="8%">Andar</th>
+                    <th width="23%" style="color:#ff3333;">🔥 Torre Vermelha (Ofensiva / Dano)</th>
+                    <th width="23%" style="color:#228b22;">🌲 Torre Verde (Defesa / Resistência)</th>
+                    <th width="23%" style="color:#800080;">🔮 Torre Roxa (Mágica / CDR / Vamp)</th>
+                    <th width="23%" style="color:#10b981;">☠️ Torre de Veneno (DoT / Kiting)</th>
+                </tr>
+                <tr>
+                    <td align="center"><strong>Andar 1</strong></td>
+                    <td><strong>+20% Chance de Crítico</strong><br/>Chance de crítico total sobe para 25% base.</td>
+                    <td><strong>+25% Vida Máxima</strong><br/>Aumenta a reserva máxima de HP do herói.</td>
+                    <td><strong>+30% Cooldown Reduction</strong><br/>Acelera a recarga de todas as habilidades.</td>
+                    <td><strong>+20% Attack Speed / +15% MS / Tiro Tóxico</strong><br/>Velocidade de ataque, mobilidade ou projéteis envenenados.</td>
+                </tr>
+                <tr>
+                    <td align="center"><strong>Andar 2</strong></td>
+                    <td><strong>10% Roubo de Vida (Lifesteal)</strong><br/>Recupera vida ao desferir ataques básicos físicos.</td>
+                    <td><strong>Espinhos Reativos (15%)</strong><br/>Reflete 15% de todo dano sofrido de volta ao agressor.</td>
+                    <td><strong>20% Spellvamp</strong><br/>Cura a si mesmo baseada em 20% do dano de suas mágicas.</td>
+                    <td><strong>Passos Leves / Presas Gêmeas / Dardo Cegante</strong><br/>+20% MS, cura em alvos envenenados ou 10% chance cegar.</td>
+                </tr>
+                <tr>
+                    <td align="center"><strong>Andar 3</strong></td>
+                    <td><strong>Danos Físicos em Área (Cleave)</strong><br/>Ataques básicos causam dano em área em cone frontal.</td>
+                    <td><strong>Escudo Estático de Energia</strong><br/>Gera barreira passiva fora de combate. Explode ao quebrar.</td>
+                    <td><strong>Spellblade (+30% Dano)</strong><br/>Próximo hit básico após conjurar magia causa +30% dano.</td>
+                    <td><strong>Miasma Menor / Toxina / Foco Infeccioso</strong><br/>Poças tóxicas na morte, slow em alvos ou +20% dano em envenenados.</td>
+                </tr>
+                <tr>
+                    <td align="center"><strong>Andar 4</strong></td>
+                    <td><strong>Explosão de Tetraedro</strong><br/>Cada 4º hit físico consecutivo explode causando dano real.</td>
+                    <td><strong>Burlar a Morte (Cheat Death)</strong><br/>Evita o golpe fatal uma vez, ficando imune por 2.0s.</td>
+                    <td><strong>Aura Tóxica de Fogo</strong><br/>Queima inimigos próximos continuamente com dano de veneno/s.</td>
+                    <td><strong>Contaminação / Armadilha / Espalhar</strong><br/>Detonação de stacks, cogumelos armadilha ou propagação de veneno.</td>
+                </tr>
+            </table>
+            
+            <div class="wiki-section-title">Mutações de Ultimate no Nível 20 baseadas na Torre Ativa</div>
+            <p style="font-size:11px; line-height:140%; color:#000;">
+                Ao atingir o Nível 20, além do upgrade geral, o jogador ganha acesso a uma <strong>Ultimate Mutada</strong> exclusiva de acordo com a torre que estiver selecionada no momento da ativação:
+            </p>
+            <table class="wiki-table">
+                <tr class="header">
+                    <th width="20%">Torre Ativa</th>
+                    <th width="30%">Nome da Habilidade Mutada</th>
+                    <th width="50%">Efeito Especial Adicional da Ultimate (R)</th>
+                </tr>
+                <tr>
+                    <td style="color:#ff3333; font-weight:bold;">Torre Vermelha</td>
+                    <td><strong>Chuva de Tetraedros<br/>Raio do Oblívio<br/>Corte Dimensional</strong></td>
+                    <td>Chove projéteis tetraédricos massivos do céu por 4s na arena.<br/>Canaliza um super laser frontal que derrete defesas inimigas.<br/>Aumenta velocidade em 100% e desfere cortes invisíveis críticos rápidos.</td>
+                </tr>
+                <tr>
+                    <td style="color:#228b22; font-weight:bold;">Torre Verde</td>
+                    <td><strong>Bastião de Titânio<br/>Terremoto Geométrico<br/>Armadura Reativa</strong></td>
+                    <td>Concede escudo de 100% HP máximo e imunidade total por 6 segundos.<br/>Cria ondas de choque que atordoam (1s) e danificam oponentes ao redor.<br/>Reflete 50% de todo dano e atordoa o atacante por 1 segundo.</td>
+                </tr>
+                <tr>
+                    <td style="color:#800080; font-weight:bold;">Torre Roxa</td>
+                    <td><strong>Singularidade Cósmica<br/>Distorção Temporal<br/>Reset Dimensional</strong></td>
+                    <td>Cria um buraco negro gravitacional que atrai inimigos ao centro por 4s.<br/>Congela inimigos no campo e acelera cooldowns próprios em 80%.<br/>Permite teletransportes rápidos e reseta as recargas de Q, W e E ao usar.</td>
+                </tr>
+                <tr>
+                    <td style="color:#10b981; font-weight:bold;">Torre de Veneno</td>
+                    <td><strong>Campo de Fungos<br/>Olhar da Górgona<br/>Raio da Peste</strong></td>
+                    <td>Gera cogumelos invisíveis que explodem com 5 stacks de veneno e slow 80%.<br/>Flash em cone: Stun 4s de frente, slow 80% de costas.<br/>Ataques viram lasers penetrantes por 8s que atravessam hordas inteiras.</td>
+                </tr>
+            </table>
+        </div>
+        
+        <!-- Tab 3: Bestiary -->
+        <div id="tab-bestiary" class="wiki-tabcontent" style="' . $tabBestiaryStyle . '">
+            <div class="bestiary-container">
+                <!-- Lista de Inimigos (Esquerda) -->
+                <div class="bestiary-list">
+                    <input type="text" id="bestiary-search" class="bestiary-search" placeholder="Procurar criatura..." />
+                    <div class="bestiary-filter-tabs">
+                        <button class="filter-btn active" data-filter="all">Todos</button>
+                        <button class="filter-btn" data-filter="comum">Comuns</button>
+                        <button class="filter-btn" data-filter="guardião">Guardiões</button>
+                        <button class="filter-btn" data-filter="boss">Chefes</button>
+                    </div>
+                    <div id="cards-wrapper" style="display:flex; flex-direction:column; gap:6px; overflow-y:auto; flex:1;">
+                        <!-- Populado por JS -->
+                    </div>
+                </div>
+                
+                <!-- Detalhes do Inimigo (Direita) -->
+                <div class="bestiary-dossier" id="bestiary-dossier">
+                    <!-- Port de Visualização Holográfica 3D -->
+                    <div class="dossier-viewport" style="height: 150px; position: relative; background: radial-gradient(circle at 50% 70%, rgba(212, 167, 0, 0.15) 0%, rgba(241, 224, 198, 0) 70%); border: 1px solid #5A2800; border-radius: 4px; overflow: hidden; margin-bottom: 8px;">
+                        <div class="scanner-line" style="position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, #d4a700, transparent); animation: scan 3s linear infinite; z-index: 2; pointer-events: none; opacity: 0.6;"></div>
+                        <div id="canvas-container" style="width: 100%; height: 100%;"></div>
+                        <div class="viewport-hud" style="position: absolute; bottom: 5px; left: 10px; right: 10px; z-index: 2; pointer-events: none; font-size: 8px; color: #5A2800; display: flex; justify-content: space-between; font-weight: bold;">
+                            <span>ESCANEAMENTO MÁGICO [ATIVO]</span>
+                            <span id="shape-info">CUBO</span>
+                        </div>
+                    </div>
+                    
+                    <div class="dossier-header">
+                        <div>
+                            <h3 class="dossier-name" id="dossier-name">Nome do Monstro</h3>
+                            <span class="dossier-category" id="dossier-category">Categoria</span>
+                        </div>
+                        <span class="creature-card-difficulty" id="dossier-difficulty" style="font-size: 11px; padding: 2px 6px;">C</span>
+                    </div>
+                    
+                    <p class="dossier-lore" id="dossier-lore">Lore descritivo da criatura.</p>
+                    
+                    <div>
+                        <div class="dossier-section-title">Atributos de Combate</div>
+                        <div class="stats-grid">
+                            <div class="stat-box">
+                                <span class="stat-label">Vida Máxima (HP)</span>
+                                <div class="stat-val" id="stat-hp">0</div>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">Velocidade</span>
+                                <div class="stat-val" id="stat-speed">0</div>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">XP Concedida</span>
+                                <div class="stat-val" id="stat-xp">0</div>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">Pontuação Base</span>
+                                <div class="stat-val" id="stat-score">0</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="dossier-tabs">
+                            <button class="dossier-tab-btn active" data-tab="skills">Habilidades</button>
+                            <button class="dossier-tab-btn" data-tab="spawn">Spawn & Temporizador</button>
+                        </div>
+                        <div class="dossier-tab-panel active" id="panel-skills">
+                            <div id="skills-wrapper">
+                                <!-- Populado por JS -->
+                            </div>
+                        </div>
+                        <div class="dossier-tab-panel" id="panel-spawn">
+                            <div class="skill-item" id="spawn-text" style="font-size: 10px; line-height:140%;">
+                                Informações sobre o temporizador e localizadores de renascimento do monstro.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tab 4: Bosses & Legendary Drops -->
+        <div id="tab-bosses" class="wiki-tabcontent" style="' . $tabBossesStyle . '">
+            <div class="wiki-section-title">Recompensas e Drops Lendários de Chefões (Bosses)</div>
+            <p style="font-size:11px; line-height:140%; color:#000;">
+                Ao derrotar os grandes chefes supremos na arena, eles deixam cair no chão **Itens Lendários** em forma de buffs temporários extremamente fortes ou mutações de estado persistentes. Colete-os no mapa para amplificar seu poder:
+            </p>
+            <table class="wiki-table">
+                <tr class="header">
+                    <th width="15%">Chefe Origem</th>
+                    <th width="20%">Item Dropado</th>
+                    <th width="15%">Duração do Buff</th>
+                    <th width="50%">Efeitos Estatísticos Detalhados</th>
+                </tr>
+                <tr>
+                    <td style="font-weight:bold;">Gangplank</td>
+                    <td style="color:#e65100; font-weight:bold;">⚔️ Sabre Pirata</td>
+                    <td>120 segundos</td>
+                    <td>Concede bônus de **+10% de dano físico bruto** em todos os ataques e habilidades físicas.</td>
+                </tr>
+                <tr>
+                    <td style="font-weight:bold;">Rainha das Trevas</td>
+                    <td style="color:#9c27b0; font-weight:bold;">👑 Aura da Rainha</td>
+                    <td>30 segundos</td>
+                    <td>Garante um aumento massivo de **+25% na velocidade de ataque** e **+15% no dano de habilidades**.</td>
+                </tr>
+                <tr>
+                    <td style="font-weight:bold;">Planta Carnívora Rainha</td>
+                    <td style="color:#4caf50; font-weight:bold;">🌱 Seiva Regenerativa</td>
+                    <td>45 segundos</td>
+                    <td>Concede **+5% de Roubo de Vida (Lifesteal)**, aumenta a **velocidade de movimento em +15%** e o **dano geral em +10%**.</td>
+                </tr>
+                <tr>
+                    <td style="font-weight:bold;">Lord Vouldemord</td>
+                    <td style="color:#d32f2f; font-weight:bold;">🌌 Essência Negra</td>
+                    <td>120 segundos</td>
+                    <td>Aumenta o **dano mágico em +50%**, concede **+3% de lifesteal geral** e garante **+15% de redução de recarga (CDR)**.</td>
+                </tr>
+                <tr>
+                    <td style="font-weight:bold;">Espectro de Raziel</td>
+                    <td style="color:#0288d1; font-weight:bold;">👻 Essência Espectral de Raziel</td>
+                    <td>180 segundos</td>
+                    <td>Invoca **5 almas orbitais espectrais** ao redor do herói. Elas causam **5% da vida máxima** dos monstros + 3 de dano plano (multiplicado pelo nível) a cada colisão.</td>
+                </tr>
+                <tr>
+                    <td style="font-weight:bold;">Agent Smith</td>
+                    <td style="color:#00ff00; font-weight:bold;">💾 Fragmento de Código-Fonte</td>
+                    <td>300 segundos</td>
+                    <td>Item consumível especial. Ao ser utilizado, ativa o protocolo de retrocesso temporal, **voltando o estado da partida em 30 segundos no tempo** enquanto o jogador **preserva todo o XP e nível** que acumulou.</td>
+                </tr>
+                <tr>
+                    <td style="font-weight:bold; color:#d32f2f;">Lich King (Arthas)</td>
+                    <td style="color:#ffd700; font-weight:bold; font-size:12px;">❄️ Alma de Arthas</td>
+                    <td style="font-weight:bold;">Especial / Permanente</td>
+                    <td>O drop mais poderoso do jogo. Concede os seguintes efeitos persistentes:<br/>
+                        1. **+30% de Dano Amplificado** geral em tudo.<br/>
+                        2. **+5% de Roubo de Vida (Lifesteal)** em todos os golpes.<br/>
+                        3. **Lentidão Crionírica (30% Slow, 1.5s)** aplicada em qualquer alvo atingido.<br/>
+                        4. **Imunidade Glacial**: O herói ignora o atrito e não desliza no chão escorregadio de gelo da arena.
+                    </td>
+                </tr>
+                <tr>
+                    <td style="font-weight:bold;">O Poderoso</td>
+                    <td style="color:#505050; font-weight:bold;">🌀 Colapso Cósmico</td>
+                    <td>Permanente global</td>
+                    <td>Não dropa um item físico, mas sua queda aciona o evento **MONUMENTAL DE COLAPSO**. Todos os inimigos restantes na arena ganham um buff de escalonamento global permanente, tornando o jogo muito mais difícil e insano a partir deste ponto. Recompensa o time com 30.000 XP.</td>
+                </tr>
+                <tr>
+                    <td style="font-weight:bold;">O Faraó</td>
+                    <td style="color:#ffd700; font-weight:bold;">👑 Glória Suprema</td>
+                    <td>Partida</td>
+                    <td>Super chefe final que recompensa com a quantia absurda de **1.000.000 XP** e 100.000 pontos no placar, garantindo o topo do ranking instantaneamente aos sobreviventes que conquistarem sua tumba.</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+    
+    <script>
+        const bestiaryData = ' . $bestiaryJson . ';
+        let activeId = "Farao";
+        let currentFilter = "all";
+        let searchQuery = "";
+        
+        let scene, camera, renderer, currentMesh;
+        
+        function openWikiTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("wiki-tabcontent");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+            tablinks = document.getElementsByClassName("wiki-tablink");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.className += " active";
+            
+            if (tabName === "tab-bestiary") {
+                if (!scene) {
+                    setTimeout(() => {
+                        init3D();
+                        renderCards();
+                        selectCreature(activeId);
+                    }, 50);
+                }
+            }
+        }
+        
+        function init3D() {
+            const container = document.getElementById("canvas-container");
+            if (!container) return;
+            
+            if (typeof THREE === "undefined") {
+                container.innerHTML = "<div style=\'text-align:center; padding-top:50px; font-size:10px; color:#5A2800;\'>[Erro ao carregar renderizador 3D]</div>";
+                return;
+            }
+            
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+            camera.position.set(0, 1.8, 6.5);
+            camera.lookAt(0, 0.5, 0);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            container.appendChild(renderer.domElement);
+            
+            const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambient);
+            
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(4, 8, 5);
+            scene.add(dirLight);
+            
+            const glowLight = new THREE.PointLight(0xd4a700, 0.9, 8);
+            glowLight.position.set(0, 1.5, 1.5);
+            scene.add(glowLight);
+            
+            const gridHelper = new THREE.GridHelper(8, 12, 0x5a2800, 0x5a2800);
+            gridHelper.position.y = -0.8;
+            scene.add(gridHelper);
+            
+            const ringGeo = new THREE.RingGeometry(1.6, 1.65, 32);
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0xd4a700, side: THREE.DoubleSide, transparent: true, opacity: 0.3 });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.rotation.x = Math.PI / 2;
+            ring.position.y = -0.79;
+            scene.add(ring);
+            
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+            
+            container.addEventListener("mousedown", (e) => {
+                isDragging = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+            
+            container.addEventListener("mousemove", (e) => {
+                if (!isDragging || !currentMesh) return;
+                const deltaMove = {
+                    x: e.clientX - previousMousePosition.x,
+                    y: e.clientY - previousMousePosition.y
+                };
+                currentMesh.rotation.y += deltaMove.x * 0.005;
+                currentMesh.rotation.x += deltaMove.y * 0.005;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+            
+            window.addEventListener("mouseup", () => { isDragging = false; });
+            
+            function animate() {
+                requestAnimationFrame(animate);
+                if (currentMesh && !isDragging) {
+                    currentMesh.rotation.y += 0.008;
+                }
+                ring.rotation.z += 0.002;
+                renderer.render(scene, camera);
+            }
+            animate();
+        }
+        
+        function update3DModel(shapeType, colorHex) {
+            if (typeof THREE === "undefined" || !scene) return;
+            if (currentMesh) scene.remove(currentMesh);
+            
+            const group = new THREE.Group();
+            const colorVal = parseInt(colorHex.replace("#", "0x"));
+            
+            const mat = new THREE.MeshStandardMaterial({
+                color: colorVal,
+                emissive: colorVal,
+                emissiveIntensity: 0.25,
+                metalness: shapeType === "farao" || shapeType === "smith" ? 0.7 : 0.3,
+                roughness: 0.4
+            });
+            
+            document.getElementById("shape-info").textContent = shapeType.toUpperCase();
+            
+            if (shapeType === "farao") {
+                const bodyGeo = new THREE.BoxGeometry(1.1, 1.5, 0.7);
+                const body = new THREE.Mesh(bodyGeo, mat);
+                body.position.y = 0.75;
+                group.add(body);
+                
+                const headGeo = new THREE.BoxGeometry(0.7, 0.5, 0.5);
+                const headMat = new THREE.MeshStandardMaterial({ color: 0xd4a700, metalness: 0.8 });
+                const head = new THREE.Mesh(headGeo, headMat);
+                head.position.y = 1.7;
+                group.add(head);
+                
+                const crownGeo = new THREE.ConeGeometry(0.25, 0.7, 4);
+                const crownMat = new THREE.MeshStandardMaterial({ color: 0xffd700, emissive: 0xffd700 });
+                const crown = new THREE.Mesh(crownGeo, crownMat);
+                crown.position.y = 2.3;
+                crown.rotation.y = Math.PI / 4;
+                group.add(crown);
+            } else if (shapeType === "smith") {
+                const bodyGeo = new THREE.BoxGeometry(1.1, 1.1, 1.1);
+                const body = new THREE.Mesh(bodyGeo, mat);
+                body.position.y = 0.55;
+                group.add(body);
+                
+                const headGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+                const headMat = new THREE.MeshStandardMaterial({ color: 0x505050 });
+                const head = new THREE.Mesh(headGeo, headMat);
+                head.position.y = 1.35;
+                group.add(head);
+                
+                const visorGeo = new THREE.BoxGeometry(0.4, 0.1, 0.08);
+                const visorMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+                const visor = new THREE.Mesh(visorGeo, visorMat);
+                visor.position.set(0, 1.35, 0.26);
+                group.add(visor);
+            } else if (shapeType === "cao") {
+                const bodyGeo = new THREE.BoxGeometry(1.4, 0.7, 0.7);
+                const body = new THREE.Mesh(bodyGeo, mat);
+                body.position.y = 0.35;
+                group.add(body);
+                
+                const headGeo = new THREE.BoxGeometry(0.45, 0.45, 0.45);
+                const head = new THREE.Mesh(headGeo, mat);
+                head.position.set(0.8, 0.55, 0);
+                group.add(head);
+                
+                const spikeGeo = new THREE.ConeGeometry(0.15, 0.4, 4);
+                const spikeMat = new THREE.MeshStandardMaterial({ color: 0x8b0000 });
+                const spike1 = new THREE.Mesh(spikeGeo, spikeMat);
+                spike1.position.set(-0.2, 0.7, 0);
+                const spike2 = spike1.clone();
+                spike2.position.x = 0.2;
+                group.add(spike1);
+                group.add(spike2);
+            } else if (shapeType === "box" || shapeType === "cube") {
+                const geo = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 0.6;
+                group.add(mesh);
+            } else if (shapeType === "cone") {
+                const geo = new THREE.ConeGeometry(0.8, 1.8, 8);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 0.9;
+                group.add(mesh);
+            } else if (shapeType === "cylinder") {
+                const geo = new THREE.CylinderGeometry(0.6, 0.8, 1.8, 12);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 0.9;
+                group.add(mesh);
+            } else if (shapeType === "sphere") {
+                const geo = new THREE.SphereGeometry(0.85, 24, 24);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 0.85;
+                group.add(mesh);
+            } else if (shapeType === "octahedron") {
+                const geo = new THREE.OctahedronGeometry(0.9, 0);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 0.9;
+                group.add(mesh);
+            } else if (shapeType === "tetrahedron") {
+                const geo = new THREE.TetrahedronGeometry(0.9, 0);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 0.9;
+                group.add(mesh);
+            } else if (shapeType === "icosahedron") {
+                const geo = new THREE.IcosahedronGeometry(0.9, 0);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 0.9;
+                group.add(mesh);
+            } else if (shapeType === "dodecahedron") {
+                const geo = new THREE.DodecahedronGeometry(0.9, 0);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 0.9;
+                group.add(mesh);
+            } else if (shapeType === "torus") {
+                const geo = new THREE.TorusGeometry(0.6, 0.2, 8, 24);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 0.8;
+                mesh.rotation.x = Math.PI / 3;
+                group.add(mesh);
+            } else {
+                const geo = new THREE.BoxGeometry(1, 1, 1);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 0.5;
+                group.add(mesh);
+            }
+            
+            currentMesh = group;
+            scene.add(currentMesh);
+        }
+        
+        function renderCards() {
+            const container = document.getElementById("cards-wrapper");
+            if (!container) return;
+            container.innerHTML = "";
+            
+            const categoryMap = {
+                basic: "Comum",
+                comum: "Comum",
+                minion: "Lacaio",
+                structure: "Estrutura",
+                guardian: "Guardião",
+                guardião: "Guardião",
+                defender: "Defensor",
+                boss: "Chefe",
+                miniboss: "Mini Chefe",
+                deus: "Deus"
+            };
+            
+            const difficultyColors = {
+                E: "#4caf50",
+                D: "#0288d1",
+                C: "#9c27b0",
+                B: "#ff9800",
+                A: "#e65100",
+                S: "#d32f2f",
+                SS: "#ffd700"
+            };
+            
+            const filtered = bestiaryData.filter(item => {
+                const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
+                
+                let matchesCategory = false;
+                if (currentFilter === "all") {
+                    matchesCategory = true;
+                } else if (currentFilter === "comum") {
+                    matchesCategory = (item.category === "comum" || item.category === "minion" || item.category === "structure" || item.category === "basic");
+                } else if (currentFilter === "guardião") {
+                    matchesCategory = (item.category === "guardião" || item.category === "defender" || item.category === "guardian");
+                } else if (currentFilter === "boss") {
+                    matchesCategory = (item.category === "boss" || item.category === "miniboss" || item.category === "deus");
+                }
+                
+                return matchesSearch && matchesCategory;
+            });
+            
+            if (filtered.length === 0) {
+                container.innerHTML = "<div style=\'text-align:center; padding:20px; font-size:10px; color:#5A2800; font-style:italic;\'>Nenhuma criatura encontrada.</div>";
+                return;
+            }
+            
+            filtered.forEach(item => {
+                const card = document.createElement("div");
+                card.className = "creature-card" + (item.id === activeId ? " selected" : "");
+                
+                const catName = categoryMap[item.category] || item.category;
+                const diffColor = difficultyColors[item.difficulty] || "#505050";
+                
+                card.innerHTML = `<div class="creature-icon-placeholder"><span class="creature-shape-dot" style="background-color: ${item.color}; border-radius: ${item.shape === "sphere" ? "50%" : "0"}"></span></div><div class="creature-card-info"><div class="creature-card-name">${item.name}</div><div class="creature-card-cat">${catName}</div></div><span class="creature-card-difficulty" style="background-color: ${diffColor}">${item.difficulty}</span>`;
+                
+                card.addEventListener("click", () => {
+                    selectCreature(item.id);
+                });
+                
+                container.appendChild(card);
+            });
+        }
+        
+        function selectCreature(id) {
+            activeId = id;
+            
+            document.querySelectorAll(".creature-card").forEach(c => c.classList.remove("selected"));
+            renderCards();
+            
+            const item = bestiaryData.find(b => b.id === id);
+            if (!item) return;
+            
+            document.getElementById("dossier-name").textContent = item.name;
+            
+            const categoryMap = {
+                basic: "Criatura Comum (Lacaio)",
+                comum: "Criatura Comum",
+                minion: "Criatura Comum (Minion)",
+                structure: "Estrutura Defensiva",
+                guardian: "Guardião de Elite",
+                guardião: "Guardião de Elite",
+                defender: "Guardião Defensor",
+                boss: "Chefe de Simulação (Boss)",
+                miniboss: "Mini Chefe de Limbo",
+                deus: "Entidade Divina Suprema (Boss Final)"
+            };
+            document.getElementById("dossier-category").textContent = categoryMap[item.category] || item.category;
+            
+            const difficultyColors = {
+                E: "#4caf50",
+                D: "#0288d1",
+                C: "#9c27b0",
+                B: "#ff9800",
+                A: "#e65100",
+                S: "#d32f2f",
+                SS: "#ffd700"
+            };
+            const diffColor = difficultyColors[item.difficulty] || "#505050";
+            const diffElement = document.getElementById("dossier-difficulty");
+            diffElement.textContent = item.difficulty;
+            diffElement.style.backgroundColor = diffColor;
+            
+            document.getElementById("dossier-lore").textContent = item.lore;
+            
+            document.getElementById("stat-hp").textContent = item.hp.toLocaleString();
+            document.getElementById("stat-speed").textContent = item.speed === 0 ? "Imóvel / Teleporte" : item.speed.toFixed(1) + " u/s";
+            document.getElementById("stat-xp").textContent = item.xp.toLocaleString() + " XP";
+            document.getElementById("stat-score").textContent = item.score.toLocaleString() + " pts";
+            
+            const skillsWrapper = document.getElementById("skills-wrapper");
+            skillsWrapper.innerHTML = "";
+            
+            if (item.skills && item.skills.length > 0) {
+                item.skills.forEach(skill => {
+                    const el = document.createElement("div");
+                    el.className = "skill-item";
+                    const badgeBg = skill.type === "passive" ? "#0288d1" : "#e65100";
+                    const badgeText = skill.type === "passive" ? "Passiva" : "Ativa";
+                    
+                    el.innerHTML = `<div class="skill-header"><span class="skill-name">${skill.name}</span><span class="skill-badge" style="background-color: ${badgeBg}">${badgeText}</span></div><p class="skill-desc">${skill.desc}</p>`;
+                    skillsWrapper.appendChild(el);
+                });
+            } else {
+                skillsWrapper.innerHTML = `
+                    <div style="font-size:10px; color:#666; font-style:italic; padding: 10px 0; text-align:center;">
+                        Esta criatura não possui habilidades especiais ativas. Causa dano físico padrão de contato.
+                    </div>
+                `;
+            }
+            
+            document.getElementById("spawn-text").innerHTML = `<p style="margin: 0 0 6px 0;"><strong>Temporizador de Respawn:</strong></p><p style="margin: 0 0 10px 0; color:#000;">${item.spawn}</p><p style="margin: 0 0 6px 0;"><strong>Recompensa de Abate:</strong></p><p style="margin: 0; color:#000;">Derrubar esta entidade recompensa os jogadores com <strong>${item.xp.toLocaleString()} XP</strong> e adiciona <strong>${item.score.toLocaleString()} pontos</strong> ao ranking geral da partida.</p>`;
+            
+            update3DModel(item.shape, item.color);
+        }
+        
+        // Search Input Event
+        document.getElementById("bestiary-search").addEventListener("input", (e) => {
+            searchQuery = e.target.value;
+            renderCards();
+        });
+        
+        // Filter Tabs Event
+        document.querySelectorAll(".filter-btn").forEach(btn => {
+            btn.addEventListener("click", (e) => {
+                document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+                e.target.classList.add("active");
+                currentFilter = e.target.dataset.filter;
+                renderCards();
+            });
+        });
+        
+        // Tab Views inside dossier
+        document.querySelectorAll(".dossier-tab-btn").forEach(btn => {
+            btn.addEventListener("click", (e) => {
+                document.querySelectorAll(".dossier-tab-btn").forEach(b => b.classList.remove("active"));
+                document.querySelectorAll(".dossier-tab-panel").forEach(p => p.classList.remove("active"));
+                
+                e.target.classList.add("active");
+                document.getElementById("panel-" + e.target.dataset.tab).classList.add("active");
+            });
+        });
+        
+        // Start Bestiary UI
+        window.addEventListener("DOMContentLoaded", () => {
+            const activeTab = "' . $activeTab . '";
+            if (activeTab === "bestiary") {
+                init3D();
+                renderCards();
+                selectCreature(activeId);
+            }
+        });
+    </script>';
 } else {
     // Redirect to news
     header('Location: ?subtopic=news');

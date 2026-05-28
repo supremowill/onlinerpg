@@ -34,7 +34,7 @@ export class CollisionSystem {
             if (proj.isDestroyed || !proj.isPlayerOwned) continue;
             for (const e of enemies) {
                 if (e.isDestroyed) continue;
-                const isPiercing = proj.specialEffect === 'raio_oblivio' || proj.specialEffect === 'raio_fogo_simples';
+                const isPiercing = proj.specialEffect === 'raio_oblivio' || proj.specialEffect === 'raio_fogo_simples' || proj.specialEffect === 'raio_peste_proj';
                 if (isPiercing && proj.hitTargets && proj.hitTargets.has(e.id)) {
                     continue;
                 }

@@ -439,6 +439,12 @@
             color: #e9d5ff !important;
             box-shadow: 0 0 15px rgba(168,85,247,0.4);
         }
+        .tower-select-btn.active-poison {
+            background: rgba(16, 185, 129, 0.15) !important;
+            border-color: #10b981 !important;
+            color: #a7f3d0 !important;
+            box-shadow: 0 0 15px rgba(16,185,129,0.4);
+        }
 
         .floor-row {
             display: flex;
@@ -502,6 +508,13 @@
             border-color: #e9d5ff !important;
             color: #fff !important;
             box-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+            font-weight: bold;
+        }
+        .floor-option-btn.selected-poison {
+            background: #10b981 !important;
+            border-color: #a7f3d0 !important;
+            color: #fff !important;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
             font-weight: bold;
         }
 
@@ -597,6 +610,67 @@
                 padding: 10px 4px;
             }
         }
+
+        /* Player Stats Overlay */
+        #player-stats-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 320px;
+            background: rgba(10, 10, 10, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 2px solid #555;
+            padding: 20px;
+            z-index: 100;
+            display: none; /* hidden by default */
+            pointer-events: none;
+            box-shadow: 0 0 25px rgba(0, 0, 0, 0.8);
+            font-family: 'Outfit', 'Inter', 'Roboto', sans-serif;
+            color: #fff;
+            border-radius: 0px; /* Puramente geométrico, sem bordas arredondadas */
+        }
+        .stats-overlay-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-bottom: 2px solid #0ff;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+            color: #0ff;
+            text-align: center;
+            text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+        }
+        .stats-overlay-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .stats-overlay-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 6px;
+        }
+        .stats-overlay-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+        .stats-overlay-label {
+            font-size: 0.85rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .stats-overlay-value {
+            font-size: 1rem;
+            font-weight: bold;
+            color: #0ff;
+            text-shadow: 0 0 5px rgba(0, 255, 255, 0.3);
+        }
     </style>
     <script type="importmap">
     { 
@@ -672,6 +746,7 @@
                 <button id="tower-btn-red" class="tower-select-btn" style="flex: 1; padding: 10px 5px; cursor: pointer; transition: all 0.2s;">🔺 VERMELHA</button>
                 <button id="tower-btn-green" class="tower-select-btn" style="flex: 1; padding: 10px 5px; cursor: pointer; transition: all 0.2s;">🟩 VERDE</button>
                 <button id="tower-btn-purple" class="tower-select-btn" style="flex: 1; padding: 10px 5px; cursor: pointer; transition: all 0.2s;">🟣 ROXA</button>
+                <button id="tower-btn-poison" class="tower-select-btn" style="flex: 1; padding: 10px 5px; cursor: pointer; transition: all 0.2s;">☠️ VENENO</button>
             </div>
 
             <!-- Detalhes da Torre e Andares -->
@@ -712,6 +787,36 @@
             <h2 id="upgrade-title">Escolha seu Upgrade!</h2>
             <p id="upgrade-skill-name"></p>
             <div id="upgrade-options" class="upgrade-options"></div>
+        </div>
+    </div>
+    <!-- PLAYER STATS OVERLAY -->
+    <div id="player-stats-overlay">
+        <div class="stats-overlay-title">Atributos do Jogador</div>
+        <div class="stats-overlay-grid">
+            <div class="stats-overlay-row">
+                <span class="stats-overlay-label">Ataque (Dano)</span>
+                <span class="stats-overlay-value" id="stats-attack-value">0</span>
+            </div>
+            <div class="stats-overlay-row">
+                <span class="stats-overlay-label">Defesa (Armadura)</span>
+                <span class="stats-overlay-value" id="stats-defense-value">0</span>
+            </div>
+            <div class="stats-overlay-row">
+                <span class="stats-overlay-label">Velocidade de Ataque</span>
+                <span class="stats-overlay-value" id="stats-attack-speed-value">0.00/s</span>
+            </div>
+            <div class="stats-overlay-row">
+                <span class="stats-overlay-label">Chance de Crítico</span>
+                <span class="stats-overlay-value" id="stats-crit-chance-value">0%</span>
+            </div>
+            <div class="stats-overlay-row">
+                <span class="stats-overlay-label">Dano Crítico</span>
+                <span class="stats-overlay-value" id="stats-crit-mult-value">0.0x</span>
+            </div>
+            <div class="stats-overlay-row">
+                <span class="stats-overlay-label">Velocidade de Movimento</span>
+                <span class="stats-overlay-value" id="stats-speed-value">0.00</span>
+            </div>
         </div>
     </div>
     <div id="event-message"></div>
@@ -771,13 +876,13 @@
     <script type="module">
         import * as THREE from 'three';
         import { NetworkClient } from './js/NetworkClient.js';
-        import { SnapshotRenderer } from './js/SnapshotRenderer.js?v=1.0.5';
+        import { SnapshotRenderer } from './js/SnapshotRenderer.js?v=1.0.6';
         import { InputManager } from './js/InputManager.js';
-        import { HUDManager } from './js/HUDManager.js?v=1.0.3';
+        import { HUDManager } from './js/HUDManager.js?v=1.0.4';
         import { AuthManager } from './js/auth.js';
         import { DashboardManager } from './js/DashboardManager.js';
         import { ChangelogManager } from './js/ChangelogManager.js';
-        import { DamageTextManager } from './js/DamageTextManager.js';
+        import { DamageTextManager } from './js/DamageTextManager.js?v=1.0.1';
 
         // --- State ---
         let scene, camera, renderer, clock;
@@ -862,6 +967,19 @@
               { level: 4, title: 'Condicional', options: ['Kill reseta CDs', 'Hitbox magias +30%', 'Aura tóxica DPS'] },
             ],
             basicUlt: 'Pulso Arcano'
+          },
+          poison: {
+            id: 'poison',
+            name: 'Torre do Veneno',
+            focus: 'DoT / Kiting / Evasão',
+            icon: '☠️',
+            floors: [
+              { level: 1, title: 'Status', options: ['+20% Attack Speed', '+15% Move Speed permanent', 'Tiro Tóxico'] },
+              { level: 2, title: 'Kiting', options: ['Passos Leves (+20% MS)', 'Presas Gêmeas (Heal)', 'Dardo Cegante (Cegueira)'] },
+              { level: 3, title: 'Efeito', options: ['Miasma Menor (Poça morte)', 'Toxina Paralisante (Slow)', 'Foco Infeccioso (+20% dmg)'] },
+              { level: 4, title: 'Condicional', options: ['Contaminação (Detonação)', 'Armadilha Cúbica (Shroom)', 'Espalhar a Peste (Transfer Stacks)'] },
+            ],
+            basicUlt: 'Frasco de Peçonha'
           }
         };
 
@@ -879,7 +997,7 @@
                 const p3 = tower.floors[2].options[selectedPassives[3]] || '';
                 const p4 = tower.floors[3].options[selectedPassives[4]] || '';
                 
-                const colorHex = selectedTowerColor === 'red' ? '#ff4d4d' : selectedTowerColor === 'green' ? '#4dff4d' : '#d44dff';
+                const colorHex = selectedTowerColor === 'red' ? '#ff4d4d' : selectedTowerColor === 'green' ? '#4dff4d' : selectedTowerColor === 'purple' ? '#d44dff' : '#10b981';
                 summaryText.innerHTML = `<span style="color: ${colorHex}; font-weight: bold; font-size: 0.78rem;">${tower.icon} ${tower.name}</span><br><span style="color: #bbb; font-size: 0.65rem; font-weight: normal; font-family: monospace;">[${p1} • ${p2} • ${p3} • ${p4}]</span>`;
                 
                 if (btn) {
@@ -910,7 +1028,7 @@
         }
 
         function renderTowerSelector() {
-            ['red', 'green', 'purple'].forEach(c => {
+            ['red', 'green', 'purple', 'poison'].forEach(c => {
                 const btn = document.getElementById(`tower-btn-${c}`);
                 if (btn) {
                     btn.className = 'tower-select-btn';
@@ -983,6 +1101,7 @@
         document.getElementById('tower-btn-red').onclick = (e) => { e.preventDefault(); selectedTowerColor = 'red'; selectedPassives = {1:0,2:0,3:0,4:0}; saveBuild(); renderTowerSelector(); };
         document.getElementById('tower-btn-green').onclick = (e) => { e.preventDefault(); selectedTowerColor = 'green'; selectedPassives = {1:0,2:0,3:0,4:0}; saveBuild(); renderTowerSelector(); };
         document.getElementById('tower-btn-purple').onclick = (e) => { e.preventDefault(); selectedTowerColor = 'purple'; selectedPassives = {1:0,2:0,3:0,4:0}; saveBuild(); renderTowerSelector(); };
+        document.getElementById('tower-btn-poison').onclick = (e) => { e.preventDefault(); selectedTowerColor = 'poison'; selectedPassives = {1:0,2:0,3:0,4:0}; saveBuild(); renderTowerSelector(); };
 
         // Modal triggers
         document.getElementById('open-towers-btn').onclick = (e) => {
@@ -1273,6 +1392,7 @@
             inputManager = new InputManager(net);
             inputManager.setup(platform, camera, scene);
             hudManager = new HUDManager(playerId);
+            window.hudManager = hudManager;
 
             // Damage text floating numbers
             const dmgLayer = document.getElementById('damage-text-layer');

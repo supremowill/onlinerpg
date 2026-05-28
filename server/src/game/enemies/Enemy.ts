@@ -69,6 +69,13 @@ export class ServerEnemy {
         return EnemyRegistry.get(this.type)?.stats.hitboxRadius ?? fallback;
     }
 
+    public poisonStacks = 0;
+    public poisonTimer = 0; // remaining time in ms
+    public poisonInstigator: ServerPlayer | null = null;
+    public poisonTickTimer = 0;
+    public blindedTimer = 0;
+    public slowAmount = 1.0;
+
     // Status
     public status = {
         slowTimer: 0,
@@ -78,6 +85,7 @@ export class ServerEnemy {
         armorFracture: { isActive: false, timer: 0, amount: 0 },
         silenced: { isActive: false, timer: 0 },
         disoriented: { isActive: false, timer: 0 },
+        stunned: { isActive: false, timer: 0 },
     };
 
     constructor(position: Vec3) {
@@ -155,6 +163,13 @@ export class ServerEnemy {
         const rng = 0.9 + Math.random() * 0.2;
         let fd = danoBase * rng;
 
+        // Foco Infeccioso (+20% direct damage on envenomed targets)
+        if (instigator && instigator.build && instigator.build.buildingColor === 'poison') {
+            if (instigator.build.floor3 === 2 && this.poisonStacks > 0) {
+                fd *= 1.20;
+            }
+        }
+
         // Step 3 - Fator de Mitigação (Armadura)
         if (!isTrueDamage) {
             let defenseTotal = this.defense || 0;
@@ -207,9 +222,73 @@ export class ServerEnemy {
             }
         }
 
+        // Blind ticking
+        if (this.blindedTimer > 0) {
+            this.blindedTimer -= dt * 1000;
+        }
+
+        // Stun ticking
+        if (this.status.stunned.isActive) {
+            this.status.stunned.timer -= dt * 1000;
+            if (this.status.stunned.timer <= 0) {
+                this.status.stunned.isActive = false;
+            } else {
+                return true; // Skip normal AI movement/attacks while stunned
+            }
+        }
+
+        // Dynamic speed calculation combining slow and Toxina Paralisante (5 stacks = 30% slow)
+        let speedMult = 1.0;
         if (this.status.slowTimer > 0) {
             this.status.slowTimer -= dt * 1000;
-            if (this.status.slowTimer <= 0) this.speed = this.originalSpeed;
+            if (this.status.slowTimer <= 0) {
+                this.slowAmount = 1.0;
+            } else {
+                speedMult *= this.slowAmount;
+            }
+        }
+        if (this.poisonStacks === 5 && this.poisonInstigator && this.poisonInstigator.build && this.poisonInstigator.build.buildingColor === 'poison') {
+            if (this.poisonInstigator.build.floor3 === 1) { // Toxina Paralisante
+                speedMult *= 0.70; // 30% slow
+            }
+        }
+        this.speed = this.originalSpeed * speedMult;
+
+        // Poison DoT ticking
+        if (this.poisonStacks > 0) {
+            this.poisonTimer -= dt * 1000;
+            if (this.poisonTimer <= 0) {
+                this.poisonStacks = 0;
+                this.poisonInstigator = null;
+            } else {
+                this.poisonTickTimer += dt;
+                if (this.poisonTickTimer >= 1.0) {
+                    this.poisonTickTimer -= 1.0;
+                    const level = this.poisonInstigator ? this.poisonInstigator.level : 1;
+                    const basePoisonDmg = 10 + level * 2;
+                    const finalDmg = basePoisonDmg * this.poisonStacks;
+                    this.takeDamage(finalDmg, this.poisonInstigator, false);
+                    
+                    const engine = (global as any).__gameEngine;
+                    if (engine) {
+                        const isBoss = ['LichKing','TheMightyOne','Gangplank','RainhaDasTrevas',
+                            'PlantaCarnivora','FeiticeiroImortal','SuperBoss','CaoDosInfernos','Farao',
+                            'GuardiãoDoLimbo','Minos','Cerbero','Plutão','Fúria','Megera','Minotauro',
+                            'Geriao','Lúcifer','EspectroDeRaziel','Smith'].includes(this.type);
+                        engine.pendingEvents.push({
+                            event: 'HIT_NUMBER',
+                            data: {
+                                targetId: this.id,
+                                x: this.position.x,
+                                y: isBoss ? 3.5 : 1.5,
+                                z: this.position.z,
+                                value: finalDmg,
+                                type: 'TOXIC'
+                            }
+                        });
+                    }
+                }
+            }
         }
 
         if (this.status.armorFracture.isActive) {
@@ -227,11 +306,10 @@ export class ServerEnemy {
             if (this.status.disoriented.timer <= 0) {
                 this.status.disoriented.isActive = false;
             } else {
-                // Random-ish movement while disoriented
                 const angle = (now * 0.005) + (parseInt(this.id.substring(0, 4), 16) % 100);
                 const dir = new Vec3(Math.cos(angle), 0, Math.sin(angle));
                 this.position.add(dir.multiplyScalar(this.speed * dt));
-                return true; // skip normal AI
+                return true;
             }
         }
 
@@ -239,9 +317,70 @@ export class ServerEnemy {
             this.position.add(this.status.knockback.dir.clone().multiplyScalar(this.status.knockback.force * dt));
             this.status.knockback.force *= 0.95;
             if (this.status.knockback.force < 1) this.status.knockback = null;
-            return true; // skip AI while knocked back
+            return true;
         }
         return false;
+    }
+
+    applyStun(duration: number): void {
+        this.status.stunned.isActive = true;
+        this.status.stunned.timer = Math.max(this.status.stunned.timer, duration);
+    }
+
+    addPoison(amount: number, instigator: ServerPlayer | null): void {
+        this.poisonInstigator = instigator;
+        this.poisonTimer = 3000; // resets duration to 3s
+        
+        let contaminationEnabled = false;
+        if (instigator && instigator.build && instigator.build.buildingColor === 'poison') {
+            if (instigator.build.floor4 === 0) { // Contaminação
+                contaminationEnabled = true;
+            }
+        }
+        
+        const nextStacks = this.poisonStacks + amount;
+        if (contaminationEnabled && nextStacks >= 6) {
+            // DETONATE!
+            const level = instigator ? instigator.level : 1;
+            const detonateDmg = (15 + level * 5) * 8; // Explosive damage scaling with level
+            this.takeDamage(detonateDmg, instigator, false);
+            this.poisonStacks = 0;
+            this.poisonTimer = 0;
+            
+            const engine = (global as any).__gameEngine;
+            if (engine) {
+                const isBoss = ['LichKing','TheMightyOne','Gangplank','RainhaDasTrevas',
+                    'PlantaCarnivora','FeiticeiroImortal','SuperBoss','CaoDosInfernos','Farao',
+                    'GuardiãoDoLimbo','Minos','Cerbero','Plutão','Fúria','Megera','Minotauro',
+                    'Geriao','Lúcifer','EspectroDeRaziel','Smith'].includes(this.type);
+                engine.pendingEvents.push({
+                    event: 'HIT_NUMBER',
+                    data: {
+                        targetId: this.id,
+                        x: this.position.x,
+                        y: isBoss ? 3.5 : 1.5,
+                        z: this.position.z,
+                        value: detonateDmg,
+                        type: 'CRIT'
+                    }
+                });
+                
+                // Spawn a visual explosion zone
+                engine.zones.push({
+                    id: `zone_${engine.zoneIdCounter++}`,
+                    type: 'explosion',
+                    position: this.position.clone(),
+                    radius: 3.0,
+                    duration: 400,
+                    timer: 400,
+                    damagePerSec: 0,
+                    lastTick: 0,
+                    extras: { sourceId: instigator?.id, burst: true }
+                });
+            }
+        } else {
+            this.poisonStacks = Math.min(nextStacks, 5);
+        }
     }
 
     canUseAbility(): boolean {

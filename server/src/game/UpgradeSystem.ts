@@ -140,6 +140,23 @@ export const TOWER_MUTATION_DEFINITIONS: Record<string, UpgradeOption[]> = {
             description: 'Blink à frente. Ao usar a ultimate, reseta instantaneamente os cooldowns de Q, W, E.',
         },
     ],
+    poison: [
+        {
+            id: 'r_campo_fungos',
+            name: 'Campo de Fungos',
+            description: 'Passiva Contínua. O mapa gera cogumelos tetraédricos invisíveis aleatoriamente. Inimigos que pisarem sofrem 5 stacks de veneno instantâneos e lentidão de 80% em área.',
+        },
+        {
+            id: 'r_olhar_gorgona',
+            name: 'Olhar da Górgona',
+            description: 'Ativa. Dispara um flash poligonal em cone. Inimigos de frente viram pedra (Stun de 4s). Inimigos de costas tomam 80% de lentidão.',
+        },
+        {
+            id: 'r_raio_peste',
+            name: 'Raio da Peste',
+            description: 'Ativa. Por 8s, ganha alcance extremo. Seus ataques básicos viram lasers penetrantes que atravessam a horda inteira, aplicando dano total e stacks a cada acerto.',
+        },
+    ],
 };
 
 // ============================================================
@@ -275,6 +292,17 @@ export function applyUpgrade(player: ServerPlayer, skill: string, optionId: stri
             break;
         case 'r_reset_dimensional':
             player.upgradeFlags.r_reset_dimensional = true;
+            break;
+
+        // ── Poison Mutations ──
+        case 'r_campo_fungos':
+            player.upgradeFlags.r_campo_fungos = true;
+            break;
+        case 'r_olhar_gorgona':
+            player.upgradeFlags.r_olhar_gorgona = true;
+            break;
+        case 'r_raio_peste':
+            player.upgradeFlags.r_raio_peste = true;
             break;
     }
 

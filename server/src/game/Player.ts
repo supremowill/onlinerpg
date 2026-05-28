@@ -86,7 +86,13 @@ export class ServerPlayer {
         lichKingLifeDrain: { isActive: false, timer: 0, damagePerSecond: 0 },
         freezingConeHits: { count: 0, timer: 0 },
         invertedControls: { isActive: false, timer: 0 },
+        geloCadaviricStacks: 0,
     };
+
+    public jumpTimer: number = 0;
+    public isOnSlipperyGround: boolean = false;
+    public slideVelocity: Vec3 = new Vec3(0, 0, 0);
+    public knockback: { dir: Vec3; force: number } | null = null;
 
     public pathogens: { [key: string]: { stacks: number; timer: number } } = {};
     private lastFebreTick: number = 0;
@@ -160,6 +166,8 @@ export class ServerPlayer {
     public r_slash_index = 0;
     public r_quake_timer = 0;
     public r_quake_tick = 0;
+    public r_raio_peste_timer = 0;
+    public shroomSpawnTimer = 0;
 
     private static PLAYER_COLORS = [0x4a90e2, 0xe24a4a, 0x4ae24a, 0xe2e24a, 0xe24ae2];
     private static nextColorIndex = 0;
@@ -277,6 +285,13 @@ export class ServerPlayer {
             if (this.build.floor4 === 1) this.hitboxMagiasSizePct += 0.30;
             if (this.build.floor4 === 2) this.toxicAuraDps = true;
         }
+        else if (color === 'poison') {
+            // Floor 1
+            // Option 1: +20% Attack speed (handled in getEffectiveAttackCooldown)
+            // Option 2: +15% Move speed permanent
+            if (this.build.floor1 === 1) this.bonusSpeedPct += 0.15;
+            // Option 3: Tiro Tóxico (handled in GameEngine projectile hits)
+        }
 
         if (this.bonusSpeedPct > 0) {
             this.speed *= (1 + this.bonusSpeedPct);
@@ -284,7 +299,7 @@ export class ServerPlayer {
         }
     }
 
-    getDamage(isAbility = false): number {
+    getDamage(isAbility = false, ignoreCrit = false): number {
         const pConf = getGameData().player || CONFIG.PLAYER as any;
         const sr = pConf.skills?.r || CONFIG.PLAYER.SKILL_R;
         const dmgBase = pConf.baseDamage !== undefined ? pConf.baseDamage : (CONFIG.PLAYER as any).BASE_DAMAGE || 40;
@@ -314,14 +329,16 @@ export class ServerPlayer {
         if (this.doubleDamageSuperLowHp && (this.hp / this.maxHp) < 0.20) base *= 2.0;
         
         // Critical hits
-        const baseCritChance = pConf.critChance !== undefined ? pConf.critChance : (CONFIG.PLAYER as any).CRIT_CHANCE || 0.05;
-        const critDmgMult = pConf.critDamageMultiplier !== undefined ? pConf.critDamageMultiplier : (CONFIG.PLAYER as any).CRIT_DAMAGE_MULTIPLIER || 2.0;
-        const totalCritChance = baseCritChance + this.bonusCritChance;
-        if (Math.random() < totalCritChance) {
-            base *= critDmgMult;
-            this.lastHitWasCrit = true;
-        } else {
-            this.lastHitWasCrit = false;
+        if (!ignoreCrit) {
+            const baseCritChance = pConf.critChance !== undefined ? pConf.critChance : (CONFIG.PLAYER as any).CRIT_CHANCE || 0.05;
+            const critDmgMult = pConf.critDamageMultiplier !== undefined ? pConf.critDamageMultiplier : (CONFIG.PLAYER as any).CRIT_DAMAGE_MULTIPLIER || 2.0;
+            const totalCritChance = baseCritChance + this.bonusCritChance;
+            if (Math.random() < totalCritChance) {
+                base *= critDmgMult;
+                this.lastHitWasCrit = true;
+            } else {
+                this.lastHitWasCrit = false;
+            }
         }
         
         // Scaling with consecutive hits
@@ -356,6 +373,7 @@ export class ServerPlayer {
 
         // --- Essence Towers Modifiers ---
         if (this.build.buildingColor === 'red' && this.build.floor1 === 1) cd /= 1.10; // +10% attack speed
+        if (this.build.buildingColor === 'poison' && this.build.floor1 === 0) cd /= 1.20; // +20% attack speed
         if (this.superDamageSlowAttack) cd *= 1.43; // -30% attack speed (cd increase)
         
         return cd;
@@ -376,6 +394,45 @@ export class ServerPlayer {
         if (this.bonusCdrPct > 0) cd *= (1 - this.bonusCdrPct);
 
         return cd;
+    }
+
+    getEffectiveSpeed(): number {
+        let spd = this.speed;
+        let passesLevesActive = false;
+        if (this.build.buildingColor === 'poison' && this.build.floor2 === 0) {
+            const engine = (global as any).__gameEngine;
+            if (engine) {
+                for (const e of engine.enemies) {
+                    if (!e.isDestroyed && e.poisonStacks > 0) {
+                        const toEnemy = e.position.clone().sub(this.position);
+                        toEnemy.y = 0;
+                        const dist = toEnemy.length();
+                        if (dist < 15.0) {
+                            const dir = this.getFacingDirection();
+                            if (dir.lengthSq() > 0.01 && toEnemy.lengthSq() > 0.01) {
+                                toEnemy.normalize();
+                                const dot = dir.dot(toEnemy);
+                                if (dot > 0.5) { // moving towards envenomed enemy
+                                    passesLevesActive = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (passesLevesActive) {
+            spd *= 1.20; // +20% move speed
+        }
+        if (this.statusEffects.slowed.isActive) spd *= (1 - this.statusEffects.slowed.amount);
+        const paralisia = this.pathogens['paralisia_parcial'];
+        if (paralisia) spd *= (1 - 0.15 * paralisia.stacks);
+        const pb = this.timedBuffs.find(b => b.type === 'planta_buff');
+        if (pb) spd *= pb.effects.move_speed;
+        const cb = this.timedBuffs.find(b => b.type === 'cao_dos_infernos_buff');
+        if (cb) spd *= cb.effects.move_speed;
+        return spd;
     }
 
     setFacingDirection(targetX: number, targetZ: number): void {
@@ -403,6 +460,13 @@ export class ServerPlayer {
 
     update(dt: number, now: number): void {
         if (this.isDead) return;
+        if (this.jumpTimer > 0) {
+            this.jumpTimer -= dt * 1000;
+            if (this.jumpTimer < 0) this.jumpTimer = 0;
+        }
+        if (this.r_raio_peste_timer > 0) {
+            this.r_raio_peste_timer -= dt * 1000;
+        }
         this.updateStatusEffects(dt, now);
         this.updateBuffs(dt);
         this.updatePathogens(dt, now);
@@ -473,20 +537,20 @@ export class ServerPlayer {
 
     handleMovement(dt: number): void {
         if (this.statusEffects.stunned.isActive || this.statusEffects.frozen.isActive || this.statusEffects.rooted.isActive || this.statusEffects.lichKingPrison.isActive) return;
-        if (this.skills.q.isDashing) { const dir = this.getFacingDirection(); this.position.add(dir.multiplyScalar(this.skills.q.dashSpeed * dt)); return; }
-        const dir = new Vec3();
+        if (this.skills.q.isDashing) {
+            let dir = this.getFacingDirection();
+            if (this.level >= 20 && this.build.buildingColor === 'poison') {
+                dir.multiplyScalar(-1); // Backstep (opposite to mouse direction)
+            }
+            this.position.add(dir.multiplyScalar(this.skills.q.dashSpeed * dt));
+            return;
+        }
         let mx = 0, mz = 0;
-        
-        let spd = this.speed;
-        if (this.statusEffects.slowed.isActive) spd *= (1 - this.statusEffects.slowed.amount);
-        const paralisia = this.pathogens['paralisia_parcial'];
-        if (paralisia) spd *= (1 - 0.15 * paralisia.stacks);
-        const pb = this.timedBuffs.find(b => b.type === 'planta_buff');
-        if (pb) spd *= pb.effects.move_speed;
-        const cb = this.timedBuffs.find(b => b.type === 'cao_dos_infernos_buff');
-        if (cb) spd *= cb.effects.move_speed;
+        let spd = this.getEffectiveSpeed();
 
         let moved = false;
+        let inputDir = new Vec3(0, 0, 0);
+
         if (this.platform === 'pc') { 
             const k = this.input.keys;
             if (k) {
@@ -495,22 +559,45 @@ export class ServerPlayer {
                 if (k.a) mx = -1;
                 if (k.d) mx = 1;
             }
-            if (this.statusEffects.disoriented.isActive || this.statusEffects.invertedControls.isActive) { dir.x = -mx; dir.z = -mz; } else { dir.x = mx; dir.z = mz; }
-            if (dir.lengthSq() > 0) {
-                dir.normalize().multiplyScalar(spd * dt);
-                this.position.add(dir);
-                moved = true;
+            let rx = mx, rz = mz;
+            if (this.statusEffects.disoriented.isActive || this.statusEffects.invertedControls.isActive) { rx = -mx; rz = -mz; }
+            if (rx !== 0 || rz !== 0) {
+                inputDir.set(rx, 0, rz).normalize().multiplyScalar(spd);
             }
         } else {
             mx = this.input.joystickX || 0; mz = this.input.joystickY || 0;
-            if (this.statusEffects.disoriented.isActive || this.statusEffects.invertedControls.isActive) { dir.x = -mx; dir.z = -mz; } else { dir.x = mx; dir.z = mz; }
-            if (dir.lengthSq() > 0) {
-                dir.normalize().multiplyScalar(spd * dt); 
-                this.position.add(dir);
-                this.rotationY = Math.atan2(dir.x, dir.z); 
-                this.facingDirection.set(dir.x, 0, dir.z).normalize();
-                moved = true;
+            let rx = mx, rz = mz;
+            if (this.statusEffects.disoriented.isActive || this.statusEffects.invertedControls.isActive) { rx = -mx; rz = -mz; }
+            if (rx !== 0 || rz !== 0) {
+                inputDir.set(rx, 0, rz).normalize().multiplyScalar(spd);
             }
+        }
+
+        const isSlippery = this.isOnSlipperyGround && !this.timedBuffs.some(b => b.type === 'alma_de_arthas');
+        if (isSlippery) {
+            const accelRate = 2.0;
+            this.slideVelocity.x += (inputDir.x - this.slideVelocity.x) * accelRate * dt;
+            this.slideVelocity.z += (inputDir.z - this.slideVelocity.z) * accelRate * dt;
+        } else {
+            this.slideVelocity.copy(inputDir);
+        }
+
+        if (this.slideVelocity.lengthSq() > 0.01) {
+            this.position.add(this.slideVelocity.clone().multiplyScalar(dt));
+            moved = true;
+            // On mobile, movement direction controls aiming (no mouse).
+            // On PC, mouse controls aiming — WASD only moves the character.
+            if (this.platform === 'mobile' && inputDir.lengthSq() > 0) {
+                this.rotationY = Math.atan2(inputDir.x, inputDir.z); 
+                this.facingDirection.set(inputDir.x, 0, inputDir.z).normalize();
+            }
+        }
+
+        if (this.knockback) {
+            this.position.add(this.knockback.dir.clone().multiplyScalar(this.knockback.force * dt));
+            this.knockback.force *= 0.90;
+            if (this.knockback.force < 1.0) this.knockback = null;
+            moved = true;
         }
 
         if (moved) {
@@ -536,7 +623,9 @@ export class ServerPlayer {
         if (this.activeBuff.type) { this.activeBuff.timer -= ms; if (this.activeBuff.timer <= 0) this.clearBuff(); }
         if (this.tempBuff.type) { this.tempBuff.timer -= ms; if (this.tempBuff.timer <= 0) { this.tempBuff.type = null; this.tempBuff.timer = 0; this.tempBuff.magnitude = 0; } }
         for (let i = this.timedBuffs.length - 1; i >= 0; i--) {
-            this.timedBuffs[i].timer -= ms;
+            if (this.timedBuffs[i].type !== 'alma_de_arthas') {
+                this.timedBuffs[i].timer -= ms;
+            }
             if (this.timedBuffs[i].timer <= 0) {
                 const type = this.timedBuffs[i].type;
                 if (type === 'bencao_do_farao') {
@@ -630,6 +719,7 @@ export class ServerPlayer {
             this.skills.r.timer -= ms;
             if (this.skills.r.timer <= 0) {
                 this.skills.r.isActive = false;
+                this.r_raio_peste_timer = 0;
                 // R upgrade: Singularidade do Colapso — explosão final
                 if (this.upgradeFlags.r_storedExplosion && this.ultDamageStored > 0) {
                     this.pendingZones.push({
@@ -862,6 +952,42 @@ export class ServerPlayer {
         const sq = pConf.skills?.q || CONFIG.PLAYER.SKILL_Q;
         const q = this.skills.q; q.isDashing = true; q.timer = q.duration;
         q.dashSpeed = this.skillLevels.q >= 2 ? sq.dashSpeed * 1.5 : sq.dashSpeed;
+
+        // Poison Tower Level 20 Evasive Dash
+        if (this.level >= 20 && this.build.buildingColor === 'poison') {
+            // Nova Habilidade Q - Evasão Tóxica (Backstep + Poça Crescente)
+            this.pendingZones.push({
+                type: 'poison_puddle',
+                x: this.position.x,
+                z: this.position.z,
+                radius: 2.0, // initial radius
+                damage: 0,
+                extras: { duration: 6000, maxRadius: 6.0, sourceId: this.id } // 6 seconds duration, grows to 6.0 radius
+            });
+            // Armadilha Cúbica (Dash drops mushroom)
+            if (this.build.floor4 === 1) {
+                this.pendingZones.push({
+                    type: 'cubic_trap',
+                    x: this.position.x,
+                    z: this.position.z,
+                    radius: 1.0,
+                    damage: 0,
+                    extras: { duration: 15000, sourceId: this.id }
+                });
+            }
+        } else {
+            // Armadilha Cúbica for normal dash
+            if (this.build.buildingColor === 'poison' && this.build.floor4 === 1) {
+                this.pendingZones.push({
+                    type: 'cubic_trap',
+                    x: this.position.x,
+                    z: this.position.z,
+                    radius: 1.0,
+                    damage: 0,
+                    extras: { duration: 15000, sourceId: this.id }
+                });
+            }
+        }
     }
     activateShield(): void {
         const pConf = getGameData().player || CONFIG.PLAYER as any;
@@ -876,6 +1002,10 @@ export class ServerPlayer {
         const r = this.skills.r; r.isActive = true;
         r.timer = r.duration;
         if (this.upgradeFlags.r_storedExplosion) this.ultDamageStored = 0;
+        if (this.upgradeFlags.r_raio_peste) {
+            this.r_raio_peste_timer = 8000;
+            r.timer = 8000;
+        }
     }
 
     // dashHits removido (sistema de upgrade removido)
@@ -959,6 +1089,10 @@ export class ServerPlayer {
     applyMarcaDaAlma(d: number): void { if (this.statusEffects.marcaDaAlma.isActive) return; this.statusEffects.marcaDaAlma.isActive = true; this.statusEffects.marcaDaAlma.timer = d; }
     applyLichKingPrison(d: number): void { if (this.statusEffects.lichKingPrison.isActive) return; this.statusEffects.lichKingPrison.isActive = true; this.statusEffects.lichKingPrison.timer = d; }
     applyInvertedControls(d: number): void { if (this.statusEffects.invertedControls.isActive) return; this.statusEffects.invertedControls.isActive = true; this.statusEffects.invertedControls.timer = d; }
+    applyKnockback(direction: Vec3, force: number): void {
+        if (this.immuneKnockback) return;
+        this.knockback = { dir: direction.clone().normalize(), force };
+    }
     clearNegativeEffects(): void { ['slowed','burning','bleeding','frozen','stunned','rooted','attackSpeedSlow','disoriented','blind','silenced','armorFracture','invertedControls'].forEach(k => { const e = (this.statusEffects as any)[k]; if (e) { e.isActive = false; e.timer = 0; if (k === 'slowed') this.speed = this.originalSpeed; if (k === 'burning') e.stacks = 0; } }); }
 
     /** R upgrade: Fúria Infinita — chamado externamente ao abater inimigo */
@@ -972,7 +1106,9 @@ export class ServerPlayer {
         const fx: string[] = [];
         for (const [k, v] of Object.entries(this.statusEffects)) { if ((v as any).isActive) fx.push(k); }
         return {
-            id: this.id, name: this.name, x: this.position.x, z: this.position.z, rotY: this.rotationY,
+            id: this.id, name: this.name, x: this.position.x,
+            y: this.jumpTimer > 0 ? (0.5 + Math.sin(((800 - this.jumpTimer) / 800) * Math.PI) * 2.0) : 0.5,
+            z: this.position.z, rotY: this.rotationY,
             hp: this.hp, maxHp: this.maxHp, xp: this.xp, xpNext: this.xpToNextLevel, level: this.level, score: this.score,
             shieldHp: this.skills.e.shieldHp, shieldMaxHp: this.skills.e.maxShieldHp,
             skillCooldowns: {
@@ -1005,12 +1141,20 @@ export class ServerPlayer {
                 }
                 return pMap;
             })(),
-            isDead: this.isDead, isDashing: this.skills.q.isDashing,
-            isUltActive: this.skills.r.isActive, isShieldActive: this.skills.e.isActive,
+            isDead: this.isDead,
+            isDashing: this.skills.q.isDashing,
+            isUltActive: this.skills.r.isActive,
+            isShieldActive: this.skills.e.isActive,
             passiveLevel: this.skillLevels.passive, color: this.color,
             skillUpgrades: this.selectedUpgrades as any,
             isSelectingUpgrade: this.isSelectingUpgrade || undefined,
             build: this.build,
+            damage: Math.round(this.getDamage(false, true)),
+            defense: Math.round((() => { let def = this.defense || 0; if (this.defenseBuffHighHp && (this.hp / this.maxHp) > 0.80) { def *= 1.30; } return def; })()),
+            critChance: (() => { const pConf = getGameData().player || CONFIG.PLAYER as any; const baseCritChance = pConf.critChance !== undefined ? pConf.critChance : (CONFIG.PLAYER as any).CRIT_CHANCE || 0.05; return baseCritChance + this.bonusCritChance; })(),
+            critDamageMultiplier: (() => { const pConf = getGameData().player || CONFIG.PLAYER as any; return pConf.critDamageMultiplier !== undefined ? pConf.critDamageMultiplier : (CONFIG.PLAYER as any).CRIT_DAMAGE_MULTIPLIER || 2.0; })(),
+            speed: this.getEffectiveSpeed(),
+            attackSpeed: Number((1000 / this.getEffectiveAttackCooldown()).toFixed(2)),
         };
     }
 }

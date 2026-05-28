@@ -44,6 +44,13 @@ export class InputManager {
 
         const onKeyDown = (e) => {
             const k = e.key.toLowerCase();
+            if (k === 'tab') {
+                e.preventDefault();
+                if (window.hudManager) {
+                    window.hudManager.setStatsOpen(true);
+                }
+                return;
+            }
             if (['w', 'a', 's', 'd'].includes(k)) {
                 this.keys[k] = true;
             } else if (k === 'q') {
@@ -54,10 +61,19 @@ export class InputManager {
                 this.net.useSkill('e');
             } else if (k === 'f') {
                 this.net.useSkill('r');
+            } else if (e.code === 'Space') {
+                this.net.useSkill('jump');
             }
         };
         const onKeyUp = (e) => {
             const k = e.key.toLowerCase();
+            if (k === 'tab') {
+                e.preventDefault();
+                if (window.hudManager) {
+                    window.hudManager.setStatsOpen(false);
+                }
+                return;
+            }
             if (['w', 'a', 's', 'd'].includes(k)) {
                 this.keys[k] = false;
             }
