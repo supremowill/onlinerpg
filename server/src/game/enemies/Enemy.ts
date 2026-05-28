@@ -265,7 +265,8 @@ export class ServerEnemy {
                 if (this.poisonTickTimer >= 1.0) {
                     this.poisonTickTimer -= 1.0;
                     const playerAttack = this.poisonInstigator ? this.poisonInstigator.getDamage(false, true) : 40;
-                    const basePoisonDmg = 0.05 * playerAttack + 0.05 * this.maxHp;
+                    const playerLevel = this.poisonInstigator ? this.poisonInstigator.level : 1;
+                    const basePoisonDmg = 0.01 * playerAttack + playerLevel + 0.03 * this.maxHp;
                     const finalDmg = Math.round(basePoisonDmg * this.poisonStacks);
                     this.takeDamage(finalDmg, this.poisonInstigator, false);
                     
