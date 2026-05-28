@@ -24,7 +24,6 @@ services:
       - JWT_SECRET=sua_chave_jwt_super_secreta_123456
     volumes:
       - ./server/game_data.json:/app/game_data.json
-      - ./server/dist:/app/dist
       - ./client:/app/public
     depends_on:
       db:

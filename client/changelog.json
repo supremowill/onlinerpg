@@ -1,5 +1,29 @@
 [
   {
+    "hash": "2b427d4",
+    "date": "2026-05-27T22:30:47-03:00",
+    "message": "feat: update poison DoT formula to 5% player attack + 5% enemy max hp",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "034d489",
+    "date": "2026-05-27T22:09:46-03:00",
+    "message": "chore: remove --no-cache from remote build to save disk space",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "892fcbe",
+    "date": "2026-05-27T21:57:54-03:00",
+    "message": "docs: add release note for player stats overlay",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "a7860e0",
+    "date": "2026-05-27T21:52:03-03:00",
+    "message": "feat: implement player advanced stats overlay (tab key stats menu)",
+    "author": "williamdouglasmsouza"
+  },
+  {
     "hash": "e9f8032",
     "date": "2026-05-24T18:26:39-03:00",
     "message": "chore(balance): auto-save balance tweaks and updates from editor",
@@ -273,30 +297,6 @@
     "hash": "92c4735",
     "date": "2026-05-03T16:25:03-03:00",
     "message": "fix: corrigir ranking com nomes e botao jogar novamente",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "b3ac051",
-    "date": "2026-05-03T15:59:24-03:00",
-    "message": "fix: corrigir selecao de plataforma e inicio de partida",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "b104610",
-    "date": "2026-05-03T15:42:59-03:00",
-    "message": "fix: corrigir schema SQL e inicialização de tabelas no Render",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "713e632",
-    "date": "2026-05-03T15:26:15-03:00",
-    "message": "fix: tornar initDatabase() assíncrono para aguardar schema",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "cd6659f",
-    "date": "2026-05-03T15:23:34-03:00",
-    "message": "fix: executar SQL do schema imediatamente (não lazy) no Render",
     "author": "williamdouglasmsouza"
   }
 ]
