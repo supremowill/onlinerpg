@@ -91,6 +91,28 @@ $logged = isset($_SESSION['player_id']);
 $subtopic = $_GET['subtopic'] ?? 'news';
 $hostOnly = explode(':', $_SERVER['HTTP_HOST'] ?? 'localhost')[0];
 
+function generateJWT($id, $username, $isAdmin) {
+    $secret = getenv('JWT_SECRET') ?: 'sua_chave_jwt_super_secreta_123456';
+    $header = json_encode(['alg' => 'HS256', 'typ' => 'JWT']);
+    $iat = time();
+    $exp = $iat + (30 * 24 * 60 * 60); // 30 days
+    $payload = json_encode([
+        'id' => (int)$id,
+        'username' => $username,
+        'is_admin' => (bool)$isAdmin,
+        'iat' => $iat,
+        'exp' => $exp
+    ]);
+    
+    $base64UrlHeader = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($header));
+    $base64UrlPayload = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($payload));
+    
+    $signature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, $secret, true);
+    $base64UrlSignature = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($signature));
+    
+    return $base64UrlHeader . "." . $base64UrlPayload . "." . $base64UrlSignature;
+}
+
 // Mock Database Engine for templates
 class MockDB {
     public function hasTable($table) { return false; }
@@ -188,6 +210,13 @@ $hooks = new MockHooks();
 define('HOOK_TIBIACOM_BORDER_3', 'tibiaborder3');
 
 // Helper Functions
+function pg_to_bool($val) {
+    if ($val === true || $val === 't' || $val === 'true' || $val == 1 || $val === '1') {
+        return true;
+    }
+    return false;
+}
+
 function escapeHtml($str) {
     return htmlspecialchars($str, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 }
@@ -221,7 +250,7 @@ function getLink($topic) {
 }
 
 function setting($name) {
-    if ($name === 'core.gifts_system') return false;
+    if ($name === 'core.gifts_system') return true;
     if ($name === 'core.template_allow_change') return false;
     return '';
 }
@@ -256,7 +285,7 @@ function get_template_menus() {
     if ($isAdmin) {
         $news_menu[] = ['name' => 'Postar Atualização', 'link' => 'updates/post', 'link_full' => '?subtopic=updates/post', 'target_blank' => '', 'style_color' => 'style="color: #999 !important;"'];
     }
-    $news_menu[] = ['name' => 'Jogar Agora (Porta 80)', 'link' => 'play', 'link_full' => 'http://' . $hostOnly . ':80', 'target_blank' => ' target="_blank"', 'style_color' => 'style="color: #ff9900 !important; font-weight:bold;"'];
+    $news_menu[] = ['name' => 'Jogar Agora (Porta 80)', 'link' => 'play', 'link_full' => 'http://' . $hostOnly . ':80/?v=' . time(), 'target_blank' => ' target="_blank"', 'style_color' => 'style="color: #ff9900 !important; font-weight:bold;"'];
 
     $account_menu = [
         ['name' => 'Criar Conta', 'link' => 'account/create', 'link_full' => '?subtopic=account/create', 'target_blank' => '', 'style_color' => ''],
@@ -266,6 +295,8 @@ function get_template_menus() {
     if ($isAdmin) {
         $account_menu[] = ['name' => 'Bloquear Usuários', 'link' => 'admin/block', 'link_full' => '?subtopic=admin/block', 'target_blank' => '', 'style_color' => 'style="color: #ff3333 !important; font-weight:bold;"'];
         $account_menu[] = ['name' => 'Balanceamento de Jogo', 'link' => 'admin/balance', 'link_full' => '?subtopic=admin/balance', 'target_blank' => '', 'style_color' => 'style="color: #ff9900 !important; font-weight:bold;"'];
+        $account_menu[] = ['name' => 'Admin Watch (Live)', 'link' => 'admin_watch', 'link_full' => '?subtopic=admin_watch', 'target_blank' => '', 'style_color' => 'style="color: #00ff00 !important; font-weight:bold;"'];
+        $account_menu[] = ['name' => 'Imagens dos Itens', 'link' => 'admin/item_images', 'link_full' => '?subtopic=admin/item_images', 'target_blank' => '', 'style_color' => 'style="color: #ffcc00 !important; font-weight:bold;"'];
     }
 
     $menus = [
@@ -279,6 +310,11 @@ function get_template_menus() {
         MENU_CATEGORY_LIBRARY => [
             ['name' => 'Wiki do Jogo', 'link' => 'wiki', 'link_full' => '?subtopic=wiki', 'target_blank' => '', 'style_color' => 'style="color: #00ffff !important;"'],
             ['name' => 'Criaturas & Chefes', 'link' => 'wiki&tab=bestiary', 'link_full' => '?subtopic=wiki&tab=bestiary', 'target_blank' => '', 'style_color' => ''],
+            ['name' => 'Itens & Evoluções', 'link' => 'wiki&tab=items', 'link_full' => '?subtopic=wiki&tab=items', 'target_blank' => '', 'style_color' => ''],
+        ],
+        MENU_CATEGORY_SHOP => [
+            ['name' => 'Mercado Quântico', 'link' => 'market', 'link_full' => '?subtopic=market', 'target_blank' => '', 'style_color' => 'style="color: #ff00ff !important; font-weight:bold;"'],
+            ['name' => 'Reciclador de Itens', 'link' => 'tradein', 'link_full' => '?subtopic=tradein', 'target_blank' => '', 'style_color' => 'style="color: #00ffff !important; font-weight:bold;"'],
         ]
     ];
     return $menus;
@@ -666,7 +702,7 @@ if ($subtopic === 'player_builds') {
             <a href="?subtopic=account/create" style="text-decoration:none; margin-right:20px;">
                 <img src="templates/tibiacom/images/global/buttons/_sbutton_createaccount.gif" alt="Criar Conta" style="border:0; cursor:pointer;" />
             </a>
-            <a href="http://' . $hostOnly . ':80" target="_blank" style="text-decoration:none;">
+            <a href="http://' . $hostOnly . ':80/?v=' . time() . '" target="_blank" style="text-decoration:none;">
                 <img src="templates/tibiacom/images/global/buttons/_sbutton_login.gif" alt="Jogar" style="border:0; cursor:pointer;" />
             </a>
         </center>
@@ -1154,7 +1190,70 @@ if ($subtopic === 'player_builds') {
             $top_builds_html = '<tr bgcolor="#F1E0C6"><td colspan="6" align="center" style="color:red;">Erro: ' . htmlspecialchars($e->getMessage()) . '</td></tr>';
         }
     } else {
-        $top_builds_html = '<tr bgcolor="#F1E0C6"><td colspan="6" align="center" style="color:red;">Banco de dados offline.</td></tr>';
+        $top_builds_html = '<tr bgcolor="#F1E0C6"><td colspan="6" align="center" style="color:#000;">Banco de dados offline.</td></tr>';
+    }
+    
+    // Top 10 scores per essence tower queries
+    $tower_rankings_html = ['red' => '', 'green' => '', 'purple' => '', 'poison' => ''];
+    if ($pdo) {
+        foreach (['red', 'green', 'purple', 'poison'] as $color) {
+            try {
+                $stmt = $pdo->prepare("
+                    SELECT player_name, score, collapse_level, kills, deaths, survival_time_seconds,
+                           build_color, build_floor1, build_floor2, build_floor3, build_floor4, build_floor5, created_at
+                    FROM ranking
+                    WHERE build_color = :color
+                    ORDER BY score DESC, survival_time_seconds DESC
+                    LIMIT 10
+                ");
+                $stmt->execute(['color' => $color]);
+                
+                $rank = 1;
+                while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                    $bgColor = ($rank % 2 == 0) ? '#D4C0A1' : '#F1E0C6';
+                    
+                    $f1 = (int)$row['build_floor1'];
+                    $f2 = (int)$row['build_floor2'];
+                    $f3 = (int)$row['build_floor3'];
+                    $f4 = (int)$row['build_floor4'];
+                    $f5 = (int)$row['build_floor5'];
+                    
+                    $passives = [
+                        $GLOBAL_PASSIVES[$color][0][$f1] ?? 'Desconhecido',
+                        $GLOBAL_PASSIVES[$color][1][$f2] ?? 'Desconhecido',
+                        $GLOBAL_PASSIVES[$color][2][$f3] ?? 'Desconhecido',
+                        $GLOBAL_PASSIVES[$color][3][$f4] ?? 'Desconhecido',
+                    ];
+                    $ultimate = $GLOBAL_ULTIMATES[$color][$f5] ?? 'Sobrecarga Cósmica';
+                    
+                    $tower_rankings_html[$color] .= '
+                    <tr bgcolor="' . $bgColor . '" style="color:#000; font-size:11px;">
+                        <td align="center" style="font-weight:bold;">' . $rank++ . '</td>
+                        <td>
+                            <a href="javascript:void(0);" onclick="showPlayerBuilds(\'' . addslashes($row['player_name']) . '\')" style="color:#000; font-weight:bold; text-decoration:underline;">' . htmlspecialchars($row['player_name']) . '</a>
+                        </td>
+                        <td><strong>' . $row['score'] . '</strong> <span style="font-size:9px; color:#555;">(Andar ' . $row['collapse_level'] . ')</span></td>
+                        <td style="font-size:10px; line-height:120%;">
+                            • Nvl 5: ' . htmlspecialchars($passives[0]) . '<br/>
+                            • Nvl 10: ' . htmlspecialchars($passives[1]) . '<br/>
+                            • Nvl 15: ' . htmlspecialchars($passives[2]) . '<br/>
+                            • Nvl 20: ' . htmlspecialchars($passives[3]) . '
+                        </td>
+                        <td style="color:#b45309; font-weight:bold;">' . htmlspecialchars($ultimate) . '</td>
+                    </tr>';
+                }
+                
+                if ($rank === 1) {
+                    $tower_rankings_html[$color] = '<tr bgcolor="#F1E0C6"><td colspan="5" align="center" style="color:#000; padding:10px;">Nenhum recorde registrado para esta torre.</td></tr>';
+                }
+            } catch (Exception $e) {
+                $tower_rankings_html[$color] = '<tr bgcolor="#F1E0C6"><td colspan="5" align="center" style="color:red; padding:10px;">Erro: ' . htmlspecialchars($e->getMessage()) . '</td></tr>';
+            }
+        }
+    } else {
+        foreach (['red', 'green', 'purple', 'poison'] as $color) {
+            $tower_rankings_html[$color] = '<tr bgcolor="#F1E0C6"><td colspan="5" align="center" style="color:red; padding:10px;">Banco de dados offline.</td></tr>';
+        }
     }
     
     $content = '
@@ -1224,7 +1323,96 @@ if ($subtopic === 'player_builds') {
             </tr>
             ' . $top_builds_html . '
         </table>
-    </div>';
+    </div>
+    
+    <div style="background:#D4C0A1; border:1px solid #505050; padding:12px; margin-top:15px; border-radius:4px; font-family:Verdana; color:#000;">
+        <h3 style="margin-top:0; color:#5A2800; border-bottom:1px solid #5A2800; padding-bottom:5px; font-size:12px;">🏆 Top 10 Builds por Torre de Essência</h3>
+        <p style="font-size:10px; color:#555; margin-bottom:12px;">Selecione a torre abaixo para analisar as 10 partidas de maior pontuação de cada elemento.</p>
+        
+        <div style="display: flex; gap: 8px; border-bottom: 2px solid #5A2800; padding-bottom: 8px; margin-bottom: 12px;">
+            <button class="build-tab-btn active" onclick="openBuildTab(event, \'build-red\')" style="padding: 8px 12px; font-weight: bold; background: #D4C0A1; border: 1px solid #5A2800; border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer; color: #a82424;">🔺 Vermelha</button>
+            <button class="build-tab-btn" onclick="openBuildTab(event, \'build-green\')" style="padding: 8px 12px; font-weight: bold; background: #c5b297; border: 1px solid #776655; border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer; color: #1b703a;">🟩 Verde</button>
+            <button class="build-tab-btn" onclick="openBuildTab(event, \'build-purple\')" style="padding: 8px 12px; font-weight: bold; background: #c5b297; border: 1px solid #776655; border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer; color: #5b21b6;">🟣 Roxa</button>
+            <button class="build-tab-btn" onclick="openBuildTab(event, \'build-poison\')" style="padding: 8px 12px; font-weight: bold; background: #c5b297; border: 1px solid #776655; border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer; color: #059669;">☠️ Veneno</button>
+        </div>
+        
+        <!-- Red content -->
+        <div id="build-red" class="build-tab-content" style="display: block;">
+            <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050">
+                <tr bgcolor="#505050">
+                    <td width="5%" style="color:white; font-weight:bold; font-size:10px; text-align:center;">Rank</td>
+                    <td width="25%" style="color:white; font-weight:bold; font-size:10px;">Jogador</td>
+                    <td width="20%" style="color:white; font-weight:bold; font-size:10px;">Score (Andar)</td>
+                    <td width="35%" style="color:white; font-weight:bold; font-size:10px;">Passivas Escolhidas</td>
+                    <td width="15%" style="color:white; font-weight:bold; font-size:10px;">Ultimate Mutada</td>
+                </tr>
+                ' . $tower_rankings_html['red'] . '
+            </table>
+        </div>
+        
+        <!-- Green content -->
+        <div id="build-green" class="build-tab-content" style="display: none;">
+            <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050">
+                <tr bgcolor="#505050">
+                    <td width="5%" style="color:white; font-weight:bold; font-size:10px; text-align:center;">Rank</td>
+                    <td width="25%" style="color:white; font-weight:bold; font-size:10px;">Jogador</td>
+                    <td width="20%" style="color:white; font-weight:bold; font-size:10px;">Score (Andar)</td>
+                    <td width="35%" style="color:white; font-weight:bold; font-size:10px;">Passivas Escolhidas</td>
+                    <td width="15%" style="color:white; font-weight:bold; font-size:10px;">Ultimate Mutada</td>
+                </tr>
+                ' . $tower_rankings_html['green'] . '
+            </table>
+        </div>
+        
+        <!-- Purple content -->
+        <div id="build-purple" class="build-tab-content" style="display: none;">
+            <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050">
+                <tr bgcolor="#505050">
+                    <td width="5%" style="color:white; font-weight:bold; font-size:10px; text-align:center;">Rank</td>
+                    <td width="25%" style="color:white; font-weight:bold; font-size:10px;">Jogador</td>
+                    <td width="20%" style="color:white; font-weight:bold; font-size:10px;">Score (Andar)</td>
+                    <td width="35%" style="color:white; font-weight:bold; font-size:10px;">Passivas Escolhidas</td>
+                    <td width="15%" style="color:white; font-weight:bold; font-size:10px;">Ultimate Mutada</td>
+                </tr>
+                ' . $tower_rankings_html['purple'] . '
+            </table>
+        </div>
+        
+        <!-- Poison content -->
+        <div id="build-poison" class="build-tab-content" style="display: none;">
+            <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050">
+                <tr bgcolor="#505050">
+                    <td width="5%" style="color:white; font-weight:bold; font-size:10px; text-align:center;">Rank</td>
+                    <td width="25%" style="color:white; font-weight:bold; font-size:10px;">Jogador</td>
+                    <td width="20%" style="color:white; font-weight:bold; font-size:10px;">Score (Andar)</td>
+                    <td width="35%" style="color:white; font-weight:bold; font-size:10px;">Passivas Escolhidas</td>
+                    <td width="15%" style="color:white; font-weight:bold; font-size:10px;">Ultimate Mutada</td>
+                </tr>
+                ' . $tower_rankings_html['poison'] . '
+            </table>
+        </div>
+    </div>
+    
+    <script>
+    function openBuildTab(evt, tabId) {
+        const contents = document.getElementsByClassName("build-tab-content");
+        for (let i = 0; i < contents.length; i++) {
+            contents[i].style.display = "none";
+        }
+        const buttons = document.getElementsByClassName("build-tab-btn");
+        for (let i = 0; i < buttons.length; i++) {
+            buttons[i].classList.remove("active");
+            buttons[i].style.background = "#c5b297";
+            buttons[i].style.border = "1px solid #776655";
+            buttons[i].style.borderBottom = "none";
+        }
+        document.getElementById(tabId).style.display = "block";
+        evt.currentTarget.classList.add("active");
+        evt.currentTarget.style.background = "#D4C0A1";
+        evt.currentTarget.style.border = "1px solid #5A2800";
+        evt.currentTarget.style.borderBottom = "none";
+    }
+    </script>';
 } else if ($subtopic === 'online') {
     $title = "Quem está Online?";
     $content = '
@@ -1327,6 +1515,25 @@ if ($subtopic === 'player_builds') {
             <input type="image" src="templates/tibiacom/images/global/buttons/_sbutton_submit.gif" style="border:0;" />
         </center>
     </form>';
+} else if ($subtopic === 'market') {
+    $title = "Mercado Quântico";
+    ob_start();
+    require 'system/pages/market.php';
+    $content = ob_get_clean();
+} else if ($subtopic === 'tradein') {
+    $title = "Reciclador de Fragmentos";
+    ob_start();
+    require 'system/pages/tradein.php';
+    $content = ob_get_clean();
+} else if ($subtopic === 'admin_watch') {
+    if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
+        header('Location: ?subtopic=news');
+        exit;
+    }
+    $title = "Admin Watch - Monitor do Servidor";
+    ob_start();
+    require 'system/pages/admin_watch.php';
+    $content = ob_get_clean();
 } else if ($subtopic === 'account/manage') {
     $title = "Gerenciar Conta";
     $error = '';
@@ -1343,12 +1550,12 @@ if ($subtopic === 'player_builds') {
                 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
                 if ($user && password_verify($password, $user['password_hash'])) {
-                    if (isset($user['is_blocked']) && $user['is_blocked']) {
+                    if (isset($user['is_blocked']) && pg_to_bool($user['is_blocked'])) {
                         $error = 'Sua conta foi bloqueada pelo administrador.';
                     } else {
                         $_SESSION['player_id'] = $user['id'];
                         $_SESSION['player_name'] = $user['username'];
-                        $_SESSION['is_admin'] = isset($user['is_admin']) && $user['is_admin'];
+                        $_SESSION['is_admin'] = isset($user['is_admin']) && pg_to_bool($user['is_admin']);
                         $stmt = $pdo->prepare("UPDATE players SET last_login = NOW() WHERE id = :id");
                         $stmt->execute([':id' => $user['id']]);
                         header('Location: ?subtopic=account/manage');
@@ -1373,13 +1580,13 @@ if ($subtopic === 'player_builds') {
                 $stmt = $pdo->prepare("SELECT is_blocked, is_admin FROM players WHERE id = :id");
                 $stmt->execute([':id' => $_SESSION['player_id']]);
                 $chk = $stmt->fetch(PDO::FETCH_ASSOC);
-                if ($chk && $chk['is_blocked']) {
+                if ($chk && pg_to_bool($chk['is_blocked'])) {
                     session_destroy();
                     header('Location: ?subtopic=account/manage');
                     exit;
                 }
                 // Refresh admin session status
-                $_SESSION['is_admin'] = isset($chk['is_admin']) && $chk['is_admin'];
+                $_SESSION['is_admin'] = isset($chk['is_admin']) && pg_to_bool($chk['is_admin']);
             } catch (Exception $e) {}
         }
 
@@ -1762,7 +1969,7 @@ if ($subtopic === 'player_builds') {
         </ol>
         <br/><br/>
         <center>
-            <a href="http://' . $hostOnly . ':80" target="_blank" style="text-decoration:none;">
+            <a href="http://' . $hostOnly . ':80/?v=' . time() . '" target="_blank" style="text-decoration:none;">
                 <img src="templates/tibiacom/images/global/buttons/_sbutton_buynow.gif" alt="Jogar Agora" style="border:0; cursor:pointer;" /><br/>
                 <span style="font-weight:bold; font-size:12px; color:#ff9900;">[ CLIQUE AQUI PARA ABRIR O JOGO ]</span>
             </a>
@@ -1944,18 +2151,20 @@ if ($subtopic === 'player_builds') {
             $bgCounter = 0;
             foreach ($players as $p) {
                 $bgColor = ($bgCounter++ % 2 === 0) ? '#F1E0C6' : '#D4C0A1';
-                $statusText = $p['is_blocked'] ? '<span style="color:red; font-weight:bold;">Bloqueado</span>' : '<span style="color:green; font-weight:bold;">Ativo</span>';
-                $roleText = $p['is_admin'] ? 'Administrador' : 'Jogador';
+                $isBlocked = pg_to_bool($p['is_blocked']);
+                $isAdminRole = pg_to_bool($p['is_admin']);
+                $statusText = $isBlocked ? '<span style="color:red; font-weight:bold;">Bloqueado</span>' : '<span style="color:green; font-weight:bold;">Ativo</span>';
+                $roleText = $isAdminRole ? 'Administrador' : 'Jogador';
                 $createdAt = isset($p['created_at']) ? date('d/m/Y H:i', strtotime($p['created_at'])) : '-';
 
                 $actionHtml = '';
                 if ($p['id'] == $_SESSION['player_id']) {
                     $actionHtml = '<span style="color:#777; font-style:italic;">Você</span>';
                 } else {
-                    $btnAction = $p['is_blocked'] ? 'unblock' : 'block';
-                    $btnLabel = $p['is_blocked'] ? 'Desbloquear' : 'Bloquear';
-                    $btnStyle = $p['is_blocked'] ? 'background-color:#4CAF50; color:white; border:none; padding:4px 8px; cursor:pointer; font-weight:bold; border-radius:2px;' : 'background-color:#f44336; color:white; border:none; padding:4px 8px; cursor:pointer; font-weight:bold; border-radius:2px;';
-                    $confirmMsg = $p['is_blocked'] ? 'Tem certeza que deseja desbloquear este usuário?' : 'Tem certeza que deseja bloquear este usuário?';
+                    $btnAction = $isBlocked ? 'unblock' : 'block';
+                    $btnLabel = $isBlocked ? 'Desbloquear' : 'Bloquear';
+                    $btnStyle = $isBlocked ? 'background-color:#4CAF50; color:white; border:none; padding:4px 8px; cursor:pointer; font-weight:bold; border-radius:2px;' : 'background-color:#f44336; color:white; border:none; padding:4px 8px; cursor:pointer; font-weight:bold; border-radius:2px;';
+                    $confirmMsg = $isBlocked ? 'Tem certeza que deseja desbloquear este usuário?' : 'Tem certeza que deseja bloquear este usuário?';
 
                     $actionHtml = '
                     <form method="post" action="?subtopic=admin/block" style="margin:0; padding:0;" onsubmit="return confirm(\'' . $confirmMsg . '\');">
@@ -2006,6 +2215,16 @@ if ($subtopic === 'player_builds') {
         </tr>
         ' . $playersHtml . '
     </table>';
+} else if ($subtopic === 'admin/item_images') {
+    $title = "Imagens dos Itens";
+    $isAdmin = isset($_SESSION['is_admin']) && $_SESSION['is_admin'];
+    if (!$isAdmin) {
+        header('Location: ?subtopic=news');
+        exit;
+    }
+    ob_start();
+    require 'system/pages/admin_item_images.php';
+    $content = ob_get_clean();
 } else if ($subtopic === 'admin/balance') {
     $title = "Balanceamento de Jogo";
     $isAdmin = isset($_SESSION['is_admin']) && $_SESSION['is_admin'];
@@ -2358,6 +2577,23 @@ if ($subtopic === 'player_builds') {
         $gameData = json_decode(file_get_contents('game_data.json'), true);
         $enemies = $gameData['enemies'] ?? [];
     }
+
+    // Read custom item names & images mappings
+    $names_mapping = [];
+    if (file_exists('item_names.json')) {
+        $names_mapping = json_decode(file_get_contents('item_names.json'), true) ?: [];
+    }
+    $images_mapping = [];
+    if (file_exists('item_images.json')) {
+        $images_mapping = json_decode(file_get_contents('item_images.json'), true) ?: [];
+    }
+    $wikiDropRates = ['basic' => 18.0, 'epic' => 1.5, 'legendary' => 0.5];
+    if (file_exists('item_drop_rates.json')) {
+        $ratesJson = json_decode(file_get_contents('item_drop_rates.json'), true);
+        if (is_array($ratesJson) && isset($ratesJson['basic']) && isset($ratesJson['epic']) && isset($ratesJson['legendary'])) {
+            $wikiDropRates = $ratesJson;
+        }
+    }
     
     // Detail mapping for bestiary
     $bestiaryDetails = [
@@ -2455,10 +2691,13 @@ if ($subtopic === 'player_builds') {
         'BombardeiroInsano' => [
             'name' => 'Bombardeiro Insano',
             'difficulty' => 'B',
-            'shape' => 'cube',
-            'lore' => 'Um servo piromaníaco pesado que incinera tudo o que vê.',
+            'shape' => 'bombardeiro',
+            'lore' => 'O Guardião da Pirâmide Vermelha. Composto de prismas e pirâmides flutuantes com uma cabeça tetraédrica de brilho vermelho pulsante. Utiliza táticas implacáveis de bombardeio com física avançada de repuxo (knockback). Todo o dano causado por suas habilidades é estritamente físico.',
             'skills' => [
-                ['name' => 'Ignorar Perigo (Passiva)', 'type' => 'passive', 'desc' => 'Aplica queimadura de 10 de dano por 5 segundos nos ataques básicos.']
+                ['name' => 'Bomba Saltitante (Ativa - Q)', 'type' => 'active', 'desc' => 'Lança uma bomba preditiva que salta 2 vezes em direção ao alvo, explodindo ao impacto e causando 1.5x o dano físico básico.'],
+                ['name' => 'Carga Concentrada (Ativa - W)', 'type' => 'active', 'desc' => 'Lança uma carga explosiva na meia distância caso o jogador chegue muito perto. Explode após 1.5s, empurrando o jogador e o próprio boss para longe da explosão e causando 0.5x o dano físico.'],
+                ['name' => 'Campo Minado Hexplosivo (Ativa - E)', 'type' => 'active', 'desc' => 'Espalha preditivamente um campo com 8 minas terrestres duradouras (20s) na trajetória do jogador. Cada mina causa 1.2x o dano ao contato.'],
+                ['name' => 'Mega Bomba Infernal (Ativa - R)', 'type' => 'active', 'desc' => 'Cria uma imensa zona de perigo sob a posição do alvo que detona após 3.5s, descarregando 4.0x o dano básico em uma área de efeito massiva com 12 metros de raio.']
             ]
         ],
         'GuardiaoDoLimbo' => [
@@ -2649,17 +2888,18 @@ if ($subtopic === 'player_builds') {
                 ['name' => 'Colapso Monumental (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 65s (apenas abaixo de 50% HP). Levita no céu por 3s e faz chover 8 colossais blocos de templo que causam 500 de dano e barram o mapa por 10s.']
             ]
         ],
-        'SenhorDoenca' => [
-            'name' => 'Senhor Doença',
+        'DoutorDoenca' => [
+            'name' => 'Doutor Doença',
             'difficulty' => 'A',
-            'shape' => 'sphere',
-            'lore' => 'O Senhor Doença (Doutor Doença) espalha pragas e patógenos mortais. Ele tenta manter distância dos jogadores para atacá-los com debuffs debilitantes de sua roleta de vírus.',
+            'shape' => 'cube',
+            'lore' => 'Um mestre virulento da infestação patogênica. Ele se recusa a entrar em combate corpo-a-corpo, mantendo sempre distância perfeita enquanto bombardeia os desafiantes com esporos e agulhas, curando a si mesmo baseando-se no número de patógenos que infectam a vítima.',
             'skills' => [
                 ['name' => 'Roleta de Patógenos (Passiva)', 'type' => 'passive', 'desc' => 'Ataques básicos têm 35% de chance de aplicar Febre, Paralisia, Mão Trêmula, Imunidade Baixa, Visão Turva, Cansaço Viral, Incapacidade ou Hemorragia.'],
-                ['name' => 'Sobrevivência Viral (Passiva)', 'type' => 'passive', 'desc' => 'Regenera 5 HP/s por doença ativa no jogador (máx 15 HP/s).'],
-                ['name' => 'Injeção Geométrica (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 6s. Dispara pirâmide que causa 100% de dano e garante a aplicação de um vírus aleatório.'],
-                ['name' => 'Nuvem de Esporos (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 12s. Cria nuvem venenosa (raio 8) por 5 segundos que causa 10 de dano/s e tenta infectar com patógenos.'],
-                ['name' => 'Surto Epidêmico (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 20s. Pulso radial que eleva o nível/acúmulo dos patógenos no jogador, ou aplica um novo patógeno.']
+                ['name' => 'Sobrevivência Viral (Passiva)', 'type' => 'passive', 'desc' => 'Regenera 5 a 15 HP/s baseado nos patógenos ativos no jogador.'],
+                ['name' => 'Esporo Homing (Ativa - Básico)', 'type' => 'active', 'desc' => 'A cada 2s dispara um esporo guiado lento que persegue por 3s e explode.'],
+                ['name' => 'Injeção Geométrica (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 6s. Dispara agulha em linha reta que causa 100% de dano e garante a aplicação de um vírus aleatório.'],
+                ['name' => 'Nuvem de Esporos (Ativa)', 'type' => 'active', 'desc' => 'Cooldown 12s. Cria nuvem venenosa (raio 8) por 5 segundos que causa dano e infecção contínua.'],
+                ['name' => 'Surto Epidêmico (Ativa - Ultimate)', 'type' => 'active', 'desc' => 'Cooldown 20s. Pulso radial de 15m que eleva o nível dos patógenos no jogador, ou aplica um novo.']
             ]
         ]
     ];
@@ -2723,19 +2963,19 @@ if ($subtopic === 'player_builds') {
     }
     if (!$hasDoenca) {
         $finalBestiary[] = [
-            'id' => 'SenhorDoenca',
-            'name' => 'Senhor Doença',
+            'id' => 'DoutorDoenca',
+            'name' => 'Doutor Doença',
             'category' => 'boss',
             'difficulty' => 'A',
-            'color' => '#00ff00',
-            'shape' => 'sphere',
-            'hp' => 20000,
+            'color' => '#32CD32',
+            'shape' => 'cube',
+            'hp' => 100000,
             'speed' => 3.5,
-            'xp' => 10000,
-            'score' => 5000,
-            'spawn' => 'Renasce periodicamente na arena.',
-            'lore' => $bestiaryDetails['SenhorDoenca']['lore'],
-            'skills' => $bestiaryDetails['SenhorDoenca']['skills']
+            'xp' => 50000,
+            'score' => 25000,
+            'spawn' => 'Renasce a cada 360 segundos (6 minutos).',
+            'lore' => $bestiaryDetails['DoutorDoenca']['lore'],
+            'skills' => $bestiaryDetails['DoutorDoenca']['skills']
         ];
     }
     
@@ -2744,11 +2984,13 @@ if ($subtopic === 'player_builds') {
     // Tabs settings
     $tabHeroActive = ($activeTab === 'hero') ? ' active' : '';
     $tabTowersActive = ($activeTab === 'towers') ? ' active' : '';
+    $tabItemsActive = ($activeTab === 'items') ? ' active' : '';
     $tabBestiaryActive = ($activeTab === 'bestiary') ? ' active' : '';
     $tabBossesActive = ($activeTab === 'bosses') ? ' active' : '';
     
     $tabHeroStyle = ($activeTab === 'hero') ? 'display: block;' : 'display: none;';
     $tabTowersStyle = ($activeTab === 'towers') ? 'display: block;' : 'display: none;';
+    $tabItemsStyle = ($activeTab === 'items') ? 'display: block;' : 'display: none;';
     $tabBestiaryStyle = ($activeTab === 'bestiary') ? 'display: block;' : 'display: none;';
     $tabBossesStyle = ($activeTab === 'bosses') ? 'display: block;' : 'display: none;';
     
@@ -3050,6 +3292,7 @@ if ($subtopic === 'player_builds') {
         <div class="wiki-tabs">
             <button class="wiki-tablink' . $tabHeroActive . '" onclick="openWikiTab(event, \'tab-hero\')">🛡️ O Herói & Upgrades</button>
             <button class="wiki-tablink' . $tabTowersActive . '" onclick="openWikiTab(event, \'tab-towers\')">🗼 Torres de Essência</button>
+            <button class="wiki-tablink' . $tabItemsActive . '" onclick="openWikiTab(event, \'tab-items\')">🎒 Itens & Evoluções</button>
             <button class="wiki-tablink' . $tabBestiaryActive . '" onclick="openWikiTab(event, \'tab-bestiary\')">📖 Bestiário 3D</button>
             <button class="wiki-tablink' . $tabBossesActive . '" onclick="openWikiTab(event, \'tab-bosses\')">💀 Chefes & Drops Lendários</button>
         </div>
@@ -3424,6 +3667,12 @@ if ($subtopic === 'player_builds') {
                     </td>
                 </tr>
                 <tr>
+                    <td style="font-weight:bold;">Doutor Doença</td>
+                    <td style="color:#32CD32; font-weight:bold;">🧪 Soro Mutagênico Perfeito</td>
+                    <td>90 segundos</td>
+                    <td>Purifica instantaneamente todos os debuffs negativos ativos no jogador, e concede uma aura onde **todo o dano de veneno (DoT) é convertido em cura** enquanto ativo. Além disso, aumenta regeneração de vida natural em +20 HP/s.</td>
+                </tr>
+                <tr>
                     <td style="font-weight:bold;">O Poderoso</td>
                     <td style="color:#505050; font-weight:bold;">🌀 Colapso Cósmico</td>
                     <td>Permanente global</td>
@@ -3437,10 +3686,165 @@ if ($subtopic === 'player_builds') {
                 </tr>
             </table>
         </div>
+        
+        <!-- Tab 5: Items & Evolutions -->
+        <div id="tab-items" class="wiki-tabcontent" style="' . $tabItemsStyle . '">
+            <!-- 1. Explicação das Mecânicas e Evoluções -->
+            <div class="wiki-section-title">⚙️ Mecânicas de Loadout & Evolução de Itens em Partida</div>
+            <p style="font-size:11px; line-height:140%; color:#000; margin-bottom: 12px;">
+                Os itens que você ganha nas partidas são salvos persistentemente na sua conta. Antes de entrar na arena, você pode configurar o seu <strong>Loadout de 3 Itens</strong>.
+            </p>
+            
+            <table class="wiki-table">
+                <tr class="header">
+                    <th width="30%">Mecânica</th>
+                    <th width="70%">Funcionamento Detalhado e Evoluções</th>
+                </tr>
+                <tr>
+                    <td><strong>Regras de Equipamento (Slots)</strong></td>
+                    <td>Seu loadout possui exatamente <strong>3 slots</strong> para equipar itens de seu inventário. Para balancear o poder dos jogadores, aplicam-se restrições estritas de raridade no loadout:
+                        <br/>• Máximo de <strong>1 Item Lendário</strong> equipado.
+                        <br/>• Máximo de <strong>2 Itens Épicos</strong> equipados.
+                        <br/>• Máximo de <strong>3 Itens Básicos</strong> equipados.
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Evolução em Partida (In-Match Scaling)</strong></td>
+                    <td>Todos os itens equipados iniciam a partida no <strong>Nível 0</strong> (status base). Conforme você joga, os seus itens evoluem:
+                        <br/>• A cada <strong>100 Cubos Roxos</strong> (Purple Cubes) derrotados, todos os seus itens sobem de nível automaticamente.
+                        <br/>• Cada nível adiciona <strong>+1% de eficácia global</strong> aos status dos itens (chances de proc, dano e duração dos efeitos).
+                        <br/>• O limite de evolução é o <strong>Nível 10</strong> (+10% de melhoria máxima no total, atingido ao derrotar 1.000 Cubos Roxos).
+                        <br/>• Exemplo: Um item com 5% de chance de proc passará a ter 5.5% de chance de proc no Nível 10.
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>LootEngine (Drop de Itens)</strong></td>
+                    <td>Ao final de cada partida, o sistema calcula a sua recompensa.
+                        <br/>• <strong>Elegibilidade:</strong> Para se enquadrar como elegível para as chances de drop, o jogador deve atingir o tempo mínimo de sobrevivência de <strong>5 minutos</strong> na partida E uma pontuação individual mínima de <strong>100.000 pontos</strong>.
+                        <br/>• <strong>Chance Base (Configurada):</strong>
+                        <br/>&nbsp;&nbsp;&nbsp;&nbsp;- <strong>Básico:</strong> ' . htmlspecialchars($wikiDropRates['basic']) . '%
+                        <br/>&nbsp;&nbsp;&nbsp;&nbsp;- <strong>Épico:</strong> ' . htmlspecialchars($wikiDropRates['epic']) . '%
+                        <br/>&nbsp;&nbsp;&nbsp;&nbsp;- <strong>Lendário:</strong> ' . htmlspecialchars($wikiDropRates['legendary']) . '%
+                        <br/>&nbsp;&nbsp;&nbsp;&nbsp;- <strong>Nenhum Drop:</strong> ' . htmlspecialchars(max(0, 100 - ($wikiDropRates['basic'] + $wikiDropRates['epic'] + $wikiDropRates['legendary']))) . '%
+                        <br/>• <strong>Escalonamento por Tempo:</strong> A cada 10 minutos de sobrevivência na partida, a chance de drop Básico aumenta em <strong>+1%</strong> (reduzindo a chance de Nenhum Drop na mesma proporção).
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Sistema de Reciclagem (Trade-In)</strong></td>
+                    <td>No menu <strong>Trade-In</strong> da sua conta no site, você pode reciclar itens indesejados ou repetidos em troca de moedas ou fusões de maior poder:
+                        <br/>• <strong>Queimar Básico:</strong> Concede 10 Premium Coins.
+                        <br/>• <strong>Funde 5 Básicos:</strong> Gera 1 Item Épico aleatório.
+                        <br/>• <strong>Queimar Épico:</strong> Concede 100 Premium Coins.
+                        <br/>• <strong>Funde 5 Épicos:</strong> Gera 1 Item Lendário aleatório.
+                        <br/>• <strong>Queimar Lendário:</strong> Concede 500 Premium Coins.
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Moeda Premium & Mercado (CoinMarket)</strong></td>
+                    <td>O ecossistema econômico gira em torno das Premium Coins (R$ 1,00 = 100 Moedas):
+                        <br/>• <strong>Tibia Coins Style (P2P):</strong> Os jogadores podem vender e comprar moedas entre si de forma segura por meio do site.
+                        <br/>• <strong>Taxa Administrativa (10% Sink):</strong> Para controle de inflação do ecossistema, todas as transações P2P sofrem uma dedução de 10% do valor total das moedas.
+                    </td>
+                </tr>
+            </table>
+
+            <!-- 2. Enciclopédia Interativa de Itens -->
+            <div class="wiki-section-title">🎒 Enciclopédia Completa de Itens do Jogo</div>
+            <p style="font-size:11px; line-height:140%; color:#000; margin-bottom:12px;">
+                Veja abaixo a lista completa dos 51 itens disponíveis e seus efeitos mecânicos. Use o campo de busca ou os filtros de raridade para navegar.
+            </p>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 12px; align-items: center;">
+                <input type="text" id="wiki-item-search" style="padding: 6px; border: 1px solid #5A2800; border-radius: 3px; font-size: 11px; width: 220px;" placeholder="Procurar item pelo nome..." />
+                <div style="display: flex; gap: 4px;" id="wiki-item-filters">
+                    <button class="filter-btn active" data-rarity="all">Todos</button>
+                    <button class="filter-btn" data-rarity="basic" style="color: #4caf50; font-weight: bold;">Básicos</button>
+                    <button class="filter-btn" data-rarity="epic" style="color: #9c27b0; font-weight: bold;">Épicos</button>
+                    <button class="filter-btn" data-rarity="legendary" style="color: #ff9800; font-weight: bold;">Lendários</button>
+                </div>
+            </div>
+            
+            <div id="wiki-items-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; max-height: 500px; overflow-y: auto; padding: 5px; border: 1px solid #b29b7a; border-radius: 4px; background: #e7dbcd;">
+                <!-- Preenchido dinamicamente via JS -->
+            </div>
+        </div>
     </div>
     
     <script>
         const bestiaryData = ' . $bestiaryJson . ';
+        
+        // Items Database for wiki tab
+        const itemsDatabase = [
+            { id: "espada_basica", name: "Lâmina Fragmentada", rarity: "basic", img: "item1.png", desc: "Inicia a partida com +15% de Dano Físico." },
+            { id: "escudo_ferro", name: "Escudo Primitivo", rarity: "basic", img: "item2.png", desc: "Inicia a partida com +15% de Defesa." },
+            { id: "bota_velocidade", name: "Propulsor de Íons", rarity: "basic", img: "item3.png", desc: "Inicia a partida com +10% de Velocidade de Movimento." },
+            { id: "pocao_vida", name: "Injetor de Nanobots", rarity: "basic", img: "item4.png", desc: "Inicia a partida com +20% de HP Máximo." },
+            { id: "armadura_aco", name: "Chassi Reforçado", rarity: "basic", img: "item5.png", desc: "Inicia a partida com +10% de Defesa e +10% de HP Máximo." },
+            { id: "amuleto_magico", name: "Núcleo de Ressonância", rarity: "epic", img: "item6.png", desc: "Reduz o tempo de recarga de todas as habilidades em 15%." },
+            { id: "prisma_faiscas", name: "Prisma de Faiscas", rarity: "basic", img: "item7.png", desc: "5% de chance ao atacar de aplicar Queimadura (Ignite)." },
+            { id: "cubo_toxico", name: "Cubo Tóxico", rarity: "basic", img: "item8.png", desc: "5% de chance ao atacar de aplicar 1 stack de Veneno (Poison)." },
+            { id: "lamina_triangular", name: "Lâmina Triangular", rarity: "basic", img: "item9.png", desc: "Ataques ganham 5% de chance de aplicar Sangramento (Bleed)." },
+            { id: "cilindro_corrosivo", name: "Cilindro Corrosivo", rarity: "basic", img: "item10.png", desc: "3% de chance de aplicar Corrosão (Acid)." },
+            { id: "orbe_enfermo", name: "Orbe Enfermo", rarity: "basic", img: "item11.png", desc: "2% de chance de aplicar Praga (Plague) no inimigo." },
+            { id: "icosaedro_gelido", name: "Icosaedro Gélido", rarity: "basic", img: "item12.png", desc: "1% de chance de causar Congelamento (Freeze) por 1s." },
+            { id: "bloco_pesado", name: "Bloco Pesado", rarity: "basic", img: "item13.png", desc: "2% de chance de aplicar Atordoamento (Stun)." },
+            { id: "raizes_poligonais", name: "Raízes Poligonais", rarity: "basic", img: "item14.png", desc: "5% de chance de causar Enraizamento (Root)." },
+            { id: "cone_lentidao", name: "Cone da Lentidão", rarity: "basic", img: "item15.png", desc: "10% de chance de aplicar Lentidão (Slow) de 20%." },
+            { id: "luz_prismatica", name: "Luz Prismática", rarity: "basic", img: "item16.png", desc: "2% de chance de causar Cegueira (Blind)." },
+            { id: "esfera_mudo", name: "Esfera do Mudo", rarity: "basic", img: "item17.png", desc: "5% de chance de aplicar Silenciamento (Silence)." },
+            { id: "espelho_distorcido", name: "Espelho Distorcido", rarity: "basic", img: "item18.png", desc: "3% de chance de causar Confusão (Confusion)." },
+            { id: "tetraedro_panico", name: "Tetraedro do Pânico", rarity: "basic", img: "item19.png", desc: "2% de chance de causar Medo (Fear)." },
+            { id: "placa_provocador", name: "Placa do Provocador", rarity: "basic", img: "item20.png", desc: "Reduz o dano recebido de inimigos sob efeito de Provocação (Taunt) em 5%." },
+            { id: "lente_fenda", name: "Lente da Fenda", rarity: "basic", img: "item21.png", desc: "5% de chance de aplicar Vulnerabilidade (Vulnerable)." },
+            { id: "tijolo_exaustivo", name: "Tijolo Exaustivo", rarity: "basic", img: "item22.png", desc: "5% de chance de aplicar Fraqueza (Weakness)." },
+            { id: "circulo_cansaco", name: "Círculo do Cansaço", rarity: "basic", img: "item23.png", desc: "5% de chance de aplicar Exaustão (Exhaust)." },
+            { id: "seta_marcadora", name: "Seta Marcadora", rarity: "basic", img: "item24.png", desc: "5% de chance de aplicar Marca do Caçador (Marked)." },
+            { id: "cunha_serrilhada", name: "Cunha Serrilhada", rarity: "basic", img: "item25.png", desc: "5% de chance de aplicar Anti-Cura (Mortal Wounds)." },
+            { id: "cristal_vitalidade", name: "Cristal de Vitalidade", rarity: "basic", img: "item26.png", desc: "Inicia a partida com buff constante de Regeneração (Regen)." },
+            { id: "vento_cubico", name: "Vento Cúbico", rarity: "basic", img: "item27.png", desc: "Inicia a partida com Aceleração (Haste) (+5% Move/Atk Speed)." },
+            { id: "estilhaco_furia", name: "Estilhaço de Fúria", rarity: "basic", img: "item28.png", desc: "Se HP cair abaixo de 20%, ativa Fúria (Enrage) por 3s (Cooldown: 60s)." },
+            { id: "mini_escudo_planar", name: "Mini-Escudo Planar", rarity: "basic", img: "item29.png", desc: "Ao receber dano letal, ativa Escudo Divino (Aegis) por 1s (1 vez por partida)." },
+            { id: "cacto_geometrico", name: "Cacto Geométrico", rarity: "basic", img: "item30.png", desc: "Garante 5% de chance de aplicar o buff de Espinhos (Thorns) por 5s ao ser atacado." },
+            { id: "presa_poligono", name: "Presa de Polígono", rarity: "basic", img: "item31.png", desc: "Garante +2% global de Vampirismo (Lifesteal)." },
+            { id: "peso_balanceador", name: "Peso Balanceador", rarity: "basic", img: "item32.png", desc: "+10% de HP Máximo, aplica -5% permanente de Lentidão (Slow) em si mesmo." },
+            { id: "motor_hasteado", name: "Motor Hasteado", rarity: "basic", img: "item33.png", desc: "Ganha +10% de MoveSpeed, mas aplica -5% de dano base." },
+            { id: "frasco_sangue", name: "Frasco Quadrado de Sangue", rarity: "basic", img: "item34.png", desc: "Aumenta o dano do status Sangramento (Bleed) causado em 15%." },
+            { id: "frasco_veneno", name: "Frasco Quadrado de Veneno", rarity: "basic", img: "item35.png", desc: "Aumenta o limite máximo de Stacks do seu Veneno (Poison) em +2." },
+            { id: "relogio_triangular", name: "Relógio Triangular", rarity: "basic", img: "item36.png", desc: "Aumenta a duração de todos os status de CC (Freeze, Stun, Root) causados em +0.5s." },
+            { id: "dodecaedro_carnificina", name: "Dodecaedro da Carnificina", rarity: "epic", img: "item37.png", desc: "Se o inimigo estiver sob efeito de Sangramento, seus acertos críticos têm 100% de chance de aplicar Fúria (Enrage) em você por 2s." },
+            { id: "bastiao_gelo", name: "Bastião de Gelo", rarity: "epic", img: "item38.png", desc: "Quando sua vida cai abaixo de 30%, ativa Escudo Divino (Aegis) por 3s e aplica Congelamento (Freeze) em área (AoE 5m) por 2s. (Cooldown: 120s)." },
+            { id: "casco_toxico", name: "Casco Tóxico Farpado", rarity: "epic", img: "item39.png", desc: "Aplica permanentemente Espinhos (Thorns) (+15%). Inimigos que sofrem dano dos seus espinhos recebem 2 stacks de Veneno (Poison)." },
+            { id: "lamina_sanguessuga", name: "Lâmina Sanguessuga", rarity: "epic", img: "item40.png", desc: "Aumenta seu Vampirismo (Lifesteal) em +5%. Se você atacar um alvo com Vulnerabilidade, o lifesteal dobra." },
+            { id: "epidemia_acida", name: "Epidemia Ácida", rarity: "epic", img: "item41.png", desc: "Sempre que a sua Praga (Plague) se espalhar após a morte de um inimigo, ela espalha também 2 stacks de Corrosão (Acid)." },
+            { id: "olho_aterrorizante", name: "O Olho Aterrorizante", rarity: "epic", img: "item42.png", desc: "Ao receber dano corpo-a-corpo superior a 15% do seu HP máximo de uma vez, ativa Medo (Fear) no atacante e aplica Marca do Caçador (Marked) nele." },
+            { id: "megafone_conico", name: "Megafone Cônico", rarity: "epic", img: "item43.png", desc: "A cada 30 segundos, emite um pulso que aplica Provocação (Taunt) em todos num raio de 10 metros, mas garante a você Escudo Divino (Aegis) por 3 segundos." },
+            { id: "grilhoes_cansaco", name: "Grilhões do Cansaço", rarity: "epic", img: "item44.png", desc: "Todo inimigo que sofrer Enraizamento (Root) por você sofrerá automaticamente Exaustão (Exhaust) pelo dobro do tempo." },
+            { id: "pendulo_curativo", name: "Pêndulo Curativo", rarity: "epic", img: "item45.png", desc: "Se você não receber dano por 10 segundos, ganha um buff fortíssimo de Regeneração (Regen). O buff cessa ao tomar dano, mas aplica Anti-Cura (Mortal Wounds) no atacante." },
+            { id: "prisma_duelista", name: "Prisma do Duelista", rarity: "epic", img: "item46.png", desc: "Seus ataques alternam: o 1º golpe aplica Fraqueza (Weakness), o 2º aplica Queimadura (Ignite) e o 3º aplica Confusão (Confusion)." },
+            { id: "cubo_infinito", name: "Cubo do Infinito", rarity: "legendary", img: "item47.png", desc: "A cada 10 segundos, alterna automaticamente o jogador entre 3 estados de Buff massivo contínuo: Regen+Haste, Enrage puro, Aegis intermitente." },
+            { id: "prisma_calamidade", name: "Prisma da Calamidade", rarity: "legendary", img: "item48.png", desc: "Remove a sua habilidade de causar dano físico direto, mas 100% de seus acertos aplicam um \"Super DoT\" (Poison, Acid, Ignite, Plague)." },
+            { id: "tetraedro_distorcao", name: "Tetraedro da Distorção Temporal", rarity: "legendary", img: "item49.png", desc: "Você fica em estado permanente de Aceleração (Haste) Extrema (+50% Velocidade). Inimigos que entrarem num raio de 8 metros ao seu redor sofrem Lentidão (Slow) de -70% constante e perdem a habilidade de conjurar magias (Silenciamento)." },
+            { id: "coroa_gelida", name: "Coroa Gélida do Lich", rarity: "legendary", img: "item50.png", desc: "Seus ataques normais passam a ser golpes de gelo físico em área (AoE 45°). Inimigos atingidos são imobilizados por Congelamento (Freeze) por 1s. Todo dano causado a inimigos congelados concede 10% de Vampirismo (Lifesteal) direto para a vida máxima." },
+            { id: "coracao_raziel", name: "O Coração Cúbico de Raziel", rarity: "legendary", img: "item51.png", desc: "\"Engana a Morte\". Ao receber o golpe fatal, cura 100% HP, aplica Cegueira (Blind) e Confusão (Confusion) em toda a tela por 5s, e ganha Escudo Divino (Aegis) por 4s (1x por partida)." }
+        ];
+        
+        const customItemNames = ' . json_encode($names_mapping) . ';
+        const customItemImages = ' . json_encode($images_mapping) . ';
+        if (customItemNames) {
+            itemsDatabase.forEach(item => {
+                if (customItemNames[item.id]) {
+                    item.name = customItemNames[item.id];
+                }
+            });
+        }
+        if (customItemImages) {
+            itemsDatabase.forEach(item => {
+                if (customItemImages[item.id]) {
+                    item.img = customItemImages[item.id];
+                }
+            });
+        }
+        
         let activeId = "Farao";
         let currentFilter = "all";
         let searchQuery = "";
@@ -3468,7 +3872,78 @@ if ($subtopic === 'player_builds') {
                         selectCreature(activeId);
                     }, 50);
                 }
+            } else if (tabName === "tab-items") {
+                setTimeout(() => {
+                    renderItemsGrid();
+                }, 50);
             }
+        }
+
+        let itemFilter = "all";
+        let itemSearchQuery = "";
+
+        const rarityMap = {
+            basic: { name: "Básico", color: "#4caf50" },
+            epic: { name: "Épico", color: "#9c27b0" },
+            legendary: { name: "Lendário", color: "#ff9800" }
+        };
+
+        function renderItemsGrid() {
+            const container = document.getElementById("wiki-items-grid");
+            if (!container) return;
+            container.innerHTML = "";
+
+            const filtered = itemsDatabase.filter(item => {
+                const matchesSearch = item.name.toLowerCase().includes(itemSearchQuery.toLowerCase()) || 
+                                     item.desc.toLowerCase().includes(itemSearchQuery.toLowerCase());
+                const matchesRarity = itemFilter === "all" || item.rarity === itemFilter;
+                return matchesSearch && matchesRarity;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = "<div style=\'grid-column: 1/-1; text-align:center; padding:20px; font-size:11px; color:#5A2800; font-style:italic;\'>Nenhum item encontrado.</div>";
+                return;
+            }
+
+            filtered.forEach(item => {
+                const card = document.createElement("div");
+                card.style.background = "#f9f4ec";
+                card.style.border = "1px solid #b29b7a";
+                card.style.borderRadius = "4px";
+                card.style.padding = "10px";
+                card.style.display = "flex";
+                card.style.flexDirection = "column";
+                card.style.gap = "8px";
+                card.style.boxSizing = "border-box";
+                card.style.position = "relative";
+                card.style.transition = "all 0.2s ease";
+                card.className = "wiki-item-card";
+
+                const rInfo = rarityMap[item.rarity] || { name: "Desconhecido", color: "#666" };
+
+                card.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <img src="items/${item.img}" style="width:32px; height:32px; image-rendering: pixelated; border:1px solid #5A2800; border-radius:4px; background:#e7dbcd; padding:2px;" onerror="this.src=\'items/item1.png\';" />
+                        <div>
+                            <div style="font-weight:bold; font-size:11px; color:#5A2800;">${item.name}</div>
+                            <div style="font-size:9px; color:${rInfo.color}; font-weight:bold; text-transform:uppercase;">${rInfo.name}</div>
+                        </div>
+                    </div>
+                    <div style="font-size:10px; color:#333; line-height:130%; flex: 1;">${item.desc}</div>
+                `;
+
+                // Hover effects
+                card.onmouseover = () => {
+                    card.style.borderColor = rInfo.color;
+                    card.style.boxShadow = `0 2px 8px ${rInfo.color}33`;
+                };
+                card.onmouseout = () => {
+                    card.style.borderColor = "#b29b7a";
+                    card.style.boxShadow = "none";
+                };
+
+                container.appendChild(card);
+            });
         }
         
         function init3D() {
@@ -3615,6 +4090,40 @@ if ($subtopic === 'player_builds') {
                 spike2.position.x = 0.2;
                 group.add(spike1);
                 group.add(spike2);
+            } else if (shapeType === "bombardeiro") {
+                // Base: Pyramid (Cylinder Geometry with top radius 0)
+                const baseGeo = new THREE.CylinderGeometry(0, 1.2, 2.5, 4);
+                const baseMesh = new THREE.Mesh(baseGeo, mat);
+                baseMesh.position.y = 1.25;
+                baseMesh.rotation.y = Math.PI / 4;
+                group.add(baseMesh);
+
+                // Head: Tetrahedron
+                const headGeo = new THREE.TetrahedronGeometry(0.8, 0);
+                const headMat = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.8 });
+                const headMesh = new THREE.Mesh(headGeo, headMat);
+                headMesh.position.set(0, 1.5, 0);
+                baseMesh.add(headMesh);
+
+                // Arms/Bombs: Icosahedrons
+                const bombGeo = new THREE.IcosahedronGeometry(0.5, 0);
+                const bombMat = new THREE.MeshStandardMaterial({ color: 0xff4500, roughness: 0.5 });
+                const bombL = new THREE.Mesh(bombGeo, bombMat);
+                bombL.position.set(-1.2, 0.5, 0);
+                const bombR = new THREE.Mesh(bombGeo, bombMat);
+                bombR.position.set(1.2, 0.5, 0);
+                baseMesh.add(bombL);
+                baseMesh.add(bombR);
+
+                // Wicks: Cylinders
+                const wickGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.3, 8);
+                const wickMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+                const wickL = new THREE.Mesh(wickGeo, wickMat);
+                wickL.position.set(0, 0.6, 0);
+                bombL.add(wickL);
+                const wickR = new THREE.Mesh(wickGeo, wickMat);
+                wickR.position.set(0, 0.6, 0);
+                bombR.add(wickR);
             } else if (shapeType === "box" || shapeType === "cube") {
                 const geo = new THREE.BoxGeometry(1.2, 1.2, 1.2);
                 const mesh = new THREE.Mesh(geo, mat);
@@ -3818,9 +4327,9 @@ if ($subtopic === 'player_builds') {
         });
         
         // Filter Tabs Event
-        document.querySelectorAll(".filter-btn").forEach(btn => {
+        document.querySelectorAll(".bestiary-filter-tabs .filter-btn").forEach(btn => {
             btn.addEventListener("click", (e) => {
-                document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+                document.querySelectorAll(".bestiary-filter-tabs .filter-btn").forEach(b => b.classList.remove("active"));
                 e.target.classList.add("active");
                 currentFilter = e.target.dataset.filter;
                 renderCards();
@@ -3828,23 +4337,41 @@ if ($subtopic === 'player_builds') {
         });
         
         // Tab Views inside dossier
-        document.querySelectorAll(".dossier-tab-btn").forEach(btn => {
+        document.querySelectorAll(".bestiary-dossier .dossier-tab-btn").forEach(btn => {
             btn.addEventListener("click", (e) => {
-                document.querySelectorAll(".dossier-tab-btn").forEach(b => b.classList.remove("active"));
-                document.querySelectorAll(".dossier-tab-panel").forEach(p => p.classList.remove("active"));
+                document.querySelectorAll(".bestiary-dossier .dossier-tab-btn").forEach(b => b.classList.remove("active"));
+                document.querySelectorAll(".bestiary-dossier .dossier-tab-panel").forEach(p => p.classList.remove("active"));
                 
                 e.target.classList.add("active");
                 document.getElementById("panel-" + e.target.dataset.tab).classList.add("active");
             });
         });
+
+        // Bind item filter buttons
+        document.querySelectorAll("#wiki-item-filters .filter-btn").forEach(btn => {
+            btn.addEventListener("click", (e) => {
+                document.querySelectorAll("#wiki-item-filters .filter-btn").forEach(b => b.classList.remove("active"));
+                e.target.classList.add("active");
+                itemFilter = e.target.dataset.rarity;
+                renderItemsGrid();
+            });
+        });
+
+        // Bind item search input
+        document.getElementById("wiki-item-search").addEventListener("input", (e) => {
+            itemSearchQuery = e.target.value;
+            renderItemsGrid();
+        });
         
-        // Start Bestiary UI
+        // Start Bestiary & Items UI
         window.addEventListener("DOMContentLoaded", () => {
             const activeTab = "' . $activeTab . '";
             if (activeTab === "bestiary") {
                 init3D();
                 renderCards();
                 selectCreature(activeId);
+            } else if (activeTab === "items") {
+                renderItemsGrid();
             }
         });
     </script>';
