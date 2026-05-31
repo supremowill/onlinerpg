@@ -6,15 +6,17 @@ import { v4 as uuidv4 } from 'uuid';
 import { MatchmakingService } from './matchmaking/MatchmakingService';
 import { rankingService } from './database/ranking';
 import { getPool, closeDatabase, initDatabase } from './database/db';
-import { createPlayer, findPlayerByUsername, validatePlayer, generateJWT, verifyJWT } from './database/db';
+import { createPlayer, findPlayerByUsername, validatePlayer, generateJWT, verifyJWT, updateUserCoins, updateUserInventory, findPlayerById, getMarketOffers, createMarketOffer, getMarketOfferById, deleteMarketOffer } from './database/db';
 import { CONFIG } from './config';
 import { loadGameData } from './data/GameDataLoader';
+import { LootEngine } from './game/LootEngine';
 
 // ============================================================
 // DATA-DRIVEN PIPELINE: Carregar game_data.json no startup
 // Zero leituras de disco durante o game loop
 // ============================================================
 loadGameData();
+LootEngine.loadRates();
 
 const app = express();
 const server = http.createServer(app);
@@ -25,6 +27,33 @@ const matchmaking = new MatchmakingService();
 const activeConnections = new Map<string, string>();
 // Track sockets: playerId -> WebSocket (for forcing disconnect)
 const playerSockets = new Map<string, WebSocket>();
+
+// Track admin sockets for live dashboard
+const adminConnections = new Set<WebSocket>();
+
+setInterval(() => {
+    if (adminConnections.size === 0) return;
+    const stats = matchmaking.getStats();
+    const mem = process.memoryUsage();
+    const payload = JSON.stringify({
+        type: 'ADMIN_STATS',
+        payload: {
+            ...stats,
+            memory: {
+                rss: mem.rss,
+                heapTotal: mem.heapTotal,
+                heapUsed: mem.heapUsed
+            }
+        }
+    });
+    for (const ws of adminConnections) {
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.send(payload);
+        } else {
+            adminConnections.delete(ws);
+        }
+    }
+}, 1000);
 
 // Serve static client files
 // Production (Docker): dist/ is at /app/dist, public/ at /app/public → '../public'
@@ -77,6 +106,7 @@ app.post('/api/admin/reload-data', (req, res) => {
     try {
         console.log('[Admin] Hot-reloading game data...');
         loadGameData();
+        LootEngine.loadRates();
         res.json({ success: true, message: 'Game data reloaded successfully' });
     } catch (e: any) {
         console.error('[Admin] Failed to reload game data:', e.message);
@@ -207,9 +237,264 @@ app.get('/api/auth/me', async (req, res) => {
         if (!player || player.is_blocked) {
             return res.status(401).json({ error: 'Account blocked or not found' });
         }
-        res.json({ id: payload.id, username: payload.username });
+        res.json({ id: payload.id, username: payload.username, is_admin: player.is_admin });
     } catch (e) {
         res.status(500).json({ error: 'Database check failed' });
+    }
+});
+
+// ==================== USER DATA & ECONOMY ====================
+
+app.get('/api/user/data', async (req, res) => {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) return res.status(401).json({ error: 'No token provided' });
+
+    const token = authHeader.split(' ')[1];
+    const payload = verifyJWT(token);
+    if (!payload) return res.status(401).json({ error: 'Invalid token' });
+
+    try {
+        const player = await findPlayerByUsername(payload.username);
+        if (!player || player.is_blocked) {
+            return res.status(401).json({ error: 'Account blocked or not found' });
+        }
+        res.json({ coins: player.coins || 0, inventory: player.inventory || [] });
+    } catch (e) {
+        res.status(500).json({ error: 'Database check failed' });
+    }
+});
+
+app.post('/api/user/tradein', async (req, res) => {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) return res.status(401).json({ error: 'No token provided' });
+
+    const token = authHeader.split(' ')[1];
+    const payload = verifyJWT(token);
+    if (!payload) return res.status(401).json({ error: 'Invalid token' });
+
+    const { itemsToSell } = req.body; 
+
+    try {
+        const player = await findPlayerByUsername(payload.username);
+        if (!player || player.is_blocked) return res.status(401).json({ error: 'Account blocked or not found' });
+
+        let currentInventory = [...(player.inventory || [])];
+        let currentCoins = player.coins || 0;
+        let coinsGained = 0;
+
+        for (const itemId of (itemsToSell || [])) {
+            const index = currentInventory.indexOf(itemId);
+            if (index !== -1) {
+                currentInventory.splice(index, 1);
+                coinsGained += 10;
+            }
+        }
+
+        currentCoins += coinsGained;
+        await updateUserCoins(player.id, currentCoins);
+        await updateUserInventory(player.id, currentInventory);
+
+        res.json({ success: true, coins: currentCoins, inventory: currentInventory, gained: coinsGained });
+    } catch (e) {
+        res.status(500).json({ error: 'Trade-in failed' });
+    }
+});
+
+app.post('/api/user/buy', async (req, res) => {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) return res.status(401).json({ error: 'No token provided' });
+
+    const token = authHeader.split(' ')[1];
+    const payload = verifyJWT(token);
+    if (!payload) return res.status(401).json({ error: 'Invalid token' });
+
+    const { itemId, price } = req.body; 
+
+    try {
+        const player = await findPlayerByUsername(payload.username);
+        if (!player || player.is_blocked) return res.status(401).json({ error: 'Account blocked or not found' });
+
+        let currentCoins = player.coins || 0;
+        let currentInventory = [...(player.inventory || [])];
+
+        if (currentCoins < price) {
+            return res.status(400).json({ error: 'Not enough coins' });
+        }
+
+        currentCoins -= price;
+        currentInventory.push(itemId);
+
+        await updateUserCoins(player.id, currentCoins);
+        await updateUserInventory(player.id, currentInventory);
+
+        res.json({ success: true, coins: currentCoins, inventory: currentInventory });
+    } catch (e) {
+        res.status(500).json({ error: 'Purchase failed' });
+    }
+});
+
+// ==================== P2P MARKETPLACE ====================
+
+app.get('/api/market/offers', async (req, res) => {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) return res.status(401).json({ error: 'No token provided' });
+
+    const token = authHeader.split(' ')[1];
+    const payload = verifyJWT(token);
+    if (!payload) return res.status(401).json({ error: 'Invalid token' });
+
+    try {
+        const offers = await getMarketOffers();
+        res.json(offers);
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to fetch market offers' });
+    }
+});
+
+app.post('/api/market/sell', async (req, res) => {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) return res.status(401).json({ error: 'No token provided' });
+
+    const token = authHeader.split(' ')[1];
+    const payload = verifyJWT(token);
+    if (!payload) return res.status(401).json({ error: 'Invalid token' });
+
+    const { itemId, price } = req.body;
+    const itemPrice = parseInt(price);
+
+    if (isNaN(itemPrice) || itemPrice <= 0) {
+        return res.status(400).json({ error: 'Preço inválido. Deve ser um número inteiro maior que 0.' });
+    }
+
+    if (!itemId || typeof itemId !== 'string') {
+        return res.status(400).json({ error: 'ID do item inválido' });
+    }
+
+    try {
+        const player = await findPlayerByUsername(payload.username);
+        if (!player || player.is_blocked) return res.status(401).json({ error: 'Jogador bloqueado ou não encontrado' });
+
+        const currentInventory = [...(player.inventory || [])];
+        const idx = currentInventory.indexOf(itemId);
+        if (idx === -1) {
+            return res.status(400).json({ error: 'Item não encontrado no seu inventário' });
+        }
+
+        // Remove single instance from inventory
+        currentInventory.splice(idx, 1);
+
+        // Create market offer
+        const offerId = await createMarketOffer(player.id, player.username, itemId, itemPrice);
+
+        // Save updated inventory
+        await updateUserInventory(player.id, currentInventory);
+
+        res.json({ success: true, offerId, inventory: currentInventory });
+    } catch (e: any) {
+        res.status(500).json({ error: 'Falha ao listar item: ' + e.message });
+    }
+});
+
+app.post('/api/market/buy', async (req, res) => {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) return res.status(401).json({ error: 'No token provided' });
+
+    const token = authHeader.split(' ')[1];
+    const payload = verifyJWT(token);
+    if (!payload) return res.status(401).json({ error: 'Invalid token' });
+
+    const { offerId } = req.body;
+    const offerIdNum = parseInt(offerId);
+
+    if (isNaN(offerIdNum)) {
+        return res.status(400).json({ error: 'ID da oferta inválido' });
+    }
+
+    try {
+        const buyer = await findPlayerByUsername(payload.username);
+        if (!buyer || buyer.is_blocked) return res.status(401).json({ error: 'Comprador bloqueado ou não encontrado' });
+
+        const offer = await getMarketOfferById(offerIdNum);
+        if (!offer) {
+            return res.status(404).json({ error: 'Oferta não encontrada ou já vendida' });
+        }
+
+        if (offer.seller_id === buyer.id) {
+            return res.status(400).json({ error: 'Você não pode comprar sua própria oferta. Use a opção de cancelar.' });
+        }
+
+        if ((buyer.coins || 0) < offer.price) {
+            return res.status(400).json({ error: 'Coins insuficientes' });
+        }
+
+        const seller = await findPlayerById(offer.seller_id);
+        if (!seller) {
+            return res.status(404).json({ error: 'Vendedor não encontrado' });
+        }
+
+        // Deduct coins & Add item for buyer
+        const buyerCoins = (buyer.coins || 0) - offer.price;
+        const buyerInventory = [...(buyer.inventory || [])];
+        buyerInventory.push(offer.item_id);
+
+        // Add coins to seller
+        const sellerCoins = (seller.coins || 0) + offer.price;
+
+        // Update buyer
+        await updateUserCoins(buyer.id, buyerCoins);
+        await updateUserInventory(buyer.id, buyerInventory);
+
+        // Update seller
+        await updateUserCoins(seller.id, sellerCoins);
+
+        // Delete offer
+        await deleteMarketOffer(offerIdNum);
+
+        res.json({ success: true, coins: buyerCoins, inventory: buyerInventory });
+    } catch (e: any) {
+        res.status(500).json({ error: 'Falha na compra: ' + e.message });
+    }
+});
+
+app.post('/api/market/cancel', async (req, res) => {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) return res.status(401).json({ error: 'No token provided' });
+
+    const token = authHeader.split(' ')[1];
+    const payload = verifyJWT(token);
+    if (!payload) return res.status(401).json({ error: 'Invalid token' });
+
+    const { offerId } = req.body;
+    const offerIdNum = parseInt(offerId);
+
+    if (isNaN(offerIdNum)) {
+        return res.status(400).json({ error: 'ID da oferta inválido' });
+    }
+
+    try {
+        const player = await findPlayerByUsername(payload.username);
+        if (!player || player.is_blocked) return res.status(401).json({ error: 'Jogador bloqueado ou não encontrado' });
+
+        const offer = await getMarketOfferById(offerIdNum);
+        if (!offer) {
+            return res.status(404).json({ error: 'Oferta não encontrada' });
+        }
+
+        if (offer.seller_id !== player.id) {
+            return res.status(403).json({ error: 'Você não é o dono desta oferta' });
+        }
+
+        // Return item to seller inventory
+        const currentInventory = [...(player.inventory || [])];
+        currentInventory.push(offer.item_id);
+        await updateUserInventory(player.id, currentInventory);
+
+        // Delete offer
+        await deleteMarketOffer(offerIdNum);
+
+        res.json({ success: true, inventory: currentInventory });
+    } catch (e: any) {
+        res.status(500).json({ error: 'Falha ao cancelar oferta: ' + e.message });
     }
 });
 
@@ -226,8 +511,24 @@ wss.on('connection', (ws: WebSocket) => {
         try {
             const msg = JSON.parse(raw.toString());
             switch (msg.type) {
+                case 'JOIN_ADMIN': {
+                    const token = msg.payload?.token;
+                    if (token) {
+                        const payload = verifyJWT(token);
+                        if (payload && payload.is_admin) {
+                            adminConnections.add(ws);
+                            ws.send(JSON.stringify({ type: 'ADMIN_WELCOME', payload: { message: 'Connected to AdminWatch' } }));
+                            console.log(`[WS] Admin ${payload.username} connected to AdminWatch`);
+                        } else {
+                            ws.close(1008, 'Unauthorized');
+                        }
+                    } else {
+                        ws.close(1008, 'No token');
+                    }
+                    break;
+                }
                 case 'JOIN_QUEUE': {
-                    // Check for JWT token first, then fall back to name
+                    let loadout: string[] = [];
                     const token = msg.payload?.token;
                     if (token) {
                         const payload = verifyJWT(token);
@@ -241,8 +542,35 @@ wss.on('connection', (ws: WebSocket) => {
                                 ws.close(1000, 'Conta bloqueada');
                                 return;
                             }
-                            playerName = payload.username;
-                            console.log(`[WS] Player ${playerName} joined via token`);
+                            if (player) {
+                                playerName = payload.username;
+                                console.log(`[WS] Player ${playerName} joined via token`);
+                                const userInventory = player.inventory || [];
+                                const requestedLoadout = msg.payload?.loadout || [];
+                                const ownedLoadout = requestedLoadout.filter((itemId: string) => userInventory.includes(itemId));
+
+                                // Enforce rarity limits: max 1 legendary, 2 epics, 3 basics, total 3 items
+                                const ItemDatabase = require('./data/ItemDatabase').ItemDatabase;
+                                let leg = 0, epic = 0, basic = 0;
+                                const validatedLoadout: string[] = [];
+                                for (const itemId of ownedLoadout) {
+                                    const item = ItemDatabase[itemId];
+                                    if (item) {
+                                        if (item.rarity === 'legendary' && leg < 1) {
+                                            leg++;
+                                            validatedLoadout.push(itemId);
+                                        } else if (item.rarity === 'epic' && epic < 2) {
+                                            epic++;
+                                            validatedLoadout.push(itemId);
+                                        } else if (item.rarity === 'basic' && basic < 3) {
+                                            basic++;
+                                            validatedLoadout.push(itemId);
+                                        }
+                                        if (validatedLoadout.length >= 3) break;
+                                    }
+                                }
+                                loadout = validatedLoadout;
+                            }
 
                             // ─── MULTI-LOGIN CHECK ───
                             if (activeConnections.has(playerName)) {
@@ -269,8 +597,9 @@ wss.on('connection', (ws: WebSocket) => {
                     } else {
                         playerName = msg.payload?.name || 'Player';
                     }
+                    const platform = msg.payload?.platform || 'pc';
                     const build = msg.payload?.build;
-                    matchmaking.addToQueue(playerId, playerName, ws, 'pc', build);
+                    matchmaking.addToQueue(playerId, playerName, ws, platform, build, loadout);
                     break;
                 }
                 case 'LEAVE_QUEUE':
@@ -286,6 +615,7 @@ wss.on('connection', (ws: WebSocket) => {
 
     ws.on('close', () => {
         console.log(`[WS] Disconnected: ${playerId.slice(0, 8)}`);
+        adminConnections.delete(ws);
         // Clean up activeConnections if this was the active session
         for (const [username, pid] of activeConnections.entries()) {
             if (pid === playerId) {

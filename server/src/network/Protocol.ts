@@ -13,10 +13,12 @@ export interface PlayerBuild {
     floor3: number;
     floor4: number;
     floor5?: number;
+    loadoutItems?: string[]; // Array of item IDs equipped
 }
 
 export type ClientMessage =
-    | { type: 'JOIN_QUEUE'; payload: { name?: string; token?: string; build?: PlayerBuild } }
+    | { type: 'JOIN_QUEUE'; payload: { name?: string; token?: string; build?: PlayerBuild; loadout?: string[]; platform?: 'pc' | 'mobile' } }
+    | { type: 'LEAVE_QUEUE' }
     | { type: 'SELECT_PLATFORM'; payload: { platform: 'pc' | 'mobile' } }
     | { type: 'INPUT_STATE'; payload: InputState }
     | { type: 'USE_SKILL'; payload: { skill: 'q' | 'w' | 'e' | 'r' | 'jump' } }
@@ -36,6 +38,7 @@ export interface InputState {
     joystickY?: number;
     worldX?: number;
     worldZ?: number;
+    isAiming?: boolean;
 }
 
 // ============================================================
@@ -127,7 +130,7 @@ export interface PlayerSnapshot {
     buffTimer: number;
     tempBuff: string | null;
     timedBuffs: string[];
-    statusEffects: string[];
+    statusEffects: { id: string; stacks: number }[];
     buffTimers?: { [key: string]: number };
     pathogens?: { [key: string]: number };
     isDead: boolean;
@@ -145,6 +148,9 @@ export interface PlayerSnapshot {
     critDamageMultiplier?: number;
     speed?: number;
     attackSpeed?: number;
+    loadoutLevel?: number;
+    itemMultiplier?: number;
+    loadoutItems?: string[];
 }
 
 export interface EnemySnapshot {
@@ -186,6 +192,7 @@ export interface EnemySnapshot {
     raioTargetX?: number;
     isEmerging?: boolean;
     isEnraged?: boolean;
+    statusEffects?: { id: string; stacks: number }[];
 }
 
 export interface ProjectileSnapshot {
@@ -236,7 +243,7 @@ export interface GameEvent {
     event: 'BOSS_SPAWN' | 'BOSS_KILLED' | 'COLLAPSE' | 'PLAYER_LEVEL_UP'
         | 'ITEM_DROP' | 'MESSAGE' | 'PLAYER_BUFF'
         | 'FARAO_SPAWN_WARNING' | 'FARAO_ECLIPSE' | 'FARAO_JULGAMENTO'
-        | 'HIT_NUMBER' | 'MIGHTY_ONE_SPAWN' | 'MIGHTY_ONE_DEFEATED';
+        | 'HIT_NUMBER' | 'MIGHTY_ONE_SPAWN' | 'MIGHTY_ONE_DEFEATED' | 'LOADOUT_LEVEL_UP';
     data: any;
 }
 
@@ -247,6 +254,7 @@ export interface GameOverData {
     time: number;
     collapseLevel: number;
     winner: { playerId: string; playerName: string; score: number };
+    droppedItems?: { playerId: string; itemId: string }[];
 }
 
 export interface LeaderboardEntry {

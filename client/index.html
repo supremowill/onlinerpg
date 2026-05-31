@@ -74,18 +74,188 @@
         #skills-hud { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); display:none; gap:15px; background:rgba(0,0,0,.5); padding:10px; border-radius:10px; z-index:10; }
         .skill-slot { width:60px; height:60px; border:2px solid #555; border-radius:8px; background:#222; position:relative; display:flex; justify-content:center; align-items:center; font-size:1.5rem; font-weight:bold; }
         .skill-cooldown { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.8); color:#fff; display:flex; justify-content:center; align-items:center; font-size:1.8rem; border-radius:6px; }
-        #mobile-controls { display:none; position:absolute; bottom:0; left:0; width:100%; height:100%; pointer-events:none; z-index:20; }
-        #joystick-container { position:absolute; bottom:40px; left:40px; width:150px; height:150px; background:rgba(255,255,255,.1); border-radius:50%; pointer-events:auto; }
+        #mobile-controls { display:none; position:absolute; bottom:0; left:0; width:100%; height:100%; pointer-events:none; z-index:20; touch-action:none; }
+        #joystick-container { position:absolute; bottom:40px; left:40px; width:150px; height:150px; background:rgba(255,255,255,.1); border-radius:50%; pointer-events:auto; touch-action:none; }
         #joystick-thumb { position:absolute; top:50%; left:50%; width:60px; height:60px; background:rgba(255,255,255,.4); border-radius:50%; transform:translate(-50%,-50%); pointer-events:none; }
-        #mobile-action-buttons { position:absolute; bottom:40px; right:40px; display:grid; grid-template-areas:". e ." "w attack q" ". r ."; gap:15px; pointer-events:auto; }
-        .mobile-button { width:70px; height:70px; border-radius:50%; border:2px solid #aaa; background:rgba(0,0,0,.6); color:#fff; font-size:1.5rem; display:flex; justify-content:center; align-items:center; position:relative; }
+        #mobile-action-buttons { position:absolute; bottom:40px; right:40px; display:grid; grid-template-areas:". e ." "w attack q" ". r ."; gap:15px; pointer-events:auto; touch-action:none; }
+        .mobile-button { width:70px; height:70px; border-radius:50%; border:2px solid #aaa; background:rgba(0,0,0,.6); color:#fff; font-size:1.5rem; display:flex; justify-content:center; align-items:center; position:relative; touch-action:none; }
         .mobile-button .skill-cooldown { border-radius:50%; }
         #attack-button { grid-area:attack; width:90px; height:90px; background:rgba(200,50,50,.7); }
         #q-button { grid-area:q; } #w-button { grid-area:w; } #e-button { grid-area:e; } #r-button { grid-area:r; }
+        #aim-cancel-zone {
+            display: none;
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 140px;
+            height: 60px;
+            background: rgba(220, 53, 69, 0.35);
+            border: 2px dashed #dc3545;
+            border-radius: 30px;
+            color: #fff;
+            font-size: 0.95rem;
+            font-weight: bold;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            text-shadow: 1px 1px 2px #000;
+            box-shadow: 0 0 10px rgba(220, 53, 69, 0.2);
+        }
+        #aim-cancel-zone.active {
+            background: rgba(220, 53, 69, 0.85);
+            transform: scale(1.15);
+            border-color: #ff3333;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
+        }
+        .aim-thumb {
+            position: absolute;
+            width: 26px;
+            height: 26px;
+            background: rgba(0, 229, 255, 0.8);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            left: 50%;
+            top: 50%;
+            display: none;
+            box-shadow: 0 0 8px rgba(0, 229, 255, 0.9);
+            z-index: 5;
+        }
         #event-message { position:absolute; top:20%; left:50%; transform:translateX(-50%); background:rgba(255,165,0,.9); color:#000; padding:15px 30px; border-radius:10px; font-size:1.5rem; font-weight:bold; z-index:200; opacity:0; transition:opacity .5s; pointer-events:none; }
         #event-message.show { opacity:1; }
-        #upgrade-panel { display:none; }
-        #upgrade-panel .panel-content { background:rgba(20,20,20,.9); padding:40px; border-radius:15px; border:1px solid #555; box-shadow:0 0 20px rgba(0,0,0,.5); }
+        /* Floating Skill Upgrade Panel */
+        #upgrade-panel {
+            display: none;
+            flex-direction: column;
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 320px;
+            background: linear-gradient(135deg, rgba(8, 12, 20, 0.95), rgba(15, 23, 38, 0.95));
+            border: 2px solid #00e5ff;
+            border-radius: 12px;
+            box-shadow: 0 0 25px rgba(0, 229, 255, 0.35), inset 0 0 15px rgba(0, 229, 255, 0.1);
+            padding: 20px;
+            z-index: 1000;
+            pointer-events: auto;
+            animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            gap: 12px;
+            box-sizing: border-box;
+            backdrop-filter: blur(8px);
+        }
+        #upgrade-title {
+            margin: 0;
+            font-size: 1.25rem;
+            color: #00e5ff;
+            text-align: center;
+            font-family: 'Orbitron', 'Verdana', sans-serif;
+            text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+            font-weight: bold;
+        }
+        #upgrade-skill-name {
+            margin: -4px 0 8px 0;
+            font-size: 0.9rem;
+            color: #a5f3fc;
+            text-align: center;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+        }
+        .upgrade-options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .upgrade-option-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(0, 229, 255, 0.2);
+            border-radius: 8px;
+            padding: 10px 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-sizing: border-box;
+        }
+        .upgrade-option-card:hover {
+            background: rgba(0, 229, 255, 0.08);
+            border-color: #00e5ff;
+            box-shadow: 0 0 12px rgba(0, 229, 255, 0.2);
+            transform: scale(1.02);
+        }
+        .upgrade-option-icon {
+            font-size: 1.8rem;
+            min-width: 44px;
+            height: 44px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 229, 255, 0.3);
+            border-radius: 6px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .upgrade-option-card:hover .upgrade-option-icon {
+            border-color: #00e5ff;
+            background: rgba(0, 229, 255, 0.15);
+        }
+        .upgrade-option-details {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            overflow: hidden;
+        }
+        .upgrade-option-title {
+            font-size: 0.95rem;
+            font-weight: bold;
+            color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-family: 'Orbitron', 'Inter', sans-serif;
+        }
+        .upgrade-option-desc {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            line-height: 1.3;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+        @keyframes slideInRight {
+            from { transform: translate(50px, -50%); opacity: 0; }
+            to { transform: translate(0, -50%); opacity: 1; }
+        }
+        @keyframes slideInRightMobile {
+            from { transform: translateX(50px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @media (max-width: 768px) {
+            #upgrade-panel {
+                right: 10px;
+                top: 10px;
+                transform: none;
+                width: 280px;
+                padding: 12px;
+                gap: 8px;
+                animation: slideInRightMobile 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            }
+            .upgrade-option-icon {
+                font-size: 1.5rem;
+                min-width: 36px;
+                height: 36px;
+            }
+            .upgrade-option-title {
+                font-size: 0.85rem;
+            }
+            .upgrade-option-desc {
+                font-size: 0.7rem;
+            }
+        }
         /* Multiplayer scoreboard */
         #multiplayer-scoreboard { width:100%; background:rgba(10,10,10,0.85); border:1px solid #444; border-radius:4px; padding:8px; display:none; pointer-events:auto; box-shadow:0 4px 15px rgba(0,0,0,0.6); }
         .sb-row { display:flex; align-items:center; gap:6px; padding:4px 6px; border-radius:4px; font-size:.75rem; }
@@ -611,13 +781,22 @@
             }
         }
 
+        @keyframes flashLevelUp {
+            0% { box-shadow: 0 0 0 rgba(241, 196, 15, 0); background-color: transparent; }
+            50% { box-shadow: 0 0 20px rgba(241, 196, 15, 1); background-color: rgba(241, 196, 15, 0.3); }
+            100% { box-shadow: 0 0 0 rgba(241, 196, 15, 0); background-color: transparent; }
+        }
+        .flash-level-up {
+            animation: flashLevelUp 0.5s ease-out;
+        }
+
         /* Player Stats Overlay */
         #player-stats-overlay {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 320px;
+            width: 380px;
             background: rgba(10, 10, 10, 0.85);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
@@ -671,6 +850,284 @@
             color: #0ff;
             text-shadow: 0 0 5px rgba(0, 255, 255, 0.3);
         }
+        
+        /* RPG Style Loadout Modal */
+        .rpg-loadout-panel {
+            background: linear-gradient(135deg, #1f140c, #0a0604);
+            border: 4px double #8a5a36;
+            border-radius: 8px;
+            padding: 25px;
+            max-width: 600px;
+            width: 90%;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(138, 90, 54, 0.3);
+            font-family: 'Verdana', Geneva, sans-serif;
+            color: #f1e0c6;
+            position: relative;
+        }
+        .rpg-loadout-header {
+            font-family: 'Orbitron', sans-serif;
+            color: #d4a373;
+            text-align: center;
+            font-size: 1.4rem;
+            letter-spacing: 2px;
+            border-bottom: 2px solid #8a5a36;
+            padding-bottom: 12px;
+            margin-top: 0;
+            margin-bottom: 15px;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .rpg-loadout-desc {
+            text-align: center;
+            font-size: 0.85rem;
+            color: #bfa38a;
+            margin-bottom: 15px;
+            line-height: 1.4;
+        }
+        .rpg-inventory-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            overflow-y: auto;
+            max-height: 40vh;
+            justify-content: center;
+            background: rgba(0,0,0,0.4);
+            border: 2px solid #5a3e29;
+            padding: 15px;
+            border-radius: 4px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+            margin-bottom: 20px;
+        }
+        
+        /* Slot Item Button */
+        .rpg-item-slot {
+            width: 105px;
+            height: 115px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            background: #2b1b12;
+            border: 2px solid #5a3e29;
+            color: #bfa38a;
+            font-family: 'Verdana', sans-serif;
+            font-size: 0.75rem;
+            padding: 8px;
+            cursor: pointer;
+            box-sizing: border-box;
+            transition: all 0.2s;
+            position: relative;
+            box-shadow: inset 0 0 8px rgba(0,0,0,0.66);
+        }
+        .rpg-item-slot:hover {
+            border-color: #d4a373;
+            background: #3e281b;
+            color: #f1e0c6;
+            box-shadow: 0 0 10px rgba(212, 163, 115, 0.4);
+        }
+        
+        /* Rarity-specific styles */
+        .rpg-item-slot.rarity-legendary {
+            border-color: #d4af37;
+            box-shadow: inset 0 0 8px rgba(212, 175, 55, 0.2);
+        }
+        .rpg-item-slot.rarity-legendary:hover {
+            box-shadow: 0 0 12px rgba(212, 175, 55, 0.5), inset 0 0 8px rgba(212, 175, 55, 0.3);
+        }
+        .rpg-item-slot.rarity-epic {
+            border-color: #8e44ad;
+            box-shadow: inset 0 0 8px rgba(142, 68, 173, 0.2);
+        }
+        .rpg-item-slot.rarity-epic:hover {
+            box-shadow: 0 0 12px rgba(142, 68, 173, 0.5), inset 0 0 8px rgba(142, 68, 173, 0.3);
+        }
+        .rpg-item-slot.rarity-basic {
+            border-color: #7f8c8d;
+        }
+        
+        /* Selected State */
+        .rpg-item-slot.selected {
+            background: rgba(138, 90, 54, 0.25);
+            border-width: 2.5px;
+            animation: pulse-border 1.5s infinite alternate;
+        }
+        .rpg-item-slot.selected.rarity-legendary {
+            border-color: #f1c40f;
+            background: rgba(241, 196, 15, 0.15);
+        }
+        .rpg-item-slot.selected.rarity-epic {
+            border-color: #9b59b6;
+            background: rgba(155, 89, 182, 0.15);
+        }
+        .rpg-item-slot.selected.rarity-basic {
+            border-color: #ecf0f1;
+            background: rgba(236, 240, 241, 0.15);
+        }
+        
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 4px rgba(255,255,255,0.1); }
+            100% { box-shadow: 0 0 12px rgba(255,255,255,0.4); }
+        }
+
+        .rpg-item-icon {
+            font-size: 2.2rem;
+            margin-top: 4px;
+            filter: drop-shadow(1px 1px 3px rgba(0,0,0,0.8));
+            transition: transform 0.2s;
+        }
+        .rpg-item-slot:hover .rpg-item-icon {
+            transform: scale(1.1);
+        }
+        .rpg-item-name {
+            font-size: 0.65rem;
+            text-align: center;
+            line-height: 1.2;
+            word-wrap: break-word;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            font-weight: bold;
+        }
+        
+        /* Equip Badge/Label */
+        .rpg-equip-badge {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            background: #27ae60;
+            color: #fff;
+            font-size: 0.55rem;
+            font-weight: bold;
+            padding: 2px 5px;
+            border-radius: 3px;
+            border: 1px solid #2ecc71;
+            box-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+            text-transform: uppercase;
+        }
+
+        /* Ornate Green Button */
+        .rpg-btn-green {
+            background: linear-gradient(to bottom, #2ecc71, #27ae60);
+            border: 2px solid #1e8449;
+            color: #fff;
+            padding: 12px 24px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            font-weight: bold;
+            letter-spacing: 1.5px;
+            cursor: pointer;
+            text-shadow: 1px 1px 2px #000;
+            width: 100%;
+            transition: all 0.2s;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            border-radius: 4px;
+        }
+        .rpg-btn-green:hover {
+            background: linear-gradient(to bottom, #40e0d0, #2ecc71);
+            border-color: #27ae60;
+            box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
+            transform: translateY(-1px);
+        }
+        .rpg-btn-green:active {
+            transform: translateY(1px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+        }
+
+        /* RPG Item Tooltip styling */
+        .rpg-item-tooltip {
+            display: none;
+            position: fixed;
+            z-index: 99999;
+            background: linear-gradient(135deg, rgba(5, 5, 5, 0.98), rgba(15, 10, 5, 0.98));
+            border: 2px solid #5a3e29;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.9), inset 0 0 10px rgba(0,0,0,0.85);
+            border-radius: 4px;
+            padding: 12px 16px;
+            max-width: 290px;
+            min-width: 230px;
+            font-family: 'Verdana', 'Inter', sans-serif;
+            pointer-events: none;
+            color: #f1e0c6;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            box-sizing: border-box;
+            transition: opacity 0.1s ease;
+            opacity: 0;
+        }
+        .rpg-item-tooltip.show {
+            opacity: 1;
+        }
+        .rpg-item-tooltip-name {
+            font-size: 0.95rem;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+            font-family: 'Orbitron', 'Verdana', sans-serif;
+        }
+        .rpg-item-tooltip-rarity {
+            font-size: 0.65rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        .rpg-item-tooltip-divider {
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #5a3e29 20%, #5a3e29 80%, transparent);
+            margin: 6px 0 10px;
+        }
+        .rpg-item-tooltip-section {
+            font-size: 0.65rem;
+            color: #d4a373;
+            text-transform: uppercase;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+            margin-top: 8px;
+            margin-bottom: 4px;
+        }
+        .rpg-item-tooltip-opt {
+            font-size: 0.72rem;
+            color: #38bdf8; /* Mu Online style light blue */
+            line-height: 1.4;
+            font-weight: bold;
+        }
+        .rpg-item-tooltip-info {
+            font-size: 0.68rem;
+            color: #a89280;
+            margin-bottom: 4px;
+        }
+        
+        /* Rarity-specific styles for tooltip */
+        .rpg-item-tooltip.rarity-basic {
+            border-color: #2ecc71;
+            box-shadow: 0 10px 25px rgba(46, 204, 113, 0.25), inset 0 0 10px rgba(0,0,0,0.8);
+        }
+        .rpg-item-tooltip.rarity-basic .rpg-item-tooltip-name,
+        .rpg-item-tooltip.rarity-basic .rpg-item-tooltip-rarity {
+            color: #2ecc71;
+        }
+        
+        .rpg-item-tooltip.rarity-epic {
+            border-color: #9b59b6;
+            box-shadow: 0 10px 25px rgba(155, 89, 182, 0.3), inset 0 0 10px rgba(0,0,0,0.8);
+        }
+        .rpg-item-tooltip.rarity-epic .rpg-item-tooltip-name,
+        .rpg-item-tooltip.rarity-epic .rpg-item-tooltip-rarity {
+            color: #9b59b6;
+        }
+        
+        .rpg-item-tooltip.rarity-legendary {
+            border-color: #f1c40f;
+            box-shadow: 0 10px 25px rgba(241, 196, 15, 0.35), inset 0 0 10px rgba(0,0,0,0.8);
+        }
+        .rpg-item-tooltip.rarity-legendary .rpg-item-tooltip-name,
+        .rpg-item-tooltip.rarity-legendary .rpg-item-tooltip-rarity {
+            color: #f1c40f;
+            text-shadow: 0 0 5px rgba(241, 196, 15, 0.4), 1px 1px 2px rgba(0,0,0,0.8);
+        }
     </style>
     <script type="importmap">
     { 
@@ -682,6 +1139,7 @@
     </script>
 </head>
 <body>
+    <div id="rpg-item-tooltip" class="rpg-item-tooltip"></div>
     <div id="blind-overlay" class="blind-screen-effect"></div>
     <div id="visao-turva-overlay" class="visao-turva-effect"></div>
     <div id="damage-text-layer"></div>
@@ -724,6 +1182,14 @@
             <div style="font-size: 0.6rem; color: #777; margin-top: 2px; font-style: italic;">Clique para alterar passivas da torre</div>
         </button>
 
+        <!-- LOADOUT BUTTON -->
+        <button id="open-loadout-btn" type="button" style="display:none; background: rgba(20,20,20,0.85); border: 2px solid #555; border-radius: 8px; width: 90%; max-width: 440px; margin: 5px 0 10px 0; padding: 12px 15px; cursor: pointer; text-align: center; transition: all 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 4px; align-items: center;">
+            <div style="font-size: 0.85rem; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #fff;">📦 Loadout de Itens</div>
+            <div id="loadout-summary-text" style="font-size: 0.72rem; color: #ffeb3b; text-align: center; line-height: 1.3; font-family: 'Inter', sans-serif; font-weight: 500;">0/3 Itens Equipados</div>
+            <div id="loadout-warning" style="font-size: 0.65rem; color: #ff4444; font-weight: bold; display:none;">Limite Excedido!</div>
+            <div style="font-size: 0.6rem; color: #777; margin-top: 2px; font-style: italic;">Clique para alterar seus itens equipados</div>
+        </button>
+
         <p>Escolha sua plataforma para entrar na fila</p>
         <div>
             <button id="pc-button" class="overlay-button" disabled>PC</button>
@@ -759,6 +1225,22 @@
         </div>
     </div>
 
+    <!-- LOADOUT MODAL -->
+    <div id="loadout-modal" class="overlay-screen" style="display:none; z-index:150;">
+        <div class="rpg-loadout-panel">
+            <h3 class="rpg-loadout-header">📦 INVENTÁRIO & LOADOUT</h3>
+            
+            <p class="rpg-loadout-desc">Selecione até 3 itens.<br>Máximo: <span style="color:#f1c40f; font-weight:bold;">1 Lendário</span> | <span style="color:#9b59b6; font-weight:bold;">2 Épicos</span> | <span style="color:#bdc3c7; font-weight:bold;">3 Básicos</span></p>
+            <p id="loadout-modal-warning" style="text-align:center; font-size: 0.85rem; color: #ff4444; font-weight:bold; display:none; margin-bottom:12px;"></p>
+
+            <div id="inventory-grid" class="rpg-inventory-grid">
+                <div class="rpg-loadout-desc" style="width:100%; text-align:center; color:#bfa38a;">Carregando inventário...</div>
+            </div>
+
+            <button id="close-loadout-btn" class="rpg-btn-green">SALVAR E FECHAR</button>
+        </div>
+    </div>
+
     <!-- MATCH FOUND -->
     <div id="match-found-overlay">
         <h2>⚔️ PARTIDA ENCONTRADA!</h2>
@@ -782,12 +1264,10 @@
         </div>
     </div>
     <!-- UPGRADE PANEL (Multiplayer) -->
-    <div id="upgrade-panel" class="overlay-screen">
-        <div class="panel-content">
-            <h2 id="upgrade-title">Escolha seu Upgrade!</h2>
-            <p id="upgrade-skill-name"></p>
-            <div id="upgrade-options" class="upgrade-options"></div>
-        </div>
+    <div id="upgrade-panel">
+        <h2 id="upgrade-title">Escolha seu Upgrade!</h2>
+        <div id="upgrade-skill-name"></div>
+        <div id="upgrade-options" class="upgrade-options"></div>
     </div>
     <!-- PLAYER STATS OVERLAY -->
     <div id="player-stats-overlay">
@@ -818,6 +1298,15 @@
                 <span class="stats-overlay-value" id="stats-speed-value">0.00</span>
             </div>
         </div>
+        <!-- Loadout section -->
+        <div class="stats-overlay-title" style="margin-top:15px; font-size:1rem; border-bottom:1px solid #555;">Itens Equipados</div>
+        <div id="stats-loadout-list" style="display:flex; gap:10px; margin-top:8px; justify-content:center;"></div>
+        <!-- Tower section -->
+        <div class="stats-overlay-title" style="margin-top:15px; font-size:1rem; border-bottom:1px solid #555;">Torre de Essência</div>
+        <div id="stats-tower-info" style="font-size:0.8rem; margin-top:8px; display:flex; flex-direction:column; gap:4px; text-align:left;"></div>
+        <!-- Skill upgrades section -->
+        <div class="stats-overlay-title" style="margin-top:15px; font-size:1rem; border-bottom:1px solid #555;">Melhorias de Habilidade</div>
+        <div id="stats-upgrades-list" style="font-size:0.8rem; margin-top:8px; display:flex; flex-direction:column; gap:4px; text-align:left;"></div>
     </div>
     <div id="event-message"></div>
     <!-- PLAYER HUD -->
@@ -829,6 +1318,7 @@
             <div class="stat-item">Pts: <span id="score-value">0</span></div>
         </div>
         <div id="tower-badge-hud" style="margin-top: 8px; font-size: 0.8rem; display: flex; flex-direction: column; gap: 4px; border-top: 1px solid #444; padding-top: 6px;"></div>
+        <div id="loadout-hud-container" style="display:flex; gap: 5px; margin-top: 8px; border-top: 1px solid #444; padding-top: 6px; justify-content: center; align-items:center;"></div>
     </div>
     <!-- BOSS HUD -->
     <div id="boss-hud" class="boss-hud-container">
@@ -858,12 +1348,13 @@
     </div>
     <div id="mobile-controls">
         <div id="joystick-container"><div id="joystick-thumb"></div></div>
+        <div id="aim-cancel-zone">CANCELAR</div>
         <div id="mobile-action-buttons">
-            <div id="attack-button" class="mobile-button">ATK</div>
-            <div id="q-button" class="mobile-button">Q</div>
-            <div id="w-button" class="mobile-button">W</div>
-            <div id="e-button" class="mobile-button">E</div>
-            <div id="r-button" class="mobile-button">R</div>
+            <div id="attack-button" class="mobile-button">ATK<div class="aim-thumb"></div></div>
+            <div id="q-button" class="mobile-button">Q<div class="aim-thumb"></div></div>
+            <div id="w-button" class="mobile-button">W<div class="aim-thumb"></div></div>
+            <div id="e-button" class="mobile-button">E<div class="aim-thumb"></div></div>
+            <div id="r-button" class="mobile-button">R<div class="aim-thumb"></div></div>
         </div>
     </div>
     <!-- RIGHT HUD AREA (Scoreboard + Buffs/Debuffs) -->
@@ -883,6 +1374,8 @@
         import { DashboardManager } from './js/DashboardManager.js';
         import { ChangelogManager } from './js/ChangelogManager.js';
         import { DamageTextManager } from './js/DamageTextManager.js?v=1.0.1';
+        import { ITEM_IMAGES, ALL_ITEMS } from './js/ItemData.js';
+
 
         // --- State ---
         let scene, camera, renderer, clock;
@@ -895,6 +1388,33 @@
         const authManager = new AuthManager();
         const dashboardManager = new DashboardManager(authManager);
         const changelogManager = new ChangelogManager();
+
+        // Fetch dynamic item images mapping
+        fetch('item_images.json?t=' + Date.now())
+            .then(res => {
+                if (res.ok) return res.json();
+                throw new Error('Failed to load item_images.json');
+            })
+            .then(data => {
+                Object.assign(ITEM_IMAGES, data);
+            })
+            .catch(err => console.warn('Using default item images mapping:', err));
+
+        // Fetch dynamic item names mapping
+        fetch('item_names.json?t=' + Date.now())
+            .then(res => {
+                if (res.ok) return res.json();
+                throw new Error('Failed to load item_names.json');
+            })
+            .then(data => {
+                for (const [id, customName] of Object.entries(data)) {
+                    if (ALL_ITEMS[id]) {
+                        ALL_ITEMS[id].name = customName;
+                    }
+                }
+            })
+            .catch(err => console.warn('Using default item names mapping:', err));
+
 
         // Dashboard buttons
         document.getElementById('dashboard-button').addEventListener('click', () => dashboardManager.open());
@@ -1069,6 +1589,9 @@
                     const optBtn = document.createElement('button');
                     optBtn.className = 'floor-option-btn';
                     optBtn.textContent = opt;
+                    optBtn.setAttribute('data-tower', selectedTowerColor);
+                    optBtn.setAttribute('data-floor', floor.level);
+                    optBtn.setAttribute('data-option-idx', idx);
                     if (selectedPassives[floor.level] === idx) {
                         optBtn.classList.add(`selected-${selectedTowerColor}`);
                     }
@@ -1113,8 +1636,215 @@
             document.getElementById('essence-towers-modal').style.display = 'none';
         };
 
+        // --- Loadout System ---
+        let inventory = []; // Mock ou fetch real
+        let selectedLoadout = []; // max 3 (1 Leg, 2 Epic, 3 Basic)
+
+
+
+        const ITEM_ICONS = {
+            'espada_basica': '🗡️',
+            'escudo_ferro': '🛡️',
+            'bota_velocidade': '🥾',
+            'pocao_vida': '🧪',
+            'armadura_aco': '🛡️',
+            'amuleto_magico': '📿',
+
+            // --- 🟢 ITENS BÁSICOS ---
+            'prisma_faiscas': '🔸',
+            'cubo_toxico': '🟢',
+            'lamina_triangular': '🔺',
+            'cilindro_corrosivo': '🔋',
+            'orbe_enfermo': '🟣',
+            'icosaedro_gelido': '❄️',
+            'bloco_pesado': '⬜',
+            'raizes_poligonais': '🪵',
+            'cone_lentidao': '🔹',
+            'luz_prismatica': '◽',
+            'esfera_mudo': '⚫',
+            'espelho_distorcido': '🪞',
+            'tetraedro_panico': '🟣',
+            'placa_provocador': '🟨',
+            'lente_fenda': '🔍',
+            'tijolo_exaustivo': '🧱',
+            'circulo_cansaco': '⚪',
+            'seta_marcadora': '🎯',
+            'cunha_serrilhada': '⚙️',
+            'cristal_vitalidade': '💎',
+            'vento_cubico': '💨',
+            'estilhaco_furia': '💥',
+            'mini_escudo_planar': '🛡️',
+            'cacto_geometrico': '🌵',
+            'presa_poligono': '🦷',
+            'peso_balanceador': '⚖️',
+            'motor_hasteado': '⚙️',
+            'frasco_sangue': '🧪',
+            'frasco_veneno': '🧪',
+            'relogio_triangular': '⏳',
+
+            // --- 🟣 ITENS ÉPICOS ---
+            'dodecaedro_carnificina': '🔴',
+            'bastiao_gelo': '🛡️',
+            'casco_toxico': '🐢',
+            'lamina_sanguessuga': '🗡️',
+            'epidemia_acida': '☣️',
+            'olho_aterrorizante': '👁️',
+            'megafone_conico': '📢',
+            'grilhoes_cansaco': '⛓️',
+            'pendulo_curativo': '🎚️',
+            'prisma_duelista': '🔶',
+
+            // --- 🟠 ITENS LENDÁRIOS ---
+            'cubo_infinito': '♾️',
+            'prisma_calamidade': '🔮',
+            'tetraedro_distorcao': '🌀',
+            'coroa_gelida': '👑',
+            'coracao_raziel': '💖'
+        };
+
+
+
+        async function fetchInventory() {
+            try {
+                const res = await fetch('/api/user/data', {
+                    headers: { 'Authorization': `Bearer ${authManager.getToken()}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.inventory) {
+                        inventory = data.inventory.map(itemId => {
+                            const details = ALL_ITEMS[itemId] || { name: itemId, rarity: 'basic' };
+                            return {
+                                id: itemId,
+                                name: details.name,
+                                rarity: details.rarity
+                            };
+                        });
+                    } else {
+                        inventory = [];
+                    }
+                } else {
+                    inventory = [];
+                }
+            } catch(e) {
+                console.warn('Could not fetch inventory from game server API, defaulting to empty');
+                inventory = [];
+            }
+            const savedLoadout = localStorage.getItem('onlinerpg_loadout');
+            if (savedLoadout) {
+                try { selectedLoadout = JSON.parse(savedLoadout); } catch(e){}
+            }
+            renderLoadoutModal();
+        }
+
+        function renderLoadoutModal() {
+            const grid = document.getElementById('inventory-grid');
+            const summary = document.getElementById('loadout-summary-text');
+            const warning = document.getElementById('loadout-modal-warning');
+            const warningBtn = document.getElementById('loadout-warning');
+            
+            grid.innerHTML = '';
+            
+            let legCount = 0, epicCount = 0, basicCount = 0;
+            selectedLoadout = selectedLoadout.filter(itemId => inventory.some(i => i.id === itemId));
+            
+            for(const itemId of selectedLoadout) {
+                const item = inventory.find(i => i.id === itemId) || { rarity: 'basic' };
+                if (item.rarity === 'legendary') legCount++;
+                else if (item.rarity === 'epic') epicCount++;
+                else basicCount++;
+            }
+            
+            let limitExceeded = (legCount > 1 || epicCount > 2 || selectedLoadout.length > 3);
+            if (limitExceeded) {
+                warning.style.display = 'block';
+                warning.textContent = `Limite Excedido! Selecionado: ${legCount} Lend, ${epicCount} Epico, ${selectedLoadout.length}/3 total.`;
+                if (warningBtn) warningBtn.style.display = 'block';
+            } else {
+                warning.style.display = 'none';
+                if (warningBtn) warningBtn.style.display = 'none';
+            }
+            
+            summary.textContent = `${selectedLoadout.length}/3 Itens Equipados`;
+            
+            if(inventory.length === 0) {
+                grid.innerHTML = '<div class="rpg-loadout-desc" style="width:100%; text-align:center; padding: 20px 0; color:#bfa38a;">Seu inventário está vazio. Obtenha itens jogando e negociando pelo site!</div>';
+                return;
+            }
+
+            inventory.forEach(item => {
+                const btn = document.createElement('div');
+                const isSelected = selectedLoadout.includes(item.id);
+                btn.className = `rpg-item-slot rarity-${item.rarity} ${isSelected ? 'selected' : ''}`;
+                btn.setAttribute('data-item-id', item.id);
+                
+                const imageFile = ITEM_IMAGES[item.id] || 'item1.png';
+                
+                btn.innerHTML = `
+                    ${isSelected ? '<span class="rpg-equip-badge">EQUIP</span>' : ''}
+                    <img src="items/${imageFile}" class="rpg-item-icon" style="width: 36px; height: 36px; object-fit: contain; display: block; margin: 4px auto 0;" />
+                    <span class="rpg-item-name">${item.name}</span>
+                `;
+                
+                btn.onclick = (e) => {
+                    e.preventDefault();
+                    if (isSelected) {
+                        selectedLoadout = selectedLoadout.filter(id => id !== item.id);
+                    } else {
+                        let legCount = 0, epicCount = 0, basicCount = 0;
+                        for(const id of selectedLoadout) {
+                            const details = inventory.find(i => i.id === id) || { rarity: 'basic' };
+                            if (details.rarity === 'legendary') legCount++;
+                            else if (details.rarity === 'epic') epicCount++;
+                            else basicCount++;
+                        }
+                        
+                        if (selectedLoadout.length >= 3) {
+                            alert("Você só pode equipar no máximo 3 itens!");
+                            return;
+                        }
+                        
+                        if (item.rarity === 'legendary' && legCount >= 1) {
+                            alert("Limite Lendário Excedido! Você só pode equipar 1 item Lendário.");
+                            return;
+                        }
+                        if (item.rarity === 'epic' && epicCount >= 2) {
+                            alert("Limite Épico Excedido! Você só pode equipar no máximo 2 itens Épicos.");
+                            return;
+                        }
+                        if (item.rarity === 'basic' && basicCount >= 3) {
+                            alert("Limite Básico Excedido! Você só pode equipar no máximo 3 itens Básicos.");
+                            return;
+                        }
+                        
+                        selectedLoadout.push(item.id);
+                    }
+                    localStorage.setItem('onlinerpg_loadout', JSON.stringify(selectedLoadout));
+                    renderLoadoutModal();
+                };
+                grid.appendChild(btn);
+            });
+        }
+
+        document.getElementById('open-loadout-btn').onclick = async (e) => {
+            e.preventDefault();
+            await fetchInventory();
+            document.getElementById('loadout-modal').style.display = 'flex';
+        };
+        document.getElementById('close-loadout-btn').onclick = (e) => {
+            e.preventDefault();
+            document.getElementById('loadout-modal').style.display = 'none';
+        };
+
+        function getLoadout() {
+            return selectedLoadout;
+        }
+
+        // --- End Loadout ---
+
         loadBuild();
         renderTowerSelector();
+        fetchInventory();
 
         // --- Auth Logic ---
         function showLogin() {
@@ -1229,10 +1959,32 @@
             net = new NetworkClient();
             window.net = net;
 
+            // PC Queue
+            pcBtn.addEventListener('click', () => {
+                const token = authManager.getToken();
+                platform = 'pc';
+                queueStatus.style.display = 'block';
+                queueText.textContent = 'Entrando na fila...';
+                pcBtn.disabled = true; mobileBtn.disabled = true;
+                net.joinQueueWithToken(token, getCurrentBuild(), getLoadout(), platform);
+                net.selectPlatform(platform);
+            });
+
+            // Mobile Queue
+            mobileBtn.addEventListener('click', () => {
+                const token = authManager.getToken();
+                platform = 'mobile';
+                queueStatus.style.display = 'block';
+                queueText.textContent = 'Entrando na fila...';
+                pcBtn.disabled = true; mobileBtn.disabled = true;
+                net.joinQueueWithToken(token, getCurrentBuild(), getLoadout(), platform);
+                net.selectPlatform(platform);
+            });
+
             // Register event handlers BEFORE connecting to avoid race conditions
             net.on('welcome', () => {
                 queueText.textContent = 'Procurando partida...';
-                net.joinQueueWithToken(token, getCurrentBuild());
+                net.joinQueueWithToken(token, getCurrentBuild(), getLoadout(), platform);
                 net.selectPlatform(platform);
             });
 
@@ -1278,6 +2030,11 @@
                 } else if (ev.event === 'HIT_NUMBER' && damageTextManager && camera && renderer) {
                     const d = ev.data;
                     damageTextManager.showDamage(d.x, d.y, d.z, d.value, d.type, camera, renderer.domElement);
+                } else if (ev.event === 'LOADOUT_LEVEL_UP') {
+                    if (hudManager) {
+                        hudManager.showEvent('↑ Nível de Loadout Aumentou! Item Multiplier Ativo!');
+                        window.dispatchEvent(new Event('loadout-level-up'));
+                    }
                 }
             });
 
@@ -1306,6 +2063,28 @@
                         const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`;
                         return `<p>${medal} ${s.playerName} — ${s.score} pts</p>`;
                     }).join('');
+                
+                // Show Drops
+                if (data.droppedItems && data.droppedItems.length > 0) {
+                    const myDrops = data.droppedItems.filter(d => d.playerId === net.playerId).map(d => d.itemId);
+                    if (myDrops.length > 0) {
+                        list.innerHTML += '<h3 style="color:#f1c40f;margin-top:20px;text-align:center;">📦 Itens Recebidos</h3>';
+                        let itemsHtml = '<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:10px;">';
+                        myDrops.forEach(itemId => {
+                            const details = ALL_ITEMS[itemId] || { name: itemId, rarity: 'basic' };
+                            const imageFile = ITEM_IMAGES[itemId] || 'item1.png';
+                            let color = '#bdc3c7'; // basic
+                            if (details.rarity === 'legendary') color = '#f1c40f';
+                            else if (details.rarity === 'epic') color = '#9b59b6';
+                            itemsHtml += `<div data-item-id="${itemId}" style="padding:10px; border:2px solid ${color}; border-radius:5px; color:${color}; font-size:0.75rem; display:flex; align-items:center; gap:5px; cursor: pointer;"><img src="items/${imageFile}" style="width:20px; height:20px; object-fit:contain;" /> ${details.name}</div>`;
+                        });
+                        itemsHtml += '</div>';
+                        list.innerHTML += itemsHtml;
+                        // Reload inventory
+                        fetchInventory();
+                    }
+                }
+
                 fetchRanking(document.getElementById('leaderboard-list-gameover'));
             });
 
@@ -1389,6 +2168,7 @@
 
             // Init systems
             snapshotRenderer = new SnapshotRenderer(scene);
+            window.snapshotRenderer = snapshotRenderer;
             inputManager = new InputManager(net);
             inputManager.setup(platform, camera, scene);
             hudManager = new HUDManager(playerId);
@@ -1462,6 +2242,276 @@
 
         // Load initial ranking
         fetchRanking(document.getElementById('leaderboard-list-start'));
+
+        // Setup RPG item & tower tooltips
+        function setupTooltips() {
+            const tooltip = document.getElementById('rpg-item-tooltip');
+            if (!tooltip) return;
+
+            const rarityLabels = {
+                basic: 'Item Básico',
+                epic: 'Item Épico',
+                legendary: 'Item Lendário'
+            };
+
+            const detailedDescs = {
+                // Q Upgrades
+                q_impacto_estilhacante: 'Estilhace as defesas inimigas com seu dash. As esferas geradas pela habilidade aplicam Fratura de Armadura por 4 segundos, reduzindo a defesa física/mágica do alvo em 25%. Adicionalmente, reduz permanentemente o tempo de recarga da habilidade em 1 segundo.',
+                q_rastro_polvora: 'Deixe um rastro explosivo de destruição. Cada avanço do seu dash espalha minas terrestres a cada 0.1 segundo ao longo da trajetória. Inimigos que pisarem nas minas sofrem dano explosivo imediato e um efeito de queimadura contínuo por 3 segundos.',
+                q_convergencia_assassina: 'Foque todo o seu poder em uma rajada concentrada. O cone de dispersão das esferas do dash é estreitado significativamente. Se 3 ou mais esferas atingirem o mesmo inimigo, ele sofrerá Silêncio por 2 segundos e você ganhará +30% de Velocidade de Ataque por 4 segundos.',
+                // W Upgrades
+                w_campo_hemorragia: 'Uma onda de choque brutal que perfura a carne. Todos os inimigos repelidos pela habilidade de repulsão sofrem Sangramento por 5 segundos, recebendo dano contínuo equivalente a 10% do seu dano de ataque atual a cada segundo.',
+                w_refracao_vital: 'Absorva e transmutar a energia dos ataques hostis. Cada projétil inimigo refletido de volta restaura instantaneamente 3% da sua vida máxima. Caso consiga refletir 3 ou mais projéteis em uma única conjuração, todos os debuffs ativos no seu personagem serão totalmente purificados.',
+                w_vacuo_magnetico: 'Inverta a polaridade da onda de repulsão. Em vez de empurrar as ameaças para longe, a habilidade cria um poderoso vácuo gravitacional que puxa todos os inimigos no raio de ação em direção a você, aplicando uma lentidão de 70% por 3 segundos.',
+                // E Upgrades
+                e_carapaca_reativa: 'Transforme o seu escudo em uma arma de contra-ataque. Enquanto o escudo de vida estiver ativo, 50% de qualquer dano recebido e absorvido é redirecionado de volta ao atacante na forma de um projétil de energia veloz guiado automaticamente.',
+                e_bateria_sobrecarga: 'Aproveite a agressão inimiga para evoluir. Cada ponto de dano retido pelo seu escudo de vida converte 10% do seu valor diretamente em Pontos de Experiência (XP), acelerando o seu progresso rumo ao próximo nível.',
+                e_fortaleza_inabalavel: 'Erija uma barreira colossal e inquebrável. O valor máximo do seu escudo é duplicado (alcançando até 3x a sua vida máxima). Enquanto este escudo estiver ativo, você se torna totalmente imune a quaisquer efeitos de controle de grupo, como Atordoamento, Congelamento e Enraizamento.',
+                // R Upgrades
+                r_furia_infinita: 'Alimente o seu poder com as almas dos caídos. Cada inimigo derrotado enquanto o Modo Divino estiver ativo estenderá a duração da sua Ultimate em 1 segundo adicional, permitindo manter o estado de fúria por tempo indefinido.',
+                r_distorcao_temporal: 'Manipule o fluxo do tempo ao seu redor. Ao ativar o Modo Divino, a recarga de todas as suas habilidades básicas (Q, W e E) é drasticamente reduzida para apenas 1 segundo, permitindo uma conjuração em cadeia implacável.',
+                r_singularidade_colapso: 'Converta dor em destruição total. Durante a Ultimate, todo o dano que você mitigar ou evitar é armazenado em um núcleo instável. Quando o Modo Divino expira, o núcleo entra em colapso e explode, causando 200% do dano armazenado em uma vasta área (raio 20).',
+                // Red Mutations
+                r_chuva_tetraedros: 'Convoque uma tempestade geométrica destrutiva. Um fluxo incessante de meteoros tetraédricos desaba sobre a área selecionada, causando dano de fogo massivo e contínuo a cada 0.25 segundos a todos os inimigos presentes durante 4 segundos.',
+                r_raio_oblivio: 'Canalize uma linha pura de aniquilação cósmica. Dispare um gigantesco feixe de energia concentrada in linha reta. Inimigos atingidos pelo feixe têm sua resistência reduzida e sofrem dano de calor contínuo massivo a cada frame enquanto permanecerem no feixe.',
+                r_corte_dimensional: 'Transcenda as barreiras do espaço físico. Aumenta sua velocidade de movimento em 100% e inicia uma série de avanços e cortes ultrarrápidos contra os inimigos em sequência, aplicando dano crítico garantido e deixando rastros de corte no espaço.',
+                // Green Mutations
+                r_bastiao_titanio: 'Torne-se uma muralha viva impenetrável. Conjura instantaneamente uma barreira de titânio que concede um escudo equivalente a 100% da sua vida máxima. Enquanto o escudo durar (até 6 segundos), você ganha imunidade total a todo tipo de dano e efeitos negativos.',
+                r_terremoto_geometrico: 'Faça a terra tremer sob os pés da horda. Desencadeia ondas de choque sísmicas contínuas ao seu redor a cada segundo. Cada pulso causa dano terrestre massivo em área e atordoa (Stun) todos os alvos atingidos por 1 segundo.',
+                r_armadura_reativa: 'Uma carapaça espinhosa carregada de energia de retribuição. Por toda a duração, 50% de qualquer dano recebido por você é refletido instantaneamente como dano puro de volta ao agressor. Cada ataque refletido também deixa o atacante atordoado por 1 segundo.',
+                // Purple Mutations
+                r_singularidade: 'Domine a gravidade do próprio vazio. Dispara uma esfera de energia gravitacional que explode no destino ou ao colidir, gerando um buraco negro que atrai violentamente todos os inimigos próximos ao seu centro por 4 segundos, causando dano por segundo.',
+                r_distorcao_temporal_mut: 'Altere as leis do tempo local. Cria um campo de distorção temporal em área. Inimigos que entram no campo são congelados no tempo (Paralizados/Slow 99%), enquanto a recarga de suas magias básicas recarrega 80% mais rápido dentro dele.',
+                r_reset_dimensional: 'Salte pelas dimensões instantaneamente. Executa um teletransporte (Blink) rápido na direção do cursor e, ao conjurar a ultimate, zera instantaneamente o tempo de recarga de suas habilidades básicas (Q, W, E) e concede 30% de Velocidade de Movimento.',
+                // Poison Mutations
+                r_campo_fungos: 'Semeie uma floresta de fungos ocultos. O mapa gera cogumelos invisíveis de forma aleatória. Quando um inimigo pisa neles, o cogumelo explode liberando esporos que aplicam 5 acúmulos de veneno e 80% de lentidão em área por 4 segundos.',
+                r_olhar_gorgona: 'Canalize a maldição petrificante. Dispara uma rajada de energia visual em cone. Inimigos voltados de frente para você são petrificados (atordoados por 4 segundos). Inimigos de costas ou de lado sofrem 80% de lentidão e dano reduzido.',
+                r_raio_peste: 'Dissemine a peste negra em massa. Durante 8 segundos, o alcance de seus ataques básicos se torna extremo e eles são convertidos em feixes laser contínuos e penetrantes, atravessando múltiplos inimigos e aplicando veneno instantâneo.'
+            };
+
+            const TOWER_PASSIVES = {
+                red: {
+                    1: [
+                        'Aumenta o Dano Físico global do jogador em 15%.',
+                        'Aumenta a Velocidade de Movimento global em 10%.',
+                        'Concede +20% de Chance de Acerto Crítico.'
+                    ],
+                    2: [
+                        'Recupera Vida equivalente a 10% do Dano Físico causado (Roubo de Vida).',
+                        'Causa +20% de Dano Físico quando sua vida estiver abaixo de 30%.',
+                        'Seus ataques normais ignoram 25% da armadura do inimigo.'
+                    ],
+                    3: [
+                        'Seu dano aumenta progressivamente a cada ataque consecutivo no mesmo alvo.',
+                        'Ataques básicos causam dano a múltiplos inimigos em cone (Dano Cleave).',
+                        'Aumenta seu Dano Físico em +70%, mas reduz a Velocidade de Ataque em 30%.'
+                    ],
+                    4: [
+                        'Abates de inimigos curam você e concedem velocidade temporária.',
+                        'A cada 4 ataques normais no mesmo alvo, causa uma explosão em área.',
+                        'Dobra todo o seu Dano Físico quando sua vida estiver abaixo de 20%.'
+                    ]
+                },
+                green: {
+                    1: [
+                        'Aumenta a sua Vida Máxima global em 25%.',
+                        'Reduz todo dano recebido em um valor fixo constante.',
+                        'Garante imunidade total a efeitos de empurrão (Knockback).'
+                    ],
+                    2: [
+                        'Regenera passivamente 1% da sua vida máxima a cada segundo.',
+                        'Ganha +30% de Defesa (Armadura) enquanto seu HP estiver acima de 80%.',
+                        'Espinhos: Reflete 15% de todo dano recebido de volta para o atacante.'
+                    ],
+                    3: [
+                        'Seus ataques provocam (Taunt) inimigos próximos, forçando-os a focar em você.',
+                        'Emite uma aura que reduz o dano recebido por você e aliados próximos em 15%.',
+                        'Dobra os efeitos de qualquer cura proveniente de itens e poções.'
+                    ],
+                    4: [
+                        'Ganha um escudo protetor temporário após passar 5 segundos fora de combate.',
+                        'Evita a morte uma vez, restaurando 50% de HP e ativando imunidade de 3s.',
+                        'Quando o escudo de vida (Skill E) é quebrado, causa uma explosão em área.'
+                    ]
+                },
+                purple: {
+                    1: [
+                        'Aumenta a capacidade máxima do seu escudo de energia em 25%.',
+                        'Aumenta a Velocidade de Movimento global em 15%.',
+                        'Reduz o tempo de recarga (CDR) de todas as suas habilidades.'
+                    ],
+                    2: [
+                        'Seu próximo ataque após conjurar uma habilidade causa dano mágico bônus.',
+                        'Escudo Defletor: Cura você em 30% do dano absorvido pelo seu escudo.',
+                        'Vampirismo Mágico: Recupera vida com base no dano causado por habilidades.'
+                    ],
+                    3: [
+                        'Ganha +10% de chance de esquivar completamente de qualquer dano recebido.',
+                        'Seus ataques normais aplicam lentidão (Slow) de movimento nos inimigos.',
+                        'Ganha chance de spawnar orbes de energia adicionais ao golpear inimigos.'
+                    ],
+                    4: [
+                        'Abater inimigos zera instantaneamente a recarga de suas magias básicas.',
+                        'Aumenta a hitbox e área de efeito de todas as suas habilidades em 30%.',
+                        'Emite uma aura ácida contínua que causa dano periódico a inimigos próximos.'
+                    ]
+                },
+                poison: {
+                    1: [
+                        'Aumenta a Velocidade de Ataque global do jogador em 20%.',
+                        'Aumenta a Velocidade de Movimento permanente em 15%.',
+                        'Tiro Tóxico: Seus ataques normais aplicam stacks de Veneno.'
+                    ],
+                    2: [
+                        'Passos Leves: Ganha +20% de Velocidade de Movimento.',
+                        'Presas Gêmeas: Ataques normais contra alvos envenenados curam sua vida.',
+                        'Dispara dardos cegantes que aplicam Cegueira (Blind) no inimigo.'
+                    ],
+                    3: [
+                        'Miasma Menor: Inimigos mortos sob veneno explodem gerando poças de ácido.',
+                        'Toxina Paralisante: Seu veneno reduz a velocidade de movimento do alvo.',
+                        'Foco Infeccioso: Inimigos envenenados sofrem +20% de dano de todas as fontes.'
+                    ],
+                    4: [
+                        'Contaminação: Permite detonar o veneno acumulado nos alvos para dano massivo.',
+                        'Gera cogumelos explosivos no chão (estilo Teemo) que causam envenenamento.',
+                        'Ao abater um inimigo, espalha todos os stacks de veneno dele para alvos próximos.'
+                    ]
+                }
+            };
+
+            document.addEventListener('mouseover', (e) => {
+                // 1. Check for item slots
+                const itemTarget = e.target.closest('[data-item-id]');
+                if (itemTarget) {
+                    const itemId = itemTarget.getAttribute('data-item-id');
+                    const item = ALL_ITEMS[itemId];
+                    if (!item) return;
+
+                    tooltip.className = `rpg-item-tooltip show rarity-${item.rarity}`;
+                    tooltip.innerHTML = `
+                        <div class="rpg-item-tooltip-name">${item.name}</div>
+                        <div class="rpg-item-tooltip-rarity">${rarityLabels[item.rarity] || 'Item'}</div>
+                        <div class="rpg-item-tooltip-divider"></div>
+                        <div class="rpg-item-tooltip-info">Tipo: Equipável</div>
+                        <div class="rpg-item-tooltip-info">Nível Mínimo: 1</div>
+                        <div class="rpg-item-tooltip-divider"></div>
+                        <div class="rpg-item-tooltip-section">Propriedades do Item</div>
+                        <div class="rpg-item-tooltip-opt">• ${item.desc || 'Sem efeito especial.'}</div>
+                    `;
+                    updateTooltipPosition(e);
+                    return;
+                }
+
+                // 2. Check for tower floor options
+                const towerTarget = e.target.closest('[data-tower]');
+                if (towerTarget) {
+                    const towerId = towerTarget.getAttribute('data-tower');
+                    const floorNum = towerTarget.getAttribute('data-floor');
+                    const optionIdx = parseInt(towerTarget.getAttribute('data-option-idx'), 10);
+                    
+                    const towerNames = {
+                        red: { name: 'Torre Vermelha', color: '#ff4d4d' },
+                        green: { name: 'Torre Verde', color: '#4dff4d' },
+                        purple: { name: 'Torre Roxa', color: '#d44dff' },
+                        poison: { name: 'Torre do Veneno', color: '#10b981' }
+                    };
+
+                    const tower = towerNames[towerId] || { name: 'Torre', color: '#fff' };
+                    const desc = TOWER_PASSIVES[towerId]?.[floorNum]?.[optionIdx] || 'Sem descrição cadastrada.';
+                    const optionTitle = towerTarget.textContent || 'Opção da Torre';
+
+                    tooltip.className = `rpg-item-tooltip show`;
+                    tooltip.style.borderColor = tower.color;
+                    tooltip.style.boxShadow = `0 10px 25px ${tower.color}44, inset 0 0 10px rgba(0,0,0,0.85)`;
+                    
+                    tooltip.innerHTML = `
+                        <div class="rpg-item-tooltip-name" style="color: ${tower.color};">${optionTitle}</div>
+                        <div class="rpg-item-tooltip-rarity" style="color: #aaa;">Andar ${floorNum} — ${tower.name}</div>
+                        <div class="rpg-item-tooltip-divider"></div>
+                        <div class="rpg-item-tooltip-info" style="color: #a89280;">Habilidade Passiva da Essência</div>
+                        <div class="rpg-item-tooltip-divider"></div>
+                        <div class="rpg-item-tooltip-section">Efeito Detalhado</div>
+                        <div class="rpg-item-tooltip-opt" style="color: #fff;">• ${desc}</div>
+                    `;
+                    updateTooltipPosition(e);
+                    return;
+                }
+
+                // 3. Check for upgrade options
+                const upgradeTarget = e.target.closest('[data-upgrade-id]');
+                if (upgradeTarget) {
+                    const upgradeId = upgradeTarget.getAttribute('data-upgrade-id');
+                    const skill = upgradeTarget.getAttribute('data-upgrade-skill');
+                    
+                    const titleEl = upgradeTarget.querySelector('.upgrade-option-title');
+                    const title = titleEl ? titleEl.textContent : 'Aprimoramento';
+                    
+                    const desc = detailedDescs[upgradeId] || 'Sem descrição detalhada disponível.';
+                    const skillNames = { q: 'Dash + Esferas (Q)', w: 'Repulsão (W)', e: 'Escudo de Vida (E)', r: 'Ultimate (R)' };
+                    const skillName = skillNames[skill] || 'Habilidade';
+
+                    tooltip.className = `rpg-item-tooltip show`;
+                    tooltip.style.borderColor = '#00e5ff';
+                    tooltip.style.boxShadow = `0 10px 25px rgba(0, 229, 255, 0.4), inset 0 0 10px rgba(0,0,0,0.85)`;
+                    
+                    tooltip.innerHTML = `
+                        <div class="rpg-item-tooltip-name" style="color: #00e5ff; text-shadow: 0 0 5px rgba(0, 229, 255, 0.4), 1px 1px 2px rgba(0,0,0,0.8);">${title}</div>
+                        <div class="rpg-item-tooltip-rarity" style="color: #a5f3fc;">Aprimoramento — ${skillName}</div>
+                        <div class="rpg-item-tooltip-divider" style="background: linear-gradient(90deg, transparent, #00e5ff 20%, #00e5ff 80%, transparent);"></div>
+                        <div class="rpg-item-tooltip-info" style="color: #0284c7;">Efeito de Nível</div>
+                        <div class="rpg-item-tooltip-divider" style="background: linear-gradient(90deg, transparent, #00e5ff 20%, #00e5ff 80%, transparent);"></div>
+                        <div class="rpg-item-tooltip-section" style="color: #38bdf8;">Efeito Detalhado</div>
+                        <div class="rpg-item-tooltip-opt" style="color: #e2e8f0;">• ${desc}</div>
+                    `;
+                    updateTooltipPosition(e);
+                    return;
+                }
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (tooltip.classList.contains('show')) {
+                    updateTooltipPosition(e);
+                }
+            });
+
+            document.addEventListener('mouseout', (e) => {
+                const itemTarget = e.target.closest('[data-item-id]');
+                const towerTarget = e.target.closest('[data-tower]');
+                const upgradeTarget = e.target.closest('[data-upgrade-id]');
+                if (itemTarget || towerTarget || upgradeTarget) {
+                    tooltip.classList.remove('show');
+                    setTimeout(() => {
+                        if (!tooltip.classList.contains('show')) {
+                            tooltip.style.display = 'none';
+                            tooltip.style.borderColor = ''; // reset border override
+                            tooltip.style.boxShadow = ''; // reset shadow override
+                        }
+                    }, 100);
+                }
+            });
+
+            function updateTooltipPosition(e) {
+                tooltip.style.display = 'block';
+                
+                const tooltipWidth = tooltip.offsetWidth;
+                const tooltipHeight = tooltip.offsetHeight;
+                
+                let left = e.clientX + 15;
+                let top = e.clientY + 15;
+                
+                if (left + tooltipWidth > window.innerWidth) {
+                    left = e.clientX - tooltipWidth - 15;
+                }
+                if (top + tooltipHeight > window.innerHeight) {
+                    top = window.innerHeight - tooltipHeight - 15;
+                }
+                
+                tooltip.style.left = `${left}px`;
+                tooltip.style.top = `${top}px`;
+            }
+        }
+        setupTooltips();
     </script>
 </body>
 </html>

@@ -11,6 +11,7 @@ interface QueuedPlayer {
     joinedAt: number;
     platform: 'pc' | 'mobile';
     build?: PlayerBuild;
+    loadout?: string[];
 }
 
 export class MatchmakingService {
@@ -23,10 +24,10 @@ export class MatchmakingService {
         this.checkInterval = setInterval(() => this.processQueue(), 1000);
     }
 
-    addToQueue(playerId: string, playerName: string, ws: WebSocket, platform: 'pc' | 'mobile' = 'pc', build?: PlayerBuild): void {
+    addToQueue(playerId: string, playerName: string, ws: WebSocket, platform: 'pc' | 'mobile' = 'pc', build?: PlayerBuild, loadout?: string[]): void {
         // Remove if already in queue
         this.queue = this.queue.filter(p => p.id !== playerId);
-        this.queue.push({ id: playerId, name: playerName, ws, joinedAt: Date.now(), platform, build });
+        this.queue.push({ id: playerId, name: playerName, ws, joinedAt: Date.now(), platform, build, loadout });
         console.log(`[Matchmaking] ${playerName} joined queue (${this.queue.length} in queue) [${platform}]`);
         this.sendQueueStatus();
         this.processQueue();
@@ -65,7 +66,9 @@ export class MatchmakingService {
         // Handle messages from players in queue (not yet in room)
         if (msg.type === 'SELECT_PLATFORM') {
             this.setPlayerPlatform(playerId, msg.payload.platform);
-            return;
+            if (!this.isPlayerInRoom(playerId)) {
+                return;
+            }
         }
         // Forward to room if player is in one
         const roomId = this.playerToRoom.get(playerId);
@@ -114,7 +117,7 @@ export class MatchmakingService {
         const playerInfos = players.map(p => ({ id: p.id, name: p.name }));
 
         for (const p of players) {
-            room.addPlayer(p.id, p.name, p.ws, p.platform, p.build);
+            room.addPlayer(p.id, p.name, p.ws, p.platform, p.build, p.loadout);
             this.playerToRoom.set(p.id, room.id);
             const msg: ServerMessage = { type: 'MATCH_FOUND', payload: { roomId: room.id, players: playerInfos } };
             if (p.ws.readyState === WebSocket.OPEN) p.ws.send(JSON.stringify(msg));

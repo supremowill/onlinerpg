@@ -113,16 +113,16 @@ export class NetworkClient {
             this.ws.send(JSON.stringify(msg));
         }
     }
-    joinQueue(name, build) { this.send({ type: 'JOIN_QUEUE', payload: { name, build } }); }
-    joinQueueWithToken(token, build) { this.send({ type: 'JOIN_QUEUE', payload: { token, build } }); }
+    joinQueue(name, build, loadout, platform) { this.send({ type: 'JOIN_QUEUE', payload: { name, build, loadout, platform } }); }
+    joinQueueWithToken(token, build, loadout, platform) { this.send({ type: 'JOIN_QUEUE', payload: { token, build, loadout, platform } }); }
     leaveQueue() { this.send({ type: 'LEAVE_QUEUE' }); }
     selectPlatform(platform) { this.send({ type: 'SELECT_PLATFORM', payload: { platform } }); }
 
-    sendInput(keys, mouseX, mouseY, joystickX, joystickY, worldX, worldZ) {
+    sendInput(keys, mouseX, mouseY, joystickX, joystickY, worldX, worldZ, isAiming) {
         if (!this.connected) return;
         this.send({
             type: 'INPUT_STATE',
-            payload: { keys, mouseX, mouseY, joystickX, joystickY, worldX, worldZ }
+            payload: { keys, mouseX, mouseY, joystickX, joystickY, worldX, worldZ, isAiming }
         });
     }
 
