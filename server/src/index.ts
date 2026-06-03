@@ -10,6 +10,7 @@ import { createPlayer, findPlayerByUsername, validatePlayer, generateJWT, verify
 import { CONFIG } from './config';
 import { loadGameData } from './data/GameDataLoader';
 import { LootEngine } from './game/LootEngine';
+import { weeklyAwardService } from './services/WeeklyAwardService';
 
 // ============================================================
 // DATA-DRIVEN PIPELINE: Carregar game_data.json no startup
@@ -78,6 +79,35 @@ app.use((req, res, next) => {
     }
 });
 app.use(express.json());
+
+async function requireAdmin(req: express.Request, res: express.Response): Promise<boolean> {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) {
+        res.status(401).json({ error: 'No token provided' });
+        return false;
+    }
+
+    const token = authHeader.split(' ')[1];
+    const payload = verifyJWT(token);
+    if (!payload) {
+        res.status(401).json({ error: 'Invalid token' });
+        return false;
+    }
+
+    const player = await findPlayerByUsername(payload.username);
+    if (!player || !player.is_admin || player.is_blocked) {
+        res.status(403).json({ error: 'Admin access required' });
+        return false;
+    }
+
+    return true;
+}
+
+function hasWeeklyAwardSecret(req: express.Request): boolean {
+    const expected = process.env.WEEKLY_AWARD_SECRET || CONFIG.JWT_SECRET;
+    const provided = req.headers['x-weekly-award-secret'] || req.query.secret;
+    return typeof provided === 'string' && provided.length > 0 && provided === expected;
+}
 
 // Init DB (will retry on failure, server starts even if DB is down)
 let dbInitialized = false;
@@ -148,6 +178,38 @@ app.get('/api/ranking/average', async (_, res) => {
 app.get('/api/ranking/weekly', async (_, res) => {
     try { res.json(await rankingService.getLeaderboardByAverageWeekly(50)); }
     catch (e) { res.status(500).json({ error: 'Failed to fetch weekly ranking' }); }
+});
+
+app.get('/api/admin/weekly-awards', async (req, res) => {
+    try {
+        if (!(await requireAdmin(req, res))) return;
+        const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '30'), 10) || 30));
+        res.json(await weeklyAwardService.listAwards(limit));
+    } catch (e: any) {
+        res.status(500).json({ error: 'Failed to fetch weekly awards', detail: e.message });
+    }
+});
+
+app.post('/api/admin/weekly-awards/process', async (req, res) => {
+    try {
+        if (!(await requireAdmin(req, res))) return;
+        const result = await weeklyAwardService.processPreviousWeek({ force: req.body?.force === true });
+        res.json(result);
+    } catch (e: any) {
+        res.status(500).json({ error: 'Failed to process weekly award', detail: e.message });
+    }
+});
+
+app.post('/api/internal/weekly-awards/process', async (req, res) => {
+    try {
+        if (!hasWeeklyAwardSecret(req)) {
+            return res.status(403).json({ error: 'Invalid weekly award secret' });
+        }
+        const result = await weeklyAwardService.processPreviousWeek();
+        res.json(result);
+    } catch (e: any) {
+        res.status(500).json({ error: 'Failed to process weekly award', detail: e.message });
+    }
 });
 
 app.get('/api/dashboard', async (req, res) => {

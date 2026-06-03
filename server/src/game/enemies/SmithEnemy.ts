@@ -180,9 +180,13 @@ export class SmithEnemy extends ServerEnemy {
 
     addClone(pos: Vec3, gameEngine: any): void {
         const { CloneSmithEnemy } = require('./Minions');
-        const clone = new CloneSmithEnemy(pos, this.id, gameEngine.globalMultiplier || 1.0);
+        const clone = new CloneSmithEnemy(pos, this.id, 1.0);
         clone.position.y = 1.0;
-        gameEngine.enemies.push(clone);
+        if (typeof gameEngine.addEnemy === 'function') {
+            gameEngine.addEnemy(clone, 'smith:addClone');
+        } else {
+            gameEngine.enemies.push(clone);
+        }
         this.cloneIds.add(clone.id);
         console.log('[Smith] Clone added, total=' + this.cloneIds.size);
     }

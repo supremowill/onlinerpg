@@ -1367,7 +1367,7 @@
     <script type="module">
         import * as THREE from 'three';
         import { NetworkClient } from './js/NetworkClient.js';
-        import { SnapshotRenderer } from './js/SnapshotRenderer.js?v=1.0.6';
+        import { SnapshotRenderer } from './js/SnapshotRenderer.js?v=1.0.7';
         import { InputManager } from './js/InputManager.js';
         import { HUDManager } from './js/HUDManager.js?v=1.0.4';
         import { AuthManager } from './js/auth.js';
@@ -1893,22 +1893,7 @@
 
         // --- Restart button (play again) ---
         document.getElementById('restart-button').addEventListener('click', () => {
-            // Hide game over screen and HUD
-            document.getElementById('game-over-screen').style.display = 'none';
-            document.getElementById('player-hud').style.display = 'none';
-            document.getElementById('multiplayer-scoreboard').style.display = 'none';
-            // Show start screen with platform selection
-            startScreen.style.display = 'flex';
-            changelogManager.show();
-            pcBtn.disabled = false;
-            mobileBtn.disabled = false;
-            // Clean up old game state
-            if (net) { try { net.disconnect(); } catch(e){} net = null; }
-            if (snapshotRenderer) { snapshotRenderer.dispose(); snapshotRenderer = null; }
-            if (renderer) { renderer.dispose(); renderer.domElement.remove(); renderer = null; }
-            if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; }
-            if (hudManager) { hudManager = null; }
-            scene = null; camera = null; clock = null;
+            window.location.reload();
         });
 
         loginTab.addEventListener('click', showLogin);

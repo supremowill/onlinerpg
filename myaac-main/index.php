@@ -295,6 +295,7 @@ function get_template_menus() {
     if ($isAdmin) {
         $account_menu[] = ['name' => 'Bloquear Usuários', 'link' => 'admin/block', 'link_full' => '?subtopic=admin/block', 'target_blank' => '', 'style_color' => 'style="color: #ff3333 !important; font-weight:bold;"'];
         $account_menu[] = ['name' => 'Balanceamento de Jogo', 'link' => 'admin/balance', 'link_full' => '?subtopic=admin/balance', 'target_blank' => '', 'style_color' => 'style="color: #ff9900 !important; font-weight:bold;"'];
+        $account_menu[] = ['name' => 'Premiações Semanais', 'link' => 'admin/weekly_awards', 'link_full' => '?subtopic=admin/weekly_awards', 'target_blank' => '', 'style_color' => 'style="color: #66ccff !important; font-weight:bold;"'];
         $account_menu[] = ['name' => 'Admin Watch (Live)', 'link' => 'admin_watch', 'link_full' => '?subtopic=admin_watch', 'target_blank' => '', 'style_color' => 'style="color: #00ff00 !important; font-weight:bold;"'];
         $account_menu[] = ['name' => 'Imagens dos Itens', 'link' => 'admin/item_images', 'link_full' => '?subtopic=admin/item_images', 'target_blank' => '', 'style_color' => 'style="color: #ffcc00 !important; font-weight:bold;"'];
     }
@@ -653,17 +654,52 @@ if ($subtopic === 'player_builds') {
         try {
             $sql = "
                 WITH weekly_ranked AS (
-                    SELECT player_name, score,
-                           ROW_NUMBER() OVER (PARTITION BY player_name ORDER BY score DESC) as rn
+                    SELECT id, player_name, LOWER(player_name) AS player_key, score, created_at,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY LOWER(player_name)
+                               ORDER BY score DESC, created_at ASC, id ASC
+                           ) as rn
                     FROM ranking
                     WHERE created_at >= date_trunc('week', NOW() - INTERVAL '1 minute') + INTERVAL '1 minute'
+                ),
+                top10 AS (
+                    SELECT * FROM weekly_ranked WHERE rn <= 10
+                ),
+                top10_best AS (
+                    SELECT player_key, created_at AS best_score_at
+                    FROM (
+                        SELECT player_key, created_at,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY player_key
+                                   ORDER BY score DESC, created_at ASC, id ASC
+                               ) AS best_rn
+                        FROM top10
+                    ) best
+                    WHERE best_rn = 1
+                ),
+                player_totals AS (
+                    SELECT LOWER(player_name) AS player_key, COUNT(*) AS total_valid_matches
+                    FROM ranking
+                    WHERE created_at >= date_trunc('week', NOW() - INTERVAL '1 minute') + INTERVAL '1 minute'
+                    GROUP BY LOWER(player_name)
                 )
-                SELECT player_name, ROUND(AVG(score)) as avg_score
-                FROM weekly_ranked
-                WHERE rn <= 10
-                GROUP BY player_name
+                SELECT MIN(t.player_name) AS player_name,
+                       ROUND(AVG(t.score)::numeric, 1) as avg_score,
+                       SUM(t.score)::integer as top10_sum,
+                       MAX(t.score)::integer as best_score,
+                       MAX(pt.total_valid_matches)::integer as total_valid_matches,
+                       b.best_score_at as best_score_at
+                FROM top10 t
+                JOIN player_totals pt ON pt.player_key = t.player_key
+                JOIN top10_best b ON b.player_key = t.player_key
+                GROUP BY t.player_key, b.best_score_at
                 HAVING COUNT(*) >= 10
-                ORDER BY avg_score DESC
+                ORDER BY avg_score DESC,
+                         top10_sum DESC,
+                         best_score DESC,
+                         total_valid_matches DESC,
+                         best_score_at ASC,
+                         MIN(t.player_name) ASC
                 LIMIT 1";
             $stmt = $pdo->query($sql);
             $leader = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -841,22 +877,55 @@ if ($subtopic === 'player_builds') {
             try {
                 $sql = "
                     WITH weekly_ranked AS (
-                        SELECT player_name, score, collapse_level, kills, deaths,
-                                ROW_NUMBER() OVER (PARTITION BY player_name ORDER BY score DESC) as rn
+                        SELECT id, player_name, LOWER(player_name) AS player_key, score, collapse_level, kills, deaths, created_at,
+                                ROW_NUMBER() OVER (
+                                    PARTITION BY LOWER(player_name)
+                                    ORDER BY score DESC, created_at ASC, id ASC
+                                ) as rn
                         FROM ranking
                         WHERE created_at >= date_trunc('week', NOW() - INTERVAL '1 minute') + INTERVAL '1 minute'
+                    ),
+                    top10 AS (
+                        SELECT * FROM weekly_ranked WHERE rn <= 10
+                    ),
+                    top10_best AS (
+                        SELECT player_key, created_at AS best_score_at
+                        FROM (
+                            SELECT player_key, created_at,
+                                   ROW_NUMBER() OVER (
+                                       PARTITION BY player_key
+                                       ORDER BY score DESC, created_at ASC, id ASC
+                                   ) AS best_rn
+                            FROM top10
+                        ) best
+                        WHERE best_rn = 1
+                    ),
+                    player_totals AS (
+                        SELECT LOWER(player_name) AS player_key, COUNT(*) AS total_valid_matches
+                        FROM ranking
+                        WHERE created_at >= date_trunc('week', NOW() - INTERVAL '1 minute') + INTERVAL '1 minute'
+                        GROUP BY LOWER(player_name)
                     )
-                    SELECT player_name, 
-                           ROUND(AVG(score)) as avg_score, 
-                           MAX(collapse_level) as max_level,
-                           SUM(kills) as total_kills,
-                           SUM(deaths) as total_deaths,
-                           COUNT(*) as matches_played
-                    FROM weekly_ranked
-                    WHERE rn <= 10
-                    GROUP BY player_name
+                    SELECT MIN(t.player_name) as player_name,
+                           ROUND(AVG(t.score)::numeric, 1) as avg_score, 
+                           MAX(t.collapse_level) as max_level,
+                           SUM(t.kills) as total_kills,
+                           SUM(t.deaths) as total_deaths,
+                           MAX(pt.total_valid_matches) as matches_played,
+                           SUM(t.score)::integer as top10_sum,
+                           MAX(t.score)::integer as best_score,
+                           b.best_score_at as best_score_at
+                    FROM top10 t
+                    JOIN player_totals pt ON pt.player_key = t.player_key
+                    JOIN top10_best b ON b.player_key = t.player_key
+                    GROUP BY t.player_key, b.best_score_at
                     HAVING COUNT(*) >= 10
-                    ORDER BY avg_score DESC
+                    ORDER BY avg_score DESC,
+                             top10_sum DESC,
+                             best_score DESC,
+                             matches_played DESC,
+                             best_score_at ASC,
+                             MIN(t.player_name) ASC
                     LIMIT 50";
                 $stmt = $pdo->query($sql);
                 $rank = 1;
@@ -1950,7 +2019,15 @@ if ($subtopic === 'player_builds') {
     $content = '
     <div class="Headline" style="font-weight:bold; font-size:14px; color:#5A2800; border-bottom:1px solid #5A2800; padding-bottom:5px; margin-bottom:10px;">Como Jogar Survival 3D</div>
     <div class="Text" style="font-size:11px; line-height:140%; color:#000;">
-        O Survival 3D roda inteiramente no seu navegador web de forma direta! Não há necessidade de realizar downloads pesados ou instalar programas adicionais. O jogo utiliza HTML5, WebGL (Three.js) e WebSockets.
+        <center style="margin: 15px 0; padding: 15px; border: 1px solid #5A2800; background: rgba(90, 40, 0, 0.1);">
+            <strong style="font-size:14px;">NOVO: Aplicativo Desktop</strong><br/><br/>
+            Baixe o nosso aplicativo oficial para ter uma experiência melhor, com janela dedicada e atualizações automáticas!<br/><br/>
+            <a href="http://' . $hostOnly . '/downloads/Online_RPG_Setup_1.0.0.exe" download style="display:inline-block; padding:10px 20px; background:#1b4f72; color:#fff; text-decoration:none; border-radius:5px; font-weight:bold; border: 1px solid #154360;">
+                ⬇️ Download do Instalador (.exe)
+            </a>
+        </center>
+        <br/>
+        O Survival 3D também roda inteiramente no seu navegador web de forma direta! Não há necessidade de realizar downloads pesados ou instalar programas adicionais. O jogo utiliza HTML5, WebGL (Three.js) e WebSockets.
         <br/><br/>
         <strong>Requisitos de Sistema:</strong>
         <ul>
@@ -2225,6 +2302,16 @@ if ($subtopic === 'player_builds') {
     ob_start();
     require 'system/pages/admin_item_images.php';
     $content = ob_get_clean();
+} else if ($subtopic === 'admin/weekly_awards') {
+    $title = "Premiações Semanais";
+    $isAdmin = isset($_SESSION['is_admin']) && $_SESSION['is_admin'];
+    if (!$isAdmin) {
+        header('Location: ?subtopic=news');
+        exit;
+    }
+    ob_start();
+    require 'system/pages/admin_weekly_awards.php';
+    $content = ob_get_clean();
 } else if ($subtopic === 'admin/balance') {
     $title = "Balanceamento de Jogo";
     $isAdmin = isset($_SESSION['is_admin']) && $_SESSION['is_admin'];
@@ -2233,6 +2320,11 @@ if ($subtopic === 'player_builds') {
         exit;
     }
 
+    ob_start();
+    require 'system/pages/admin_balance.php';
+    $content = ob_get_clean();
+
+    if (false) {
     $error = '';
     $success = '';
 
@@ -2567,6 +2659,7 @@ if ($subtopic === 'player_builds') {
             </td>
         </tr>
     </table>';
+    }
 } else if ($subtopic === 'wiki') {
     $title = "Biblioteca Wiki";
     $activeTab = $_GET['tab'] ?? 'hero';

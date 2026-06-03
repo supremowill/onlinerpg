@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y libpq-dev \
 RUN a2enmod rewrite
 
 # Custom entrypoint to fix permissions on mounted volumes before Apache starts
-RUN echo '#!/bin/bash\nchmod 666 /var/www/html/game_data.json /var/www/html/updates.json 2>/dev/null || true\nexec docker-php-entrypoint "$@"' > /usr/local/bin/custom-entrypoint.sh \
+RUN echo '#!/bin/bash\nchmod 666 /var/www/html/game_data.json /var/www/html/updates.json /var/www/html/item_images.json /var/www/html/item_names.json /var/www/html/item_drop_rates.json 2>/dev/null || true\nchmod -R 777 /var/www/html/items 2>/dev/null || true\nexec docker-php-entrypoint "$@"' > /usr/local/bin/custom-entrypoint.sh \
     && chmod +x /usr/local/bin/custom-entrypoint.sh
 
 ENTRYPOINT ["custom-entrypoint.sh"]

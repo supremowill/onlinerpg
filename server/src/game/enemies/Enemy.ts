@@ -3,6 +3,7 @@ import { Vec3 } from '../../utils/Vector3';
 import { EnemySnapshot } from '../../network/Protocol';
 import { ServerPlayer } from '../Player';
 import { EnemyRegistry } from '../../data/EnemyRegistry';
+import { StatusManager } from '../status/StatusManager';
 
 /**
  * Base Enemy class - mirrors client Enemy with all status/knockback mechanics
@@ -29,9 +30,44 @@ export class ServerEnemy {
     public killer: ServerPlayer | null = null;
     public lastDamagedBy: ServerPlayer | null = null;
     public deathProcessed: boolean = false;
+    public baseStatsCaptured: boolean = false;
+    public baseMaxHp: number = 0;
+    public baseDamage: number = 0;
+    public baseDefense: number = 0;
+    public baseSpeed: number = 0;
+    public baseXp: number = 0;
+    public baseScore: number = 0;
+    public lastThreatSignature: string = '';
     protected _defense: number = 0;
+    protected _hasDefenseOverride: boolean = false;
+
+    // ── Centralised Status Manager ────────────────────────────────────────────
+    public statusManager: StatusManager;
+
+    // Kept for backward-compat reads by GameEngine / Boss classes
+    get isStunned(): boolean { return this.statusManager.hasStatus('stunned'); }
+    get isSilenced(): boolean { return this.statusManager.hasStatus('silenced') || this.statusManager.hasStatus('silence'); }
+    get isDisoriented(): boolean { return this.statusManager.hasStatus('disoriented') || this.statusManager.hasStatus('confusion'); }
+    get isMarked(): boolean { return this._isMarked; }
+    protected _isMarked: boolean = false;
+
+    mark(): void {
+        this._isMarked = true;
+    }
+
+    unmark(): void {
+        this._isMarked = false;
+    }
+
+    // ── Poison (special: has extra logic for build synergies) ─────────────────
+    public poisonInstigator: ServerPlayer | null = null;
+    get poisonStacks(): number { return this.statusManager.getStacks('poison'); }
+
+    // ── Knockback (physics, not a status) ────────────────────────────────────
+    public knockback: { dir: Vec3; force: number } | null = null;
 
     get defense(): number {
+        if (this._hasDefenseOverride) return this._defense;
         if (this._defense > 0) return this._defense;
         const def = EnemyRegistry.get(this.type);
         if (def && def.stats.defense !== undefined) {
@@ -48,6 +84,7 @@ export class ServerEnemy {
 
     set defense(val: number) {
         this._defense = val;
+        this._hasDefenseOverride = true;
     }
 
     getRegHp(fallback: number): number {
@@ -69,29 +106,11 @@ export class ServerEnemy {
         return EnemyRegistry.get(this.type)?.stats.hitboxRadius ?? fallback;
     }
 
-    public poisonStacks = 0;
-    public poisonTimer = 0; // remaining time in ms
-    public poisonInstigator: ServerPlayer | null = null;
-    public poisonTickTimer = 0;
-    public blindedTimer = 0;
-    public slowAmount = 1.0;
-
-    // Status
-    public status = {
-        slowTimer: 0,
-        isMarked: false,
-        knockback: null as { dir: Vec3; force: number } | null,
-        bleeding: { isActive: false, timer: 0, damage: 0, lastTick: 0, tickInterval: 1000 },
-        armorFracture: { isActive: false, timer: 0, amount: 0 },
-        silenced: { isActive: false, timer: 0 },
-        disoriented: { isActive: false, timer: 0 },
-        stunned: { isActive: false, timer: 0 },
-    };
-
     constructor(position: Vec3) {
         this.position = position.clone();
         this.hp = 100;
         this.maxHp = 100;
+        this.statusManager = new StatusManager(this);
     }
 
     applyGlobalBuff(multiplier: number): void {
@@ -102,41 +121,38 @@ export class ServerEnemy {
         if (this.damage) this.damage *= multiplier;
     }
 
+    // ── Compatibility wrappers (old call-sites still work) ───────────────────
+
     applySlow(duration: number, amount = 0.5): void {
-        this.status.slowTimer = duration;
-        this.speed = this.originalSpeed * amount;
+        this.statusManager.applyStatus('slowed', duration, amount);
     }
 
     applyBleed(duration: number, damage: number): void {
-        const b = this.status.bleeding;
-        b.isActive = true;
-        b.timer = Math.max(b.timer, duration);
-        b.damage = damage;
-        b.lastTick = Date.now();
+        this.statusManager.applyStatus('bleeding', duration, damage);
     }
 
     applyKnockback(direction: Vec3, force: number): void {
-        this.status.knockback = { dir: direction.clone(), force };
+        this.knockback = { dir: direction.clone(), force };
     }
 
     applyArmorFracture(duration: number, amount: number): void {
-        const f = this.status.armorFracture;
-        f.isActive = true;
-        f.timer = Math.max(f.timer, duration);
-        f.amount = Math.max(f.amount, amount);
+        this.statusManager.applyStatus('armorFracture', duration, amount);
     }
 
     applySilence(duration: number): void {
-        this.status.silenced.isActive = true;
-        this.status.silenced.timer = Math.max(this.status.silenced.timer, duration);
+        this.statusManager.applyStatus('silenced', duration);
     }
 
     applyDisorientation(duration: number): void {
-        this.status.disoriented.isActive = true;
-        this.status.disoriented.timer = Math.max(this.status.disoriented.timer, duration);
+        this.statusManager.applyStatus('disoriented', duration);
+    }
+
+    applyStun(duration: number): void {
+        this.statusManager.applyStatus('stunned', duration);
     }
 
     takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true, hpPercent = 0, isTrueDamage = false): void {
+
         if (this.isDestroyed || this.isInvulnerable) return;
 
         if (instigator) {
@@ -182,11 +198,18 @@ export class ServerEnemy {
         }
 
         // Step 4 - Dano Final
-        if (this.status.isMarked) { fd *= 1.5; this.status.isMarked = false; }
-        
+        if (this._isMarked || this.statusManager.hasStatus('marked')) {
+            fd *= 1.5;
+            this._isMarked = false;
+            this.statusManager.removeStatus('marked');
+        }
+        if (this.statusManager.hasStatus('vulnerable')) {
+            fd *= 1.15;
+        }
+
         // Armor Fracture logic
-        if (this.status.armorFracture.isActive) {
-            fd *= (1 + this.status.armorFracture.amount);
+        if (this.statusManager.hasStatus('armorFracture')) {
+            fd *= (1 + this.statusManager.getIntensity('armorFracture'));
         }
 
         const finalDamage = Math.round(fd);
@@ -202,6 +225,7 @@ export class ServerEnemy {
         }
 
         if (instigator && countsForPassive) {
+            instigator.processLoadoutOnHit(this);
             instigator.attackHitCounter++;
             if (instigator.attackHitCounter >= 3) {
                 instigator.attackHitCounter = 0;
@@ -211,162 +235,119 @@ export class ServerEnemy {
     }
 
     updateStatus(dt: number): boolean {
-        const now = Date.now();
-        if (this.status.bleeding.isActive) {
-            this.status.bleeding.timer -= dt * 1000;
-            if (this.status.bleeding.timer <= 0) {
-                this.status.bleeding.isActive = false;
-            } else if (now > this.status.bleeding.lastTick + this.status.bleeding.tickInterval) {
-                this.status.bleeding.lastTick = now;
-                this.takeDamage(this.status.bleeding.damage, null, false);
+        // ── Speed calculation: driven by StatusManager ────────────────────────
+        if (this.statusManager.hasStatus('slowed')) {
+            const amount = this.statusManager.getIntensity('slowed');
+            this.speed = this.originalSpeed * (1 - amount);
+        } else {
+            this.speed = this.originalSpeed;
+        }
+
+        // Toxina Paralisante (5 poison stacks from poison build = 30% slow)
+        if (this.poisonStacks === 5 && this.poisonInstigator?.build?.buildingColor === 'poison') {
+            if (this.poisonInstigator.build.floor3 === 1) {
+                this.speed *= 0.70;
             }
         }
 
-        // Blind ticking
-        if (this.blindedTimer > 0) {
-            this.blindedTimer -= dt * 1000;
-        }
-
-        // Stun ticking
-        if (this.status.stunned.isActive) {
-            this.status.stunned.timer -= dt * 1000;
-            if (this.status.stunned.timer <= 0) {
-                this.status.stunned.isActive = false;
-            } else {
-                return true; // Skip normal AI movement/attacks while stunned
-            }
-        }
-
-        // Dynamic speed calculation combining slow and Toxina Paralisante (5 stacks = 30% slow)
-        let speedMult = 1.0;
-        if (this.status.slowTimer > 0) {
-            this.status.slowTimer -= dt * 1000;
-            if (this.status.slowTimer <= 0) {
-                this.slowAmount = 1.0;
-            } else {
-                speedMult *= this.slowAmount;
-            }
-        }
-        if (this.poisonStacks === 5 && this.poisonInstigator && this.poisonInstigator.build && this.poisonInstigator.build.buildingColor === 'poison') {
-            if (this.poisonInstigator.build.floor3 === 1) { // Toxina Paralisante
-                speedMult *= 0.70; // 30% slow
-            }
-        }
-        this.speed = this.originalSpeed * speedMult;
-
-        // Poison DoT ticking
-        if (this.poisonStacks > 0) {
-            this.poisonTimer -= dt * 1000;
-            if (this.poisonTimer <= 0) {
-                this.poisonStacks = 0;
-                this.poisonInstigator = null;
-            } else {
-                this.poisonTickTimer += dt;
-                if (this.poisonTickTimer >= 1.0) {
-                    this.poisonTickTimer -= 1.0;
-                    const playerAttack = this.poisonInstigator ? this.poisonInstigator.getDamage(false, true) : 40;
-                    const playerLevel = this.poisonInstigator ? this.poisonInstigator.level : 1;
-                    const basePoisonDmg = 0.01 * playerAttack + playerLevel + 0.03 * this.maxHp;
-                    const finalDmg = Math.round(basePoisonDmg * this.poisonStacks);
-                    this.takeDamage(finalDmg, this.poisonInstigator, false);
-                    
-                    const engine = (global as any).__gameEngine;
-                    if (engine) {
-                        const isBoss = ['LichKing','TheMightyOne','Gangplank','RainhaDasTrevas',
-                            'PlantaCarnivora','FeiticeiroImortal','SuperBoss','CaoDosInfernos','Farao',
-                            'GuardiãoDoLimbo','Minos','Cerbero','Plutão','Fúria','Megera','Minotauro',
-                            'Geriao','Lúcifer','EspectroDeRaziel','Smith'].includes(this.type);
-                        engine.pendingEvents.push({
-                            event: 'HIT_NUMBER',
-                            data: {
-                                targetId: this.id,
-                                x: this.position.x,
-                                y: isBoss ? 3.5 : 1.5,
-                                z: this.position.z,
-                                value: finalDmg,
-                                type: 'TOXIC'
-                            }
-                        });
-                    }
-                }
-            }
-        }
-
-        if (this.status.armorFracture.isActive) {
-            this.status.armorFracture.timer -= dt * 1000;
-            if (this.status.armorFracture.timer <= 0) this.status.armorFracture.isActive = false;
-        }
-
-        if (this.status.silenced.isActive) {
-            this.status.silenced.timer -= dt * 1000;
-            if (this.status.silenced.timer <= 0) this.status.silenced.isActive = false;
-        }
-
-        if (this.status.disoriented.isActive) {
-            this.status.disoriented.timer -= dt * 1000;
-            if (this.status.disoriented.timer <= 0) {
-                this.status.disoriented.isActive = false;
-            } else {
-                const angle = (now * 0.005) + (parseInt(this.id.substring(0, 4), 16) % 100);
-                const dir = new Vec3(Math.cos(angle), 0, Math.sin(angle));
-                this.position.add(dir.multiplyScalar(this.speed * dt));
-                return true;
-            }
-        }
-
-        if (this.status.knockback) {
-            this.position.add(this.status.knockback.dir.clone().multiplyScalar(this.status.knockback.force * dt));
-            this.status.knockback.force *= 0.95;
-            if (this.status.knockback.force < 1) this.status.knockback = null;
+        // ── Update StatusManager (handles DoT ticks, CC timers, immunities) ──
+        const isHardCC = this.statusManager.update(dt);
+        if (isHardCC) {
+            this.speed = 0;
             return true;
         }
-        return false;
-    }
+        if (this.statusManager.hasStatus('exhaust')) {
+            this.speed *= 0.75;
+        }
 
-    applyStun(duration: number): void {
-        this.status.stunned.isActive = true;
-        this.status.stunned.timer = Math.max(this.status.stunned.timer, duration);
+        // ── Poison DoT (special handling for build synergies / events) ────────
+        const poisonState = this.statusManager.active.get('poison');
+        if (poisonState) {
+            // Instigator is stored on the state by addPoison()
+            if (poisonState.instigator) this.poisonInstigator = poisonState.instigator;
+
+            // Fire hit-number event after each poison tick
+            // We track ticks via tickTimer already in StatusManager.
+            // Here we just emit the event after damage was already dealt in onTick.
+            // To do so we check whether a tick just fired this frame by checking tickTimer wrap-around.
+            // (Already handled in StatusManager.update — the onTick in StatusDictionary calls takeDamage)
+            // We still need to emit HIT_NUMBER event here:
+            const def = 1000; // tickRateMs
+            const prevTimer = (poisonState.tickTimer + dt * 1000);
+            if (prevTimer >= def && poisonState.tickTimer < def) {
+                // A tick fired this frame — emit visual event
+                const engine = (global as any).__gameEngine;
+                if (engine) {
+                    const isBoss = this._isBossType();
+                    engine.pendingEvents.push({
+                        event: 'HIT_NUMBER',
+                        data: {
+                            targetId: this.id,
+                            x: this.position.x,
+                            y: isBoss ? 3.5 : 1.5,
+                            z: this.position.z,
+                            value: this.lastDamageTaken,
+                            type: 'TOXIC'
+                        }
+                    });
+                }
+            }
+        } else {
+            this.poisonInstigator = null;
+        }
+
+        // ── Disoriented movement override ─────────────────────────────────────
+        if (this.statusManager.hasStatus('disoriented') || this.statusManager.hasStatus('confusion')) {
+            const now = Date.now();
+            const angle = (now * 0.005) + (parseInt(this.id.substring(0, 4), 16) % 100);
+            const dir = new Vec3(Math.cos(angle), 0, Math.sin(angle));
+            this.position.add(dir.multiplyScalar(this.speed * dt));
+            return true; // skip normal AI
+        }
+
+        // ── Knockback physics ─────────────────────────────────────────────────
+        if (this.knockback) {
+            this.position.add(this.knockback.dir.clone().multiplyScalar(this.knockback.force * dt));
+            this.knockback.force *= 0.95;
+            if (this.knockback.force < 1) this.knockback = null;
+            return true;
+        }
+
+        return isHardCC;
     }
 
     addPoison(amount: number, instigator: ServerPlayer | null): void {
-        this.poisonInstigator = instigator;
-        this.poisonTimer = 3000; // resets duration to 3s
-        
+        // Contaminação: detonate at 6th stack
         let contaminationEnabled = false;
-        if (instigator && instigator.build && instigator.build.buildingColor === 'poison') {
-            if (instigator.build.floor4 === 0) { // Contaminação
+        if (instigator?.build?.buildingColor === 'poison') {
+            if (instigator.build.floor4 === 0) {
                 contaminationEnabled = true;
             }
         }
-        
-        const nextStacks = this.poisonStacks + amount;
+
+        const currentStacks = this.poisonStacks;
+        const nextStacks = currentStacks + amount;
+
         if (contaminationEnabled && nextStacks >= 6) {
             // DETONATE!
             const level = instigator ? instigator.level : 1;
-            const detonateDmg = (15 + level * 5) * 8; // Explosive damage scaling with level
+            const detonateDmg = (15 + level * 5) * 8;
             this.takeDamage(detonateDmg, instigator, false);
-            this.poisonStacks = 0;
-            this.poisonTimer = 0;
-            
+            this.statusManager.removeStatus('poison');
+
             const engine = (global as any).__gameEngine;
             if (engine) {
-                const isBoss = ['LichKing','TheMightyOne','Gangplank','RainhaDasTrevas',
-                    'PlantaCarnivora','FeiticeiroImortal','SuperBoss','CaoDosInfernos','Farao',
-                    'GuardiãoDoLimbo','Minos','Cerbero','Plutão','Fúria','Megera','Minotauro',
-                    'Geriao','Lúcifer','EspectroDeRaziel','Smith'].includes(this.type);
                 engine.pendingEvents.push({
                     event: 'HIT_NUMBER',
                     data: {
                         targetId: this.id,
                         x: this.position.x,
-                        y: isBoss ? 3.5 : 1.5,
+                        y: this._isBossType() ? 3.5 : 1.5,
                         z: this.position.z,
                         value: detonateDmg,
                         type: 'CRIT'
                     }
                 });
-                
-                // Spawn a visual explosion zone
                 engine.zones.push({
                     id: `zone_${engine.zoneIdCounter++}`,
                     type: 'explosion',
@@ -380,12 +361,16 @@ export class ServerEnemy {
                 });
             }
         } else {
-            this.poisonStacks = Math.min(nextStacks, 5);
+            // Apply/stack poison (timer resets to 3000ms, adds 1 stack)
+            this.statusManager.applyStatus('poison', 3000, 0, instigator);
         }
     }
 
     canUseAbility(): boolean {
-        return !this.status.silenced.isActive && !this.status.disoriented.isActive;
+        return !this.statusManager.hasStatus('silenced')
+            && !this.statusManager.hasStatus('silence')
+            && !this.statusManager.hasStatus('disoriented')
+            && !this.statusManager.hasStatus('confusion');
     }
 
     update(dt: number, players: ServerPlayer[], gameTime: number): void {
@@ -424,6 +409,13 @@ export class ServerEnemy {
         }
     }
 
+    private _isBossType(): boolean {
+        return ['LichKing','TheMightyOne','Gangplank','RainhaDasTrevas',
+            'PlantaCarnivora','FeiticeiroImortal','SuperBoss','CaoDosInfernos','Farao',
+            'GuardiãoDoLimbo','Minos','Cerbero','Plutão','Fúria','Megera','Minotauro',
+            'Geriao','Lúcifer','EspectroDeRaziel','Smith'].includes(this.type);
+    }
+
     toSnapshot(): EnemySnapshot {
         return {
             id: this.id,
@@ -437,6 +429,7 @@ export class ServerEnemy {
             name: this.name,
             isInvulnerable: this.isInvulnerable || undefined,
             sizeMultiplier: (this as any).sizeMultiplier || undefined,
+            statusEffects: this.statusManager.toSnapshot(),
         };
     }
 }

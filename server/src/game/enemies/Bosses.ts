@@ -68,8 +68,6 @@ export class SuperBossEnemy extends ServerEnemy {
 
 /** Gangplank - musket, powder kegs, rum heal, cannon salvo, incendiary passive */
 export class GangplankEnemy extends ServerEnemy {
-    private baseMaxHp: number;
-    public baseDamage: number;
     private habilidades = {
         q: { cooldown: 2000, lastUsed: 0 },
         e: { cooldown: 4000, lastUsed: 0 },
@@ -84,8 +82,8 @@ export class GangplankEnemy extends ServerEnemy {
         super(pos);
         this.type = 'Gangplank'; this.name = 'Gangplank';
         const c = CONFIG.GANGPLANK;
-        this.baseMaxHp = this.getRegHp(c.BASE_HP); this.maxHp = this.getRegHp(c.BASE_HP) * globalMult; this.hp = this.maxHp;
-        this.baseDamage = this.getRegDamage(c.BASE_DAMAGE) * globalMult; this.damage = this.baseDamage;
+        this.maxHp = this.getRegHp(c.BASE_HP) * globalMult; this.hp = this.maxHp;
+        this.damage = this.getRegDamage(c.BASE_DAMAGE) * globalMult;
         this.speed = this.getRegSpeed(c.SPEED); this.originalSpeed = this.getRegSpeed(c.SPEED);
         this.xp = this.getRegXp(c.XP); this.score = this.getRegScore(c.SCORE); this.hitboxRadius = this.getRegHitbox(c.HITBOX_RADIUS);
         this.position.y = 1.25;
@@ -93,10 +91,10 @@ export class GangplankEnemy extends ServerEnemy {
 
     getDmg(type: string, target: ServerPlayer): number {
         switch (type) {
-            case 'q': return this.baseDamage + (target.hp * 0.05);
-            case 'e': return 80 + (this.baseDamage * 0.15);
+            case 'q': return this.damage + (target.hp * 0.05);
+            case 'e': return 80 + (this.damage * 0.15);
             case 'r': return 60 + (target.hp * 0.10);
-            default: return this.baseDamage + (target.maxHp * 0.05);
+            default: return this.damage + (target.maxHp * 0.05);
         }
     }
 
@@ -106,8 +104,6 @@ export class GangplankEnemy extends ServerEnemy {
         if (!target) return;
         const now = Date.now(); const ms = dt * 1000;
         const dist = this.position.distanceToXZ(target.position);
-        // Scale HP over time
-        this.maxHp = this.baseMaxHp + (this.baseMaxHp * 0.15 * Math.floor(gameTime / 120));
         // Passive timer
         if (!this.passiva.isReady) { this.passiva.timer -= ms; if (this.passiva.timer <= 0) this.passiva.isReady = true; }
         this.lookAt(target.position);
@@ -129,6 +125,8 @@ export class GangplankEnemy extends ServerEnemy {
         this.habilidades.q.lastUsed = Date.now();
         const dir = target.position.clone().sub(this.position); dir.y = 0; dir.normalize();
         let fx: string | undefined;
+        if (this.isMarked) { this.damage *= 1.5; this.unmark(); }
+
         if (this.passiva.isReady) { this.passiva.isReady = false; this.passiva.timer = this.passiva.cooldown; fx = 'tiroIncendiario'; }
         this.pendingProjectiles.push({ dir, damage: this.getDmg('q', target), specialEffect: fx });
     }
@@ -143,7 +141,8 @@ export class GangplankEnemy extends ServerEnemy {
     usarRumCurador(): void {
         this.habilidades.w.used = true;
         this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.20);
-        this.status.slowTimer = 0; this.speed = this.originalSpeed;
+        this.statusManager.removeStatus('slowed'); this.speed = this.originalSpeed;
+
     }
 
     usarSalvaDeCanhoes(target: ServerPlayer): void {

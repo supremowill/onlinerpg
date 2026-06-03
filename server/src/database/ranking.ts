@@ -201,6 +201,7 @@ export class RankingService {
                        FROM ranking) sub
                  WHERE rn<=10
                  GROUP BY player_name
+                 HAVING COUNT(*) >= 10
                  ORDER BY avg_score DESC
                  LIMIT $1`, [limit]);
             const data = r.rows.map((row,i)=>({rank:i+1,playerName:row.player_name,avgScore:parseFloat(row.avg_score),totalMatches:+row.total_matches}));
@@ -234,16 +235,54 @@ export class RankingService {
         try {
             const pool = getPool();
             const r = await pool.query(
-                `SELECT player_name,
-                        ROUND(AVG(score)::numeric,1) AS avg_score,
-                        COUNT(*) AS total_matches
-                 FROM (SELECT player_name, score,
-                              ROW_NUMBER() OVER (PARTITION BY player_name ORDER BY score DESC) AS rn
-                       FROM ranking
-                       WHERE created_at >= $1) sub
-                 WHERE rn<=10
-                 GROUP BY player_name
-                 ORDER BY avg_score DESC
+                `WITH ranked AS (
+                    SELECT id, player_name, LOWER(player_name) AS player_key, score, created_at,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY LOWER(player_name)
+                               ORDER BY score DESC, created_at ASC, id ASC
+                           ) AS rn
+                    FROM ranking
+                    WHERE created_at >= $1
+                 ),
+                 top10 AS (
+                    SELECT * FROM ranked WHERE rn <= 10
+                 ),
+                 top10_best AS (
+                    SELECT player_key, created_at AS best_score_at
+                    FROM (
+                        SELECT player_key, created_at,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY player_key
+                                   ORDER BY score DESC, created_at ASC, id ASC
+                               ) AS best_rn
+                        FROM top10
+                    ) best
+                    WHERE best_rn = 1
+                 ),
+                 player_totals AS (
+                    SELECT LOWER(player_name) AS player_key, COUNT(*) AS total_valid_matches
+                    FROM ranking
+                    WHERE created_at >= $1
+                    GROUP BY LOWER(player_name)
+                 )
+                 SELECT MIN(t.player_name) AS player_name,
+                        ROUND(AVG(t.score)::numeric,1) AS avg_score,
+                        COUNT(*) AS total_matches,
+                        SUM(t.score)::integer AS top10_sum,
+                        MAX(t.score)::integer AS best_score,
+                        MAX(pt.total_valid_matches)::integer AS total_valid_matches,
+                        b.best_score_at AS best_score_at
+                 FROM top10 t
+                 JOIN player_totals pt ON pt.player_key = t.player_key
+                 JOIN top10_best b ON b.player_key = t.player_key
+                 GROUP BY t.player_key, b.best_score_at
+                 HAVING COUNT(*) >= 10
+                 ORDER BY avg_score DESC,
+                          top10_sum DESC,
+                          best_score DESC,
+                          total_valid_matches DESC,
+                          best_score_at ASC,
+                          MIN(t.player_name) ASC
                  LIMIT $2`, [sinceDate, limit]);
             const data = r.rows.map((row,i)=>({rank:i+1,playerName:row.player_name,avgScore:parseFloat(row.avg_score),totalMatches:+row.total_matches}));
             this._weeklyCache = {data, ts:now, sinceMs:currentWeekStartMs};

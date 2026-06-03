@@ -994,6 +994,28 @@
                 ]
             },
             {
+                id: 'doutor_doenca',
+                name: 'Doutor Doença',
+                category: 'elite',
+                difficulty: 'S',
+                color: '#32CD32',
+                shape: 'cube',
+                hp: 100000,
+                speed: 3.5,
+                xp: 50000,
+                score: 25000,
+                spawn: 'Primeiro spawn após 6 minutos (360s) de jogo. Respawna a cada 6 minutos.',
+                lore: 'Um mestre virulento da infestação patogênica. O Doutor Doença se recusa a entrar em combate corpo-a-corpo, mantendo sempre distância perfeita enquanto bombardeia os desafiantes com esporos e agulhas, curando a si mesmo baseando-se no número de patógenos que infectam a vítima.',
+                skills: [
+                    { name: 'Roleta de Patógenos (Passiva)', type: 'passive', desc: 'Todo ataque tem 35% de chance de aplicar 1 de 8 Enfermidades (Febre, Paralisia, Cansaço, etc).' },
+                    { name: 'Sobrevivência Viral (Passiva)', type: 'passive', desc: 'Regenera entre 5 a 15 HP por segundo dependendo de quantos patógenos ativos o alvo primário possui.' },
+                    { name: 'Esporo Homing (Ativa - Básico)', type: 'active', desc: 'A cada 2s dispara um esporo guiado lento que persegue por 3s e explode em área causando dano e 40% de chance de infecção.' },
+                    { name: 'Injeção Geométrica (Ativa)', type: 'active', desc: 'Dispara agulha rápida a cada 6s que aplica 1 patógeno garantido ao contato.' },
+                    { name: 'Nuvem de Esporos (Ativa)', type: 'active', desc: 'A cada 12s, cria zona duradoura (5s) que causa dano contínuo e chance de infecção para quem estiver dentro.' },
+                    { name: 'Surto Epidêmico (Ativa - Ultimate)', type: 'active', desc: 'A cada 20s atinge área gigante em 15m. Duplica um patógeno já existente na vítima ou aplica um novo caso não tenha.' }
+                ]
+            },
+            {
                 id: 'guardian_guerreiro',
                 name: 'Guardião Guerreiro',
                 category: 'guardião',
@@ -1042,6 +1064,26 @@
                 lore: 'Um batedor cônico verde escuro extremamente veloz. Ele tenta manter distância segura do jogador e disparar flechas de precisão.',
                 skills: [
                     { name: 'Disparo de Retirada (Passiva)', type: 'passive', desc: 'Corre para trás se o jogador se aproximar a menos de 6 metros.' }
+                ]
+            },
+            {
+                id: 'bombardeiro_insano',
+                name: 'Bombardeiro Insano',
+                category: 'guardião',
+                difficulty: 'B',
+                color: '#FF6F00',
+                shape: 'bombardeiro',
+                hp: 10000,
+                speed: 1.8,
+                xp: 750,
+                score: 2500,
+                spawn: 'Guardião da Pirâmide Vermelha. Protege a torre de cura e ressurge a cada 4 minutos.',
+                lore: 'O Guardião da Pirâmide Vermelha. Composto de prismas e pirâmides flutuantes com uma cabeça tetraédrica de brilho vermelho pulsante. Utiliza táticas implacáveis de bombardeio com física avançada de repuxo (knockback). Todo o dano é físico.',
+                skills: [
+                    { name: 'Bomba Saltitante (Ativa - Q)', type: 'active', desc: 'Lança uma bomba preditiva que salta 2 vezes em direção ao alvo, explodindo ao impacto e causando 1.5x o dano físico básico.' },
+                    { name: 'Carga Concentrada (Ativa - W)', type: 'active', desc: 'Lança uma carga explosiva na meia distância caso o jogador chegue muito perto. Explode após 1.5s, empurrando o jogador e o próprio boss para longe da explosão e causando 0.5x o dano físico.' },
+                    { name: 'Campo Minado Hexplosivo (Ativa - E)', type: 'active', desc: 'Espalha preditivamente um campo com 8 minas terrestres duradouras (20s) na trajetória do jogador. Cada mina causa 1.2x o dano ao contato.' },
+                    { name: 'Mega Bomba Infernal (Ativa - R)', type: 'active', desc: 'Cria uma imensa zona de perigo sob a posição do alvo que detona após 3.5s, descarregando 4.0x o dano básico em uma área de efeito massiva com 12 metros de raio.' }
                 ]
             },
             {
@@ -1283,6 +1325,40 @@
                 group.add(spike1);
                 group.add(spike2);
 
+            } else if (shapeType === 'bombardeiro') {
+                // Base: Pyramid (Cylinder Geometry with top radius 0)
+                const baseGeo = new THREE.CylinderGeometry(0, 1.2, 2.5, 4);
+                const baseMesh = new THREE.Mesh(baseGeo, mat);
+                baseMesh.position.y = 1.25;
+                baseMesh.rotation.y = Math.PI / 4;
+                group.add(baseMesh);
+
+                // Head: Tetrahedron
+                const headGeo = new THREE.TetrahedronGeometry(0.8, 0);
+                const headMat = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.8 });
+                const headMesh = new THREE.Mesh(headGeo, headMat);
+                headMesh.position.set(0, 1.5, 0);
+                baseMesh.add(headMesh);
+
+                // Arms/Bombs: Icosahedrons
+                const bombGeo = new THREE.IcosahedronGeometry(0.5, 0);
+                const bombMat = new THREE.MeshStandardMaterial({ color: 0xff4500, roughness: 0.5 });
+                const bombL = new THREE.Mesh(bombGeo, bombMat);
+                bombL.position.set(-1.2, 0.5, 0);
+                const bombR = new THREE.Mesh(bombGeo, bombMat);
+                bombR.position.set(1.2, 0.5, 0);
+                baseMesh.add(bombL);
+                baseMesh.add(bombR);
+
+                // Wicks: Cylinders
+                const wickGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.3, 8);
+                const wickMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+                const wickL = new THREE.Mesh(wickGeo, wickMat);
+                wickL.position.set(0, 0.6, 0);
+                bombL.add(wickL);
+                const wickR = new THREE.Mesh(wickGeo, wickMat);
+                wickR.position.set(0, 0.6, 0);
+                bombR.add(wickR);
             } else if (shapeType === 'box') {
                 const geo = new THREE.BoxGeometry(1.3, 1.3, 1.3);
                 const mesh = new THREE.Mesh(geo, mat);

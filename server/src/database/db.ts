@@ -68,7 +68,9 @@ export async function initDatabase(): Promise<Pool> {
             is_admin BOOLEAN DEFAULT FALSE,
             is_blocked BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            last_login TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            last_login TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            coins INTEGER DEFAULT 0,
+            inventory JSONB DEFAULT '[]'
         );
         CREATE INDEX IF NOT EXISTS idx_players_username ON players(username);
 
@@ -105,6 +107,44 @@ export async function initDatabase(): Promise<Pool> {
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
         CREATE INDEX IF NOT EXISTS idx_match_room ON match_history(room_id);
+
+        -- P2P Market offers table
+        CREATE TABLE IF NOT EXISTS market_offers (
+            id SERIAL PRIMARY KEY,
+            seller_id INTEGER NOT NULL,
+            seller_name VARCHAR(50) NOT NULL,
+            item_id VARCHAR(50) NOT NULL,
+            price INTEGER NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_market_seller ON market_offers(seller_id);
+
+        -- Weekly ranking awards history
+        CREATE TABLE IF NOT EXISTS weekly_awards (
+            id SERIAL PRIMARY KEY,
+            week_id VARCHAR(40) UNIQUE NOT NULL,
+            week_start TIMESTAMP WITH TIME ZONE NOT NULL,
+            week_end TIMESTAMP WITH TIME ZONE NOT NULL,
+            winner_player_id INTEGER,
+            winner_name VARCHAR(50),
+            avg_score NUMERIC(12, 1),
+            top10_sum INTEGER,
+            best_score INTEGER,
+            total_valid_matches INTEGER,
+            best_score_at TIMESTAMP WITH TIME ZONE,
+            item_id VARCHAR(80),
+            item_name VARCHAR(120),
+            item_rarity VARCHAR(30),
+            status VARCHAR(30) NOT NULL DEFAULT 'pending',
+            error_message TEXT,
+            news_entry_id VARCHAR(60),
+            news_published BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            delivered_at TIMESTAMP WITH TIME ZONE,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_weekly_awards_week ON weekly_awards(week_start DESC);
+        CREATE INDEX IF NOT EXISTS idx_weekly_awards_status ON weekly_awards(status);
     `;
 
     // Try to init schema immediately and wait
@@ -142,6 +182,8 @@ export async function initDatabase(): Promise<Pool> {
             // Alter players table to add missing role and block columns
             await pool.query('ALTER TABLE players ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE');
             await pool.query('ALTER TABLE players ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT FALSE');
+            await pool.query('ALTER TABLE players ADD COLUMN IF NOT EXISTS coins INTEGER DEFAULT 0');
+            await pool.query('ALTER TABLE players ADD COLUMN IF NOT EXISTS inventory JSONB DEFAULT \'[]\'');
             // Ensure admin user is marked as admin
             await pool.query("UPDATE players SET is_admin = TRUE WHERE LOWER(username) = 'admin'");
             console.log('[DB] Verified players table columns.');
@@ -156,6 +198,49 @@ export async function initDatabase(): Promise<Pool> {
             await pool.query('ALTER TABLE ranking ADD COLUMN IF NOT EXISTS build_floor4 INTEGER DEFAULT 0');
             await pool.query('ALTER TABLE ranking ADD COLUMN IF NOT EXISTS build_floor5 INTEGER DEFAULT 0');
             console.log('[DB] Verified ranking table columns.');
+
+            // Ensure market_offers table exists
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS market_offers (
+                    id SERIAL PRIMARY KEY,
+                    seller_id INTEGER NOT NULL,
+                    seller_name VARCHAR(50) NOT NULL,
+                    item_id VARCHAR(50) NOT NULL,
+                    price INTEGER NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                )
+            `);
+            await pool.query('CREATE INDEX IF NOT EXISTS idx_market_seller ON market_offers(seller_id)');
+            console.log('[DB] Verified market_offers table.');
+
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS weekly_awards (
+                    id SERIAL PRIMARY KEY,
+                    week_id VARCHAR(40) UNIQUE NOT NULL,
+                    week_start TIMESTAMP WITH TIME ZONE NOT NULL,
+                    week_end TIMESTAMP WITH TIME ZONE NOT NULL,
+                    winner_player_id INTEGER,
+                    winner_name VARCHAR(50),
+                    avg_score NUMERIC(12, 1),
+                    top10_sum INTEGER,
+                    best_score INTEGER,
+                    total_valid_matches INTEGER,
+                    best_score_at TIMESTAMP WITH TIME ZONE,
+                    item_id VARCHAR(80),
+                    item_name VARCHAR(120),
+                    item_rarity VARCHAR(30),
+                    status VARCHAR(30) NOT NULL DEFAULT 'pending',
+                    error_message TEXT,
+                    news_entry_id VARCHAR(60),
+                    news_published BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    delivered_at TIMESTAMP WITH TIME ZONE,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                )
+            `);
+            await pool.query('CREATE INDEX IF NOT EXISTS idx_weekly_awards_week ON weekly_awards(week_start DESC)');
+            await pool.query('CREATE INDEX IF NOT EXISTS idx_weekly_awards_status ON weekly_awards(status)');
+            console.log('[DB] Verified weekly_awards table.');
 
             // Check if match_history contains old schema (player_id column)
             const schemaCheck = await pool.query(`
@@ -234,6 +319,8 @@ export interface PlayerAccount {
     username: string;
     created_at: Date;
     last_login: Date;
+    coins: number;
+    inventory: string[];
     is_admin?: boolean;
     is_blocked?: boolean;
 }
@@ -242,7 +329,7 @@ export async function createPlayer(username: string, password: string): Promise<
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
         const result = await pool.query(
-            'INSERT INTO players (username, password_hash) VALUES ($1, $2) RETURNING id, username, created_at, last_login, is_admin, is_blocked',
+            'INSERT INTO players (username, password_hash) VALUES ($1, $2) RETURNING id, username, created_at, last_login, coins, inventory, is_admin, is_blocked',
             [username, hashedPassword]
         );
         return result.rows[0];
@@ -254,7 +341,7 @@ export async function createPlayer(username: string, password: string): Promise<
 
 export async function findPlayerByUsername(username: string): Promise<(PlayerAccount & { password_hash: string }) | null> {
     try {
-        const result = await pool.query('SELECT id, username, password_hash, created_at, last_login, is_admin, is_blocked FROM players WHERE username = $1', [username]);
+        const result = await pool.query('SELECT id, username, password_hash, created_at, last_login, coins, inventory, is_admin, is_blocked FROM players WHERE username = $1', [username]);
         return result.rows[0] || null;
     } catch (err: any) {
         console.error('[DB findPlayerByUsername] Error:', err.message, err.stack);
@@ -273,21 +360,89 @@ export async function validatePlayer(username: string, password: string): Promis
     if (!valid) return null;
     // Update last login
     await pool.query('UPDATE players SET last_login = NOW() WHERE id = $1', [player.id]);
-    return { id: player.id, username: player.username, created_at: player.created_at, last_login: new Date(), is_admin: player.is_admin, is_blocked: player.is_blocked };
+    return { id: player.id, username: player.username, created_at: player.created_at, last_login: new Date(), coins: player.coins, inventory: player.inventory, is_admin: player.is_admin, is_blocked: player.is_blocked };
 }
 
 export function generateJWT(player: PlayerAccount): string {
     return jwt.sign(
-        { id: player.id, username: player.username },
+        { id: player.id, username: player.username, is_admin: player.is_admin },
         CONFIG.JWT_SECRET,
         { expiresIn: '30d' }
     );
 }
 
-export function verifyJWT(token: string): { id: number; username: string } | null {
+export function verifyJWT(token: string): { id: number; username: string, is_admin?: boolean } | null {
     try {
         return jwt.verify(token, CONFIG.JWT_SECRET) as any;
     } catch {
         return null;
+    }
+}
+
+export async function updateUserCoins(playerId: number, newCoins: number): Promise<void> {
+    try {
+        await pool.query('UPDATE players SET coins = $1 WHERE id = $2', [newCoins, playerId]);
+    } catch (err: any) {
+        console.error('[DB updateUserCoins] Error:', err.message);
+    }
+}
+
+export async function updateUserInventory(playerId: number, inventory: string[]): Promise<void> {
+    try {
+        await pool.query('UPDATE players SET inventory = $1 WHERE id = $2', [JSON.stringify(inventory), playerId]);
+    } catch (err: any) {
+        console.error('[DB updateUserInventory] Error:', err.message);
+    }
+}
+
+export async function findPlayerById(id: number): Promise<PlayerAccount | null> {
+    try {
+        const result = await pool.query('SELECT id, username, created_at, last_login, coins, inventory, is_admin, is_blocked FROM players WHERE id = $1', [id]);
+        return result.rows[0] || null;
+    } catch (err: any) {
+        console.error('[DB findPlayerById] Error:', err.message, err.stack);
+        throw err;
+    }
+}
+
+export async function getMarketOffers(): Promise<any[]> {
+    try {
+        const result = await pool.query('SELECT id, seller_id, seller_name, item_id, price, created_at FROM market_offers ORDER BY created_at DESC');
+        return result.rows;
+    } catch (err: any) {
+        console.error('[DB getMarketOffers] Error:', err.message);
+        throw err;
+    }
+}
+
+export async function createMarketOffer(sellerId: number, sellerName: string, itemId: string, price: number): Promise<number> {
+    try {
+        const result = await pool.query(
+            'INSERT INTO market_offers (seller_id, seller_name, item_id, price) VALUES ($1, $2, $3, $4) RETURNING id',
+            [sellerId, sellerName, itemId, price]
+        );
+        return result.rows[0].id;
+    } catch (err: any) {
+        console.error('[DB createMarketOffer] Error:', err.message);
+        throw err;
+    }
+}
+
+export async function getMarketOfferById(offerId: number): Promise<any> {
+    try {
+        const result = await pool.query('SELECT id, seller_id, seller_name, item_id, price, created_at FROM market_offers WHERE id = $1', [offerId]);
+        return result.rows[0] || null;
+    } catch (err: any) {
+        console.error('[DB getMarketOfferById] Error:', err.message);
+        throw err;
+    }
+}
+
+export async function deleteMarketOffer(offerId: number): Promise<void> {
+    try {
+        await pool.query('DELETE FROM market_offers WHERE id = $1', [offerId]);
+    } catch (err: any) {
+        console.error('[DB deleteMarketOffer] Error:', err.message);
+        throw err;
     }
 }

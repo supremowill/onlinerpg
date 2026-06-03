@@ -6,6 +6,8 @@ npm-debug.log
 .env
 *.log
 client/node_modules
+client/downloads/*.exe
+client/downloads/*.blockmap
 server/dist
 server/node_modules
 __pycache__

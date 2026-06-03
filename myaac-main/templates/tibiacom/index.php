@@ -129,6 +129,8 @@ if(isset($config['boxes']))
 		  menus = localStorage.getItem('menus');
 		  if(menus == null || menus.lastIndexOf("&") === -1) {
 			  menus = "<?= $menuInitStr ?>";
+		  } else if (menus.indexOf("shops=") === -1) {
+			  menus += "shops=0&";
 		  }
 		  FillMenuArray();
 		  InitializeMenu();

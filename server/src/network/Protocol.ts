@@ -221,6 +221,8 @@ export interface DynamicEntitySnapshot {
     y: number;
     z: number;
     radius?: number;
+    duration?: number;
+    timer?: number;
     opacity?: number;
     color?: number;
     rotY?: number;
@@ -243,7 +245,7 @@ export interface GameEvent {
     event: 'BOSS_SPAWN' | 'BOSS_KILLED' | 'COLLAPSE' | 'PLAYER_LEVEL_UP'
         | 'ITEM_DROP' | 'MESSAGE' | 'PLAYER_BUFF'
         | 'FARAO_SPAWN_WARNING' | 'FARAO_ECLIPSE' | 'FARAO_JULGAMENTO'
-        | 'HIT_NUMBER' | 'MIGHTY_ONE_SPAWN' | 'MIGHTY_ONE_DEFEATED' | 'LOADOUT_LEVEL_UP';
+        | 'HIT_NUMBER' | 'MIGHTY_ONE_SPAWN' | 'MIGHTY_ONE_DEFEATED' | 'LOADOUT_LEVEL_UP' | 'ICE_CLEAVE';
     data: any;
 }
 

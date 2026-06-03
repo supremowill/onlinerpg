@@ -59,7 +59,7 @@ if (Test-Path $TarFile) {
 
 # Cria o tarball excluindo arquivos desnecessários de desenvolvimento
 # Nota: tar.exe nativo do Windows 10/11 é usado aqui
-tar -czf $TarFile --exclude=node_modules --exclude=.git --exclude=.idea --exclude=.aws --exclude=server/node_modules --exclude=server/dist --exclude=myaac-main/node_modules --exclude=myaac-main/vendor --exclude=onlinerpg.tar.gz .
+tar -czf $TarFile --exclude=node_modules --exclude=.git --exclude=.idea --exclude=.aws --exclude=aws --exclude=*.csv --exclude=*.pem --exclude=server/node_modules --exclude=server/dist --exclude=myaac-main/node_modules --exclude=myaac-main/vendor --exclude=myaac-main/items --exclude=tools --exclude=desktop --exclude=onlinerpg.tar.gz .
 
 if (-not (Test-Path $TarFile)) {
     Write-Host "❌ Erro ao criar o pacote de deploy!" -ForegroundColor Red
@@ -74,6 +74,9 @@ Write-Host "`n[4/5] Enviando pacote para o servidor EC2 ($EC2_IP)..." -Foregroun
 
 try {
     scp -i $SSH_KEY -o StrictHostKeyChecking=no $TarFile "${EC2_USER}@${EC2_IP}:/home/ubuntu/"
+    if ($LASTEXITCODE -ne 0) {
+        throw "SCP retornou codigo de erro $LASTEXITCODE"
+    }
     Write-Host "✅ Upload concluído com sucesso!" -ForegroundColor Green
 }
 catch {
@@ -88,26 +91,41 @@ Write-Host "`n[5/5] Executando comandos de deploy no servidor remoto..." -Foregr
 
 # Comandos shell a serem executados remotamente no Ubuntu
 $RemoteCommands = @"
+set -e
 cd /home/ubuntu
 echo "--> Criando backups das configurações atuais..."
 if [ -d onlinerpg ]; then
     if [ -f onlinerpg/.env ]; then cp onlinerpg/.env onlinerpg-env-backup; fi
     if [ -f onlinerpg/server/game_data.json ]; then cp onlinerpg/server/game_data.json onlinerpg-gamedata-backup; fi
     if [ -f onlinerpg/client/updates.json ]; then cp onlinerpg/client/updates.json onlinerpg-updates-backup; fi
+    if [ -f onlinerpg/client/item_images.json ]; then cp onlinerpg/client/item_images.json onlinerpg-itemimages-backup; fi
+    if [ -f onlinerpg/client/item_names.json ]; then cp onlinerpg/client/item_names.json onlinerpg-itemnames-backup; fi
+    if [ -f onlinerpg/client/item_drop_rates.json ]; then cp onlinerpg/client/item_drop_rates.json onlinerpg-itemdroprates-backup; fi
+    if [ -d onlinerpg/client/items ]; then
+        mkdir -p onlinerpg-items-backup
+        cp -r onlinerpg/client/items/* onlinerpg-items-backup/ 2>/dev/null || true
+    fi
 else
     mkdir -p onlinerpg
 fi
 
 echo "--> Extraindo novo pacote..."
-tar -xzf onlinerpg.tar.gz -C onlinerpg/
+tar --warning=no-unknown-keyword --no-same-owner --no-same-permissions --touch -xzf onlinerpg.tar.gz -C onlinerpg/
 
 echo "--> Restaurando backups de configuração..."
 if [ -f onlinerpg-env-backup ]; then cp onlinerpg-env-backup onlinerpg/.env; fi
 if [ -f onlinerpg-gamedata-backup ]; then cp onlinerpg-gamedata-backup onlinerpg/server/game_data.json; fi
 if [ -f onlinerpg-updates-backup ]; then cp onlinerpg-updates-backup onlinerpg/client/updates.json; fi
+if [ -f onlinerpg-itemimages-backup ]; then cp onlinerpg-itemimages-backup onlinerpg/client/item_images.json; fi
+if [ -f onlinerpg-itemnames-backup ]; then cp onlinerpg-itemnames-backup onlinerpg/client/item_names.json; fi
+if [ -f onlinerpg-itemdroprates-backup ]; then cp onlinerpg-itemdroprates-backup onlinerpg/client/item_drop_rates.json; fi
+if [ -d onlinerpg-items-backup ]; then
+    mkdir -p onlinerpg/client/items
+    cp -r onlinerpg-items-backup/* onlinerpg/client/items/ 2>/dev/null || true
+fi
 
-echo "--> Garantindo permissões de escrita para updates.json e game_data.json..."
-chmod 666 onlinerpg/client/updates.json onlinerpg/server/game_data.json
+echo "--> Garantindo permissões de escrita para json de configuração..."
+chmod 666 onlinerpg/client/updates.json onlinerpg/server/game_data.json onlinerpg/client/item_images.json onlinerpg/client/item_names.json onlinerpg/client/item_drop_rates.json 2>/dev/null || true
 
 echo "--> Atualizando containers no Docker Compose..."
 cd onlinerpg
@@ -122,6 +140,9 @@ sudo docker compose ps
 
 try {
     ssh -i $SSH_KEY -o StrictHostKeyChecking=no "${EC2_USER}@${EC2_IP}" $RemoteCommands
+    if ($LASTEXITCODE -ne 0) {
+        throw "SSH retornou codigo de erro $LASTEXITCODE"
+    }
 }
 catch {
     Write-Host "❌ Falha ao executar os comandos de deploy no servidor remoto!" -ForegroundColor Red
@@ -134,5 +155,5 @@ catch {
 Write-Host "`n==================================================" -ForegroundColor Green
 Write-Host "🎉 DEPLOY CONCLUÍDO COM SUCESSO!" -ForegroundColor Green
 Write-Host "Acesse o jogo em: http://$EC2_IP" -ForegroundColor Green
-Write-Host "Acesse o painel web em: http://$EC2_IP:8080" -ForegroundColor Green
+Write-Host "Acesse o painel web em: http://${EC2_IP}:8080" -ForegroundColor Green
 Write-Host "==================================================" -ForegroundColor Green

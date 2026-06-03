@@ -22,6 +22,7 @@ services:
       - PORT=3000
       - DATABASE_URL=postgresql://survival:survival_secret@db:5432/survival_game?sslmode=disable
       - JWT_SECRET=sua_chave_jwt_super_secreta_123456
+      - WEEKLY_AWARD_SECRET=sua_chave_jwt_super_secreta_123456
     volumes:
       - ./server/game_data.json:/app/game_data.json
       - ./client:/app/public
@@ -40,8 +41,15 @@ services:
       - ./myaac-main:/var/www/html
       - ./client/updates.json:/var/www/html/updates.json
       - ./server/game_data.json:/var/www/html/game_data.json
+      - ./client/item_images.json:/var/www/html/item_images.json
+      - ./client/item_names.json:/var/www/html/item_names.json
+      - ./client/item_drop_rates.json:/var/www/html/item_drop_rates.json
+      - ./client/items:/var/www/html/items
+
     environment:
       - DATABASE_URL=postgresql://survival:survival_secret@db:5432/survival_game?sslmode=disable
+      - JWT_SECRET=sua_chave_jwt_super_secreta_123456
+      - WEEKLY_AWARD_SECRET=sua_chave_jwt_super_secreta_123456
     depends_on:
       db:
         condition: service_healthy

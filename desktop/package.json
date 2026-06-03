@@ -1,0 +1,26 @@
+{
+  "name": "onlinerpg-desktop",
+  "version": "1.0.0",
+  "description": "Desktop client for Online RPG",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.william.onlinerpg",
+    "productName": "Online RPG",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3"
+  }
+}

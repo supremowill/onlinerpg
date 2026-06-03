@@ -29,6 +29,7 @@ $menus = [
 	['name' => 'Menus', 'icon' => 'list', 'order' => 60, 'link' => 'menus'],
 	['name' => 'Plugins', 'icon' => 'plug', 'order' => 70, 'link' => 'plugins'],
 	['name' => 'Server Data', 'icon' => 'gavel', 'order' => 80, 'link' => 'data'],
+
 	['name' => 'Editor', 'icon' => 'edit', 'order' => 90, 'link' =>
 		[
 			['name' => 'Accounts', 'link' => 'accounts', 'icon' => 'users', 'order' => 10],
@@ -41,6 +42,7 @@ $menus = [
 			['name' => 'Mass Teleport Actions', 'link' => 'mass_teleport', 'icon' => 'globe', 'order' => 20],
 			['name' => 'Notepad', 'link' => 'notepad', 'icon' => 'marker', 'order' => 30],
 			['name' => 'phpinfo', 'link' => 'phpinfo', 'icon' => 'server', 'order' => 40],
+			['name' => 'Item Images', 'link' => 'item_images', 'icon' => 'image', 'order' => 50],
 		],
 	],
 	['name' => 'Logs', 'icon' => 'bug', 'order' => 110, 'link' =>

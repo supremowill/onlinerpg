@@ -4,6 +4,7 @@ import { CONFIG } from '../config';
 import { InputState, PlayerSnapshot, PlayerBuild } from '../network/Protocol';
 import { UPGRADE_LEVELS, getUpgradePromptForLevel } from './UpgradeSystem';
 import { getGameData } from '../data/GameDataLoader';
+import { StatusManager } from './status/StatusManager';
 
 /**
  * Server-side Player state — full authority
@@ -14,6 +15,20 @@ export class ServerPlayer {
     public upgradeFlags: Record<string, boolean> = {};
     public isSelectingUpgrade: boolean = false;
     public pendingUpgradeLevel: number = 0;
+    
+    // In-Match Scaling & Item States
+    public purpleCubesKilled: number = 0;
+    public loadoutLevel: number = 0;
+    public itemMultiplier: number = 1.0;
+    public hasUsedMiniEscudo: boolean = false;
+    public hasUsedRaziel: boolean = false;
+    public duelistaCounter: number = 0;
+    public cuboInfinitoState: number = 0;
+    public cuboInfinitoTimer: number = 0;
+    public megafoneTimer: number = 0;
+    public penduloTimer: number = 0;
+    public isPenduloActive: boolean = false;
+
     public ultDamageStored: number = 0;
     public dashMineTimer: number = 0;
     public dashHitTracker: Map<string, number> = new Map();
@@ -89,6 +104,9 @@ export class ServerPlayer {
         geloCadaviricStacks: 0,
     };
 
+    /** Centralised status manager (new system — runs in parallel with statusEffects above) */
+    public statusManager: StatusManager;
+
     public jumpTimer: number = 0;
     public isOnSlipperyGround: boolean = false;
     public slideVelocity: Vec3 = new Vec3(0, 0, 0);
@@ -106,6 +124,10 @@ export class ServerPlayer {
     public isConnected: boolean = true;
     private facingDirection: Vec3 = new Vec3(0, 0, -1);
 
+    // --- Loadout & Scaling (LootEngine) ---
+    public loadoutItems: string[] = [];
+
+
     // --- Essence Towers Properties ---
     public build: PlayerBuild;
     
@@ -114,6 +136,7 @@ export class ServerPlayer {
     public bonusSpeedPct = 0;
     public bonusCritChance = 0;
     public lastHitWasCrit = false;
+    public cheatDeathActive = false;
     public lifestealPct = 0;
     public bonusDamageLowHp = false;
     public armorPenetrationPct = 0;
@@ -211,6 +234,7 @@ export class ServerPlayer {
             floor3: 0,
             floor4: 0
         };
+        this.statusManager = new StatusManager(this as any);
         this.applyPassives();
     }
 
@@ -322,6 +346,8 @@ export class ServerPlayer {
         if (caoBuff) base *= caoBuff.effects.damage;
         const tremula = this.pathogens['mao_tremula'];
         if (tremula) base *= (1 - 0.20 * tremula.stacks);
+        if (this.statusManager.hasStatus('weakness')) base *= 0.80;
+        if (this.statusManager.hasStatus('enrage')) base *= 1.25;
 
         // --- Essence Towers Red Modifiers ---
         if (this.bonusDamagePct > 0) base *= (1 + this.bonusDamagePct);
@@ -358,6 +384,10 @@ export class ServerPlayer {
             }
         }
 
+        if (this.loadoutItems.includes('prisma_calamidade') && !isAbility) {
+            base = 0;
+        }
+
         return base;
     }
 
@@ -375,6 +405,9 @@ export class ServerPlayer {
         if (this.build.buildingColor === 'red' && this.build.floor1 === 1) cd /= 1.10; // +10% attack speed
         if (this.build.buildingColor === 'poison' && this.build.floor1 === 0) cd /= 1.20; // +20% attack speed
         if (this.superDamageSlowAttack) cd *= 1.43; // -30% attack speed (cd increase)
+        if (this.loadoutItems.includes('vento_cubico')) cd /= (1 + 0.05 * this.itemMultiplier);
+        if (this.statusManager.hasStatus('haste')) cd /= 1.20;
+        if (this.statusManager.hasStatus('exhaust')) cd *= 1.25;
         
         return cd;
     }
@@ -426,6 +459,8 @@ export class ServerPlayer {
             spd *= 1.20; // +20% move speed
         }
         if (this.statusEffects.slowed.isActive) spd *= (1 - this.statusEffects.slowed.amount);
+        if (this.statusManager.hasStatus('haste')) spd *= 1.20;
+        if (this.statusManager.hasStatus('exhaust')) spd *= 0.75;
         const paralisia = this.pathogens['paralisia_parcial'];
         if (paralisia) spd *= (1 - 0.15 * paralisia.stacks);
         const pb = this.timedBuffs.find(b => b.type === 'planta_buff');
@@ -585,9 +620,9 @@ export class ServerPlayer {
         if (this.slideVelocity.lengthSq() > 0.01) {
             this.position.add(this.slideVelocity.clone().multiplyScalar(dt));
             moved = true;
-            // On mobile, movement direction controls aiming (no mouse).
+            // On mobile, movement direction controls aiming (no mouse), UNLESS currently aiming with a joystick/skill button
             // On PC, mouse controls aiming — WASD only moves the character.
-            if (this.platform === 'mobile' && inputDir.lengthSq() > 0) {
+            if (this.platform === 'mobile' && inputDir.lengthSq() > 0 && !this.input?.isAiming) {
                 this.rotationY = Math.atan2(inputDir.x, inputDir.z); 
                 this.facingDirection.set(inputDir.x, 0, inputDir.z).normalize();
             }
@@ -616,6 +651,8 @@ export class ServerPlayer {
         if (this.statusEffects.bleeding.isActive && now > this.statusEffects.bleeding.lastTick + 1000) { this.statusEffects.bleeding.lastTick = now; this.takeDamage(this.statusEffects.bleeding.damage, false); }
         if (this.statusEffects.burning.isActive && now > this.statusEffects.burning.lastTick + 1000) { this.statusEffects.burning.lastTick = now; this.takeDamage(this.statusEffects.burning.damagePerTick * this.statusEffects.burning.stacks, false); }
         if (this.statusEffects.lichKingLifeDrain.isActive) this.takeDamage(this.statusEffects.lichKingLifeDrain.damagePerSecond * dt, false);
+        // Sync new StatusManager
+        this.statusManager.update(dt);
     }
 
     updateBuffs(dt: number): void {
@@ -733,11 +770,12 @@ export class ServerPlayer {
         }
     }
 
-    takeDamage(amount: number, fromProjectile = true, isTrueDamage = false): void {
+    takeDamage(amount: number, fromProjectile = true, isTrueDamage = false, instigator: any = null): void {
         if (this.isDead) return;
 
         // Invulnerability check
         if (this.tempBuff.type === 'invulnerable' && this.tempBuff.timer > 0) return;
+        if (this.statusManager.hasStatus('aegis')) return;
 
         // Dodge check (Purple F3-1: 10% dodge)
         if (!isTrueDamage && this.dodgeChance > 0 && Math.random() < this.dodgeChance) {
@@ -796,11 +834,52 @@ export class ServerPlayer {
             if (f.isActive) fd *= (1 + f.amount); 
         }
 
+        // Placa do Provocador: Reduz dano de inimigos com Taunt
+        if (instigator && instigator.statusManager && instigator.statusManager.hasStatus('taunt')) {
+            if (this.loadoutItems.includes('placa_provocador')) {
+                fd *= 0.95;
+            }
+        }
+
         const finalDamage = Math.round(fd);
         this.lastDamageTaken = finalDamage;
 
+        // O Olho Aterrorizante: Se hit > 15% Max HP, Fear & Mark atacante
+        if (this.loadoutItems.includes('olho_aterrorizante') && finalDamage > this.maxHp * 0.15) {
+            if (instigator && instigator.statusManager) {
+                instigator.statusManager.applyStatus('fear', 2000);
+                instigator.statusManager.applyStatus('marked', 5000);
+            }
+        }
+
+        // Pêndulo Curativo quebra:
+        if (this.loadoutItems.includes('pendulo_curativo')) {
+            this.penduloTimer = 0;
+            if (this.isPenduloActive) {
+                this.isPenduloActive = false;
+                this.statusManager.removeStatus('regen');
+                if (instigator && instigator.statusManager) {
+                    instigator.statusManager.applyStatus('mortalWounds', 4000);
+                }
+            }
+        }
+
+        // Cacto Geométrico:
+        if (this.loadoutItems.includes('cacto_geometrico')) {
+            if (Math.random() < 0.05 * this.itemMultiplier) {
+                // Apply temporary thorns via status (thornsBuff is now registered in StatusDictionary)
+                this.statusManager.applyStatus('thornsBuff', 5000);
+                this.emitLoadoutZone('item_thorns_proc', 2.0, 500);
+            }
+        }
+
         // Thorns (Green F2-3: Reflect 15% damage to closest enemy)
-        if (!isTrueDamage && this.thornsPct > 0) {
+        let totalThornsPct = this.thornsPct;
+        if (this.statusManager.hasStatus('thornsBuff')) {
+            totalThornsPct += 0.50; // Add 50% thorns during the cacto geometrico buff
+        }
+
+        if (!isTrueDamage && totalThornsPct > 0) {
             const engine = (global as any).__gameEngine;
             if (engine) {
                 let closest = null;
@@ -815,7 +894,7 @@ export class ServerPlayer {
                     }
                 }
                 if (closest && closestDist < 8.0) {
-                    const thornsDmg = Math.round(finalDamage * this.thornsPct);
+                    const thornsDmg = Math.round(finalDamage * totalThornsPct);
                     if (thornsDmg > 0) {
                         closest.takeDamage(thornsDmg, this);
                         const isBoss = ['LichKing','TheMightyOne','Gangplank','RainhaDasTrevas',
@@ -833,6 +912,12 @@ export class ServerPlayer {
                                 type: 'THORNS'
                             }
                         });
+
+                        // Casco Tóxico Farpado: Inimigos que sofrem dano de espinhos recebem 2 stacks de poison
+                        if (this.loadoutItems.includes('casco_toxico')) {
+                            closest.statusManager.applyStatus('poison', 4000, 0, this);
+                            closest.statusManager.applyStatus('poison', 4000, 0, this); // 2 stacks
+                        }
                     }
                 }
             }
@@ -897,8 +982,80 @@ export class ServerPlayer {
             this.statusEffects.rooted.isActive = false;
         }
 
+        // Estilhaço de Fúria: < 20% HP -> Fúria
+        if (this.loadoutItems.includes('estilhaco_furia') && (this.hp / this.maxHp) < 0.20 && finalDamage > 0) {
+            this.statusManager.applyStatus('enrage', 3000);
+        }
+
+        // Bastião de Gelo: < 30% HP -> Aegis + AoE freeze (CD 120s)
+        if (this.loadoutItems.includes('bastiao_gelo') && (this.hp / this.maxHp) < 0.30 && finalDamage > 0) {
+            if (!(this as any).bastiaoGeloOnCooldown) {
+                (this as any).bastiaoGeloOnCooldown = true;
+                this.statusManager.applyStatus('aegis', 3000);
+                this.emitLoadoutZone('item_bastiao_gelo', 5.0, 900);
+                // Apply AoE Freeze
+                const engine = (global as any).__gameEngine;
+                if (engine) {
+                    for (const enemy of engine.enemies) {
+                        if (!enemy.isDestroyed && this.position.distanceToXZ(enemy.position) <= 5) {
+                            enemy.statusManager.applyStatus('freeze', 2000);
+                        }
+                    }
+                }
+                setTimeout(() => { (this as any).bastiaoGeloOnCooldown = false; }, 120000);
+            }
+        }
+
         if (this.hp <= 0) {
+            // Mini-Escudo Planar
+            if (this.loadoutItems.includes('mini_escudo_planar') && !this.hasUsedMiniEscudo) {
+                this.hasUsedMiniEscudo = true;
+                this.hp = 1;
+                this.statusManager.applyStatus('aegis', 2000);
+                this.emitLoadoutZone('item_mini_escudo', 2.5, 650);
+                return;
+            }
+
+            // O Coração Cúbico de Raziel
+            if (this.loadoutItems.includes('coracao_raziel') && !this.hasUsedRaziel) {
+                this.hasUsedRaziel = true;
+                this.hp = this.maxHp;
+                this.statusManager.applyStatus('aegis', 4000);
+                this.emitLoadoutZone('item_raziel_rebirth', 15.0, 1200);
+                // Apply blind/confusion to nearby enemies
+                const engine = (global as any).__gameEngine;
+                if (engine) {
+                    for (const enemy of engine.enemies) {
+                        if (!enemy.isDestroyed && this.position.distanceToXZ(enemy.position) <= 15) {
+                            enemy.statusManager.applyStatus('blind', 3000);
+                            enemy.statusManager.applyStatus('confusion', 3000);
+                        }
+                    }
+                }
+                return;
+            }
+
             // Green F4-2: Cheat Death
+            if (this.cheatDeathActive) {
+                this.cheatDeathActive = false;
+                this.hp = Math.floor(this.maxHp * 0.50); // Revive with 50% HP
+                
+                // Add 3 seconds of invulnerability
+                this.tempBuff.type = 'invulnerable';
+                this.tempBuff.timer = 3000;
+                
+                // Heal nearby allies
+                const engine = (global as any).__gameEngine;
+                if (engine) {
+                    for (const ally of engine.players.values()) {
+                        if (!ally.isDead && ally.id !== this.id && this.position.distanceToXZ(ally.position) < 10.0) {
+                            ally.heal(ally.maxHp * 0.30);
+                        }
+                    }
+                }
+                return;
+            }
+
             if (this.surviveFatalHit && this.cheatDeathCooldown <= 0) {
                 this.hp = 1;
                 this.cheatDeathCooldown = 60000; // 60s
@@ -927,7 +1084,10 @@ export class ServerPlayer {
         });
     }
 
-    heal(amount: number): void { this.hp = Math.min(this.maxHp, this.hp + amount); }
+    heal(amount: number): void {
+        const healAmount = this.statusManager.hasStatus('mortalWounds') ? amount * 0.50 : amount;
+        this.hp = Math.min(this.maxHp, this.hp + healAmount);
+    }
     die(): void { this.isDead = true; }
     addXp(amount: number): void { this.xp += amount; while (this.xp >= this.xpToNextLevel) this.levelUp(); }
 
@@ -1075,25 +1235,28 @@ export class ServerPlayer {
         }
     }
     applyTemporaryBuff(type: string, durSec: number, mag: number): void { this.tempBuff.type = type; this.tempBuff.timer = durSec * 1000; this.tempBuff.magnitude = mag; }
-    applyStun(d: number): void { if (this.upgradeFlags.e_fortress && this.skills.e.isActive) return; this.statusEffects.stunned.isActive = true; this.statusEffects.stunned.timer = Math.max(this.statusEffects.stunned.timer, d); }
-    applyFreeze(d: number): void { if (this.upgradeFlags.e_fortress && this.skills.e.isActive) return; const c = this.timedBuffs.find(b => b.type === 'coroa_lich_buff'); if (c?.effects.immunity_freeze) return; const t = this.timedBuffs.find(b => b.type === 'talisma_quebrado_buff'); if (t) d *= (1 - t.effects.freeze_reduction); if (this.statusEffects.frozen.isActive) return; this.statusEffects.frozen.isActive = true; this.statusEffects.frozen.timer = d; }
-    applySlow(d: number, a: number): void { this.statusEffects.slowed.isActive = true; this.statusEffects.slowed.timer = Math.max(this.statusEffects.slowed.timer, d); this.statusEffects.slowed.amount = Math.max(this.statusEffects.slowed.amount, a); }
-    applyRoot(d: number): void { if (this.upgradeFlags.e_fortress && this.skills.e.isActive) return; this.statusEffects.rooted.isActive = true; this.statusEffects.rooted.timer = Math.max(this.statusEffects.rooted.timer, d); }
-    applyBleed(d: number, dmg: number): void { const b = this.statusEffects.bleeding; b.isActive = true; b.timer = Math.max(b.timer, d); b.damage = dmg; b.lastTick = Date.now(); }
-    applyBurn(d: number, dmg: number, s = 1): void { const b = this.statusEffects.burning; b.isActive = true; b.timer = Math.max(b.timer, d); b.damagePerTick = dmg; b.stacks = Math.min(b.stacks + s, 5); b.lastTick = Date.now(); }
-    applyArmorFracture(d: number, a: number): void { const f = this.statusEffects.armorFracture; f.isActive = true; f.timer = Math.max(f.timer, d); f.amount = Math.max(f.amount, a); }
-    applyAttackSpeedSlow(d: number, a: number): void { this.statusEffects.attackSpeedSlow.isActive = true; this.statusEffects.attackSpeedSlow.timer = Math.max(this.statusEffects.attackSpeedSlow.timer, d); this.statusEffects.attackSpeedSlow.amount = Math.max(this.statusEffects.attackSpeedSlow.amount, a); }
-    applyDisorientation(d: number): void { if (this.statusEffects.disoriented.isActive) return; this.statusEffects.disoriented.isActive = true; this.statusEffects.disoriented.timer = d; }
-    applyBlindness(d: number): void { this.statusEffects.blind.isActive = true; this.statusEffects.blind.timer = Math.max(this.statusEffects.blind.timer, d); }
-    applySilence(d: number): void { this.statusEffects.silenced.isActive = true; this.statusEffects.silenced.timer = Math.max(this.statusEffects.silenced.timer, d); }
-    applyMarcaDaAlma(d: number): void { if (this.statusEffects.marcaDaAlma.isActive) return; this.statusEffects.marcaDaAlma.isActive = true; this.statusEffects.marcaDaAlma.timer = d; }
-    applyLichKingPrison(d: number): void { if (this.statusEffects.lichKingPrison.isActive) return; this.statusEffects.lichKingPrison.isActive = true; this.statusEffects.lichKingPrison.timer = d; }
-    applyInvertedControls(d: number): void { if (this.statusEffects.invertedControls.isActive) return; this.statusEffects.invertedControls.isActive = true; this.statusEffects.invertedControls.timer = d; }
+    applyStun(d: number): void { if (this.upgradeFlags.e_fortress && this.skills.e.isActive) return; this.statusEffects.stunned.isActive = true; this.statusEffects.stunned.timer = Math.max(this.statusEffects.stunned.timer, d); this.statusManager.applyStatus('stunned', d); }
+    applyFreeze(d: number): void { if (this.upgradeFlags.e_fortress && this.skills.e.isActive) return; const c = this.timedBuffs.find(b => b.type === 'coroa_lich_buff'); if (c?.effects.immunity_freeze) return; const t = this.timedBuffs.find(b => b.type === 'talisma_quebrado_buff'); if (t) d *= (1 - t.effects.freeze_reduction); if (this.statusEffects.frozen.isActive) return; this.statusEffects.frozen.isActive = true; this.statusEffects.frozen.timer = d; this.statusManager.applyStatus('frozen', d); }
+    applySlow(d: number, a: number): void { this.statusEffects.slowed.isActive = true; this.statusEffects.slowed.timer = Math.max(this.statusEffects.slowed.timer, d); this.statusEffects.slowed.amount = Math.max(this.statusEffects.slowed.amount, a); this.statusManager.applyStatus('slowed', d, a); }
+    applyRoot(d: number): void { if (this.upgradeFlags.e_fortress && this.skills.e.isActive) return; this.statusEffects.rooted.isActive = true; this.statusEffects.rooted.timer = Math.max(this.statusEffects.rooted.timer, d); this.statusManager.applyStatus('rooted', d); }
+    applyBleed(d: number, dmg: number): void { const b = this.statusEffects.bleeding; b.isActive = true; b.timer = Math.max(b.timer, d); b.damage = dmg; b.lastTick = Date.now(); this.statusManager.applyStatus('bleeding', d, dmg); }
+    applyBurn(d: number, dmg: number, s = 1): void { const b = this.statusEffects.burning; b.isActive = true; b.timer = Math.max(b.timer, d); b.damagePerTick = dmg; b.stacks = Math.min(b.stacks + s, 5); b.lastTick = Date.now(); this.statusManager.applyStatus('burning', d, dmg); }
+    applyArmorFracture(d: number, a: number): void { const f = this.statusEffects.armorFracture; f.isActive = true; f.timer = Math.max(f.timer, d); f.amount = Math.max(f.amount, a); this.statusManager.applyStatus('armorFracture', d, a); }
+    applyAttackSpeedSlow(d: number, a: number): void { this.statusEffects.attackSpeedSlow.isActive = true; this.statusEffects.attackSpeedSlow.timer = Math.max(this.statusEffects.attackSpeedSlow.timer, d); this.statusEffects.attackSpeedSlow.amount = Math.max(this.statusEffects.attackSpeedSlow.amount, a); this.statusManager.applyStatus('attackSpeedSlow', d, a); }
+    applyDisorientation(d: number): void { if (this.statusEffects.disoriented.isActive) return; this.statusEffects.disoriented.isActive = true; this.statusEffects.disoriented.timer = d; this.statusManager.applyStatus('disoriented', d); }
+    applyBlindness(d: number): void { this.statusEffects.blind.isActive = true; this.statusEffects.blind.timer = Math.max(this.statusEffects.blind.timer, d); this.statusManager.applyStatus('blind', d); }
+    applySilence(d: number): void { this.statusEffects.silenced.isActive = true; this.statusEffects.silenced.timer = Math.max(this.statusEffects.silenced.timer, d); this.statusManager.applyStatus('silenced', d); }
+    applyMarcaDaAlma(d: number): void { if (this.statusEffects.marcaDaAlma.isActive) return; this.statusEffects.marcaDaAlma.isActive = true; this.statusEffects.marcaDaAlma.timer = d; this.statusManager.applyStatus('marcaDaAlma', d); }
+    applyLichKingPrison(d: number): void { if (this.statusEffects.lichKingPrison.isActive) return; this.statusEffects.lichKingPrison.isActive = true; this.statusEffects.lichKingPrison.timer = d; this.statusManager.applyStatus('lichKingPrison', d); }
+    applyInvertedControls(d: number): void { if (this.statusEffects.invertedControls.isActive) return; this.statusEffects.invertedControls.isActive = true; this.statusEffects.invertedControls.timer = d; this.statusManager.applyStatus('invertedControls', d); }
     applyKnockback(direction: Vec3, force: number): void {
         if (this.immuneKnockback) return;
         this.knockback = { dir: direction.clone().normalize(), force };
     }
-    clearNegativeEffects(): void { ['slowed','burning','bleeding','frozen','stunned','rooted','attackSpeedSlow','disoriented','blind','silenced','armorFracture','invertedControls'].forEach(k => { const e = (this.statusEffects as any)[k]; if (e) { e.isActive = false; e.timer = 0; if (k === 'slowed') this.speed = this.originalSpeed; if (k === 'burning') e.stacks = 0; } }); }
+    clearNegativeEffects(): void {
+        ['slowed','burning','bleeding','frozen','stunned','rooted','attackSpeedSlow','disoriented','blind','silenced','armorFracture','invertedControls'].forEach(k => { const e = (this.statusEffects as any)[k]; if (e) { e.isActive = false; e.timer = 0; if (k === 'slowed') this.speed = this.originalSpeed; if (k === 'burning') e.stacks = 0; } });
+        this.statusManager.clearNegative();
+    }
 
     /** R upgrade: Fúria Infinita — chamado externamente ao abater inimigo */
     onEnemyKilled(): void {
@@ -1118,7 +1281,7 @@ export class ServerPlayer {
                 r: Math.max(0, this.skills.r.lastUsed + this.getEffectiveSkillCooldown('r') - now),
             },
             activeBuff: this.activeBuff.type, buffTimer: this.activeBuff.timer, tempBuff: this.tempBuff.type,
-            timedBuffs: this.timedBuffs.map(b => b.type), statusEffects: fx,
+            timedBuffs: this.timedBuffs.map(b => b.type), statusEffects: this.statusManager.toSnapshot(),
             buffTimers: (() => {
                 const timers: { [key: string]: number } = {};
                 if (this.activeBuff.type) timers[this.activeBuff.type] = Math.max(0, this.activeBuff.timer);
@@ -1129,6 +1292,8 @@ export class ServerPlayer {
                         timers[k] = Math.max(0, (v as any).timer);
                     }
                 }
+                // Also add timers from statusManager
+                Object.assign(timers, this.statusManager.toTimers());
                 for (const [k, v] of Object.entries(this.pathogens)) {
                     timers[k] = Math.max(0, v.timer);
                 }
@@ -1155,6 +1320,226 @@ export class ServerPlayer {
             critDamageMultiplier: (() => { const pConf = getGameData().player || CONFIG.PLAYER as any; return pConf.critDamageMultiplier !== undefined ? pConf.critDamageMultiplier : (CONFIG.PLAYER as any).CRIT_DAMAGE_MULTIPLIER || 2.0; })(),
             speed: this.getEffectiveSpeed(),
             attackSpeed: Number((1000 / this.getEffectiveAttackCooldown()).toFixed(2)),
+            loadoutItems: this.loadoutItems,
+            loadoutLevel: this.loadoutLevel,
+            itemMultiplier: this.itemMultiplier
         };
+    }
+
+    public upgradeLoadoutItems(): void {
+        if (this.loadoutLevel >= 10) return;
+        this.loadoutLevel++;
+        this.itemMultiplier = 1.0 + (this.loadoutLevel * 0.01);
+        
+        const engine = (global as any).__gameEngine;
+        if (engine) {
+            engine.pendingEvents.push({
+                event: 'LOADOUT_LEVEL_UP',
+                data: {
+                    playerId: this.id,
+                    level: this.loadoutLevel
+                }
+            });
+        }
+    }
+
+    private emitLoadoutZone(type: string, radius: number, duration = 650): void {
+        const engine = (global as any).__gameEngine;
+        if (!engine?.zones) return;
+
+        const seq = engine.zoneIdCounter !== undefined ? engine.zoneIdCounter++ : Date.now();
+        engine.zones.push({
+            id: `item_zone_${seq}_${type}`,
+            type,
+            position: this.position.clone(),
+            radius,
+            duration,
+            timer: duration,
+            damagePerSec: 0,
+            lastTick: 0,
+            extras: { sourceId: this.id, itemVisual: true }
+        });
+    }
+
+    public updateLoadoutTimers(dt: number): void {
+        const hasInfinito = this.loadoutItems.includes('cubo_infinito');
+        const hasMegafone = this.loadoutItems.includes('megafone_conico');
+        const hasPendulo = this.loadoutItems.includes('pendulo_curativo');
+        const hasTetraedro = this.loadoutItems.includes('tetraedro_distorcao');
+
+        if (hasInfinito) {
+            this.cuboInfinitoTimer += dt * 1000;
+            if (this.cuboInfinitoTimer >= 10000) {
+                this.cuboInfinitoTimer = 0;
+                this.cuboInfinitoState = (this.cuboInfinitoState + 1) % 3;
+                
+                // State 0: Regen+Haste, State 1: Enrage, State 2: Aegis
+                if (this.cuboInfinitoState === 0) {
+                    this.statusManager.applyStatus('regen', 10000);
+                    this.statusManager.applyStatus('haste', 10000); // Or manually boost speed
+                } else if (this.cuboInfinitoState === 1) {
+                    this.statusManager.applyStatus('enrage', 10000);
+                } else if (this.cuboInfinitoState === 2) {
+                    this.statusManager.applyStatus('aegis', 10000);
+                }
+            }
+        }
+
+        if (hasMegafone) {
+            this.megafoneTimer += dt * 1000;
+            if (this.megafoneTimer >= 30000) {
+                this.megafoneTimer = 0;
+                this.statusManager.applyStatus('aegis', 3000);
+                this.emitLoadoutZone('item_megafone_taunt', 10.0, 800);
+                // Apply AoE taunt in GameEngine
+                const engine = (global as any).__gameEngine;
+                if (engine) {
+                    for (const e of engine.enemies) {
+                        if (!e.isDestroyed && this.position.distanceToXZ(e.position) <= 10) {
+                            e.statusManager.applyStatus('taunt', 3000, 0, this);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (hasPendulo) {
+            this.penduloTimer += dt * 1000;
+            if (this.penduloTimer >= 10000 && !this.isPenduloActive) {
+                this.isPenduloActive = true;
+                this.statusManager.applyStatus('regen', 999999);
+            }
+        }
+
+        if (hasTetraedro) {
+            // Apply AoE Slow/Silence to enemies < 8m
+            const engine = (global as any).__gameEngine;
+            if (engine) {
+                for (const e of engine.enemies) {
+                    if (!e.isDestroyed && this.position.distanceToXZ(e.position) <= 8) {
+                        e.statusManager.applyStatus('slowed', 1000, 0.70);
+                        e.statusManager.applyStatus('silenced', 1000);
+                    }
+                }
+            }
+        }
+    }
+
+    public applyLoadoutPassives(): void {
+        const ItemDatabase = require('../data/ItemDatabase').ItemDatabase;
+        for (const itemId of this.loadoutItems) {
+            const item = ItemDatabase[itemId];
+            if (!item) continue;
+
+            const multiplier = this.itemMultiplier;
+
+            if (item.id === 'cristal_vitalidade') {
+                this.statusManager.applyStatus('regen', 999999);
+            }
+            if (item.id === 'vento_cubico') {
+                const speedMult = 1 + 0.05 * multiplier;
+                this.speed *= speedMult;
+                this.originalSpeed *= speedMult;
+            }
+            if (item.id === 'presa_poligono') {
+                this.lifestealPct += 0.02 * multiplier;
+            }
+            if (item.id === 'peso_balanceador') {
+                this.maxHp *= (1 + 0.10 * multiplier);
+                this.hp = this.maxHp;
+                this.speed *= (1 - 0.05 * multiplier);
+                this.originalSpeed *= (1 - 0.05 * multiplier);
+            }
+            if (item.id === 'motor_hasteado') {
+                this.speed *= (1 + 0.10 * multiplier);
+                this.originalSpeed *= (1 + 0.10 * multiplier);
+                this.bonusDamagePct -= 0.05 * multiplier;
+            }
+            if (item.id === 'casco_toxico') {
+                this.thornsPct += 0.15 * multiplier;
+            }
+            if (item.id === 'lamina_sanguessuga') {
+                this.lifestealPct += 0.05 * multiplier;
+            }
+            if (item.id === 'tetraedro_distorcao') {
+                this.speed *= (1 + 0.50 * multiplier);
+                this.originalSpeed *= (1 + 0.50 * multiplier);
+            }
+            if (item.id === 'relogio_triangular') {
+                // Treated where CC is applied
+            }
+            if (item.id === 'frasco_sangue') {
+                // Treated in bleed damage calculation
+            }
+        }
+    }
+
+    public processLoadoutOnHit(enemy: any): void {
+        const ItemDatabase = require('../data/ItemDatabase').ItemDatabase;
+        const multiplier = this.itemMultiplier;
+        const playerDmg = this.getDamage(false, true);
+        const bleedDmg = Math.round(playerDmg * 0.10);
+        const igniteDmg = Math.round(playerDmg * 0.10);
+        const acidDmg = Math.round(playerDmg * 0.12);
+        const plagueDmg = Math.round(playerDmg * 0.15);
+        
+        for (const itemId of this.loadoutItems) {
+            const item = ItemDatabase[itemId];
+            if (!item) continue;
+
+            const roll = Math.random();
+
+            if (item.id === 'prisma_faiscas' && roll < 0.05 * multiplier) enemy.statusManager.applyStatus('ignite', 3000, igniteDmg, this);
+            if (item.id === 'cubo_toxico' && roll < 0.05 * multiplier) enemy.statusManager.applyStatus('poison', 5000, 0, this);
+            if (item.id === 'lamina_triangular' && roll < 0.05 * multiplier) enemy.statusManager.applyStatus('bleed', 5000, bleedDmg, this);
+            if (item.id === 'cilindro_corrosivo' && roll < 0.03 * multiplier) enemy.statusManager.applyStatus('acid', 4000, acidDmg, this);
+            if (item.id === 'orbe_enfermo' && roll < 0.02 * multiplier) enemy.statusManager.applyStatus('plague', 6000, plagueDmg, this);
+            if (item.id === 'icosaedro_gelido' && roll < 0.01 * multiplier) enemy.statusManager.applyStatus('freeze', 1000, 0, this);
+            if (item.id === 'bloco_pesado' && roll < 0.02 * multiplier) enemy.statusManager.applyStatus('stun', 1500, 0, this);
+            if (item.id === 'raizes_poligonais' && roll < 0.05 * multiplier) enemy.statusManager.applyStatus('root', 2000, 0, this);
+            if (item.id === 'cone_lentidao' && roll < 0.10 * multiplier) enemy.statusManager.applyStatus('slow', 3000, 0.20, this);
+            if (item.id === 'luz_prismatica' && roll < 0.02 * multiplier) enemy.statusManager.applyStatus('blind', 2000, 0, this);
+            if (item.id === 'esfera_mudo' && roll < 0.05 * multiplier) enemy.statusManager.applyStatus('silence', 3000, 0, this);
+            if (item.id === 'espelho_distorcido' && roll < 0.03 * multiplier) enemy.statusManager.applyStatus('confusion', 2000, 0, this);
+            if (item.id === 'tetraedro_panico' && roll < 0.02 * multiplier) enemy.statusManager.applyStatus('fear', 2000, 0, this);
+            if (item.id === 'lente_fenda' && roll < 0.05 * multiplier) enemy.statusManager.applyStatus('vulnerable', 4000, 0, this);
+            if (item.id === 'tijolo_exaustivo' && roll < 0.05 * multiplier) enemy.statusManager.applyStatus('weakness', 4000, 0, this);
+            if (item.id === 'circulo_cansaco' && roll < 0.05 * multiplier) enemy.statusManager.applyStatus('exhaust', 4000, 0, this);
+            if (item.id === 'seta_marcadora' && roll < 0.05 * multiplier) enemy.statusManager.applyStatus('marked', 5000, 0, this);
+            if (item.id === 'cunha_serrilhada' && roll < 0.05 * multiplier) enemy.statusManager.applyStatus('mortalWounds', 4000, 0, this);
+            
+            // Legendaries & Epics
+            if (item.id === 'prisma_calamidade') {
+                const calDmg = Math.round(playerDmg * 0.10);
+                enemy.statusManager.applyStatus('poison', 5000, 0, this);
+                enemy.statusManager.applyStatus('acid', 4000, calDmg, this);
+                enemy.statusManager.applyStatus('ignite', 3000, calDmg, this);
+                enemy.statusManager.applyStatus('plague', 6000, calDmg, this);
+            }
+            if (item.id === 'coroa_gelida') {
+                // AoE freeze will be handled in GameEngine, but the Lifesteal effect is here:
+                if (enemy.statusManager.hasStatus('frozen') || enemy.statusManager.hasStatus('freeze')) {
+                    this.heal(this.maxHp * 0.10);
+                }
+            }
+            if (item.id === 'prisma_duelista') {
+                this.duelistaCounter = (this.duelistaCounter + 1) % 3;
+                if (this.duelistaCounter === 1) enemy.statusManager.applyStatus('weakness', 3000, 0, this);
+                else if (this.duelistaCounter === 2) enemy.statusManager.applyStatus('ignite', 3000, igniteDmg, this);
+                else if (this.duelistaCounter === 0) enemy.statusManager.applyStatus('confusion', 3000, 0, this);
+            }
+            if (item.id === 'lamina_sanguessuga') {
+                if (enemy.statusManager.hasStatus('vulnerable')) {
+                    // Normal +5% lifesteal is passive. This applies the extra 5% dynamically.
+                    // Instead of altering LifestealPct globally, we can just instantly heal for 5% of our attack damage.
+                    this.heal(this.getDamage() * 0.05); 
+                }
+            }
+            if (item.id === 'dodecaedro_carnificina') {
+                if (this.lastHitWasCrit && (enemy.statusManager.hasStatus('bleeding') || enemy.statusManager.hasStatus('bleed'))) {
+                    this.statusManager.applyStatus('enrage', 2000, 0, this);
+                }
+            }
+        }
     }
 }

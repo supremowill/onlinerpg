@@ -175,7 +175,8 @@ export class FaraoEnemy extends ServerEnemy {
         }
 
         // Step 4 - Dano Final
-        if (this.status.isMarked) { fd *= 1.5; this.status.isMarked = false; }
+        if (this.isMarked) { fd *= 1.5; this.unmark(); }
+
 
         const finalDamage = Math.round(fd);
         this.lastDamageTaken = finalDamage;

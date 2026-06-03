@@ -392,7 +392,7 @@ export class MegeraEnemy extends ServerEnemy {
         const now = Date.now();
 
         // Passiva: Tumba - imune a stun/slow
-        this.status.slowTimer = 0; // Reset slow
+        this.statusManager.removeStatus('slowed'); // Passiva: Tumba - imune a slow\n
 
         if (now > this.habilidades.chuvaCaixas.lastUsed + this.habilidades.chuvaCaixas.cooldown) {
             this.habilidades.chuvaCaixas.lastUsed = now;

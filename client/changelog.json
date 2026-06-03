@@ -1,5 +1,23 @@
 [
   {
+    "hash": "9e55ab0",
+    "date": "2026-05-31T19:23:58-03:00",
+    "message": "fix(mobile): resolve issue where mobile player platform was not set correctly on server, blocking movement joystick",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "a7c4706",
+    "date": "2026-05-31T18:34:08-03:00",
+    "message": "feat(website): add top 10 builds ranking by essence tower elements",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "559e140",
+    "date": "2026-05-27T22:56:42-03:00",
+    "message": "chore: update changelog for poison balance",
+    "author": "williamdouglasmsouza"
+  },
+  {
     "hash": "ab33d95",
     "date": "2026-05-27T22:55:59-03:00",
     "message": "balance: adjust poison DoT formula to 1% player attack + level + 3% enemy max HP",
@@ -279,24 +297,6 @@
     "hash": "d1288eb",
     "date": "2026-05-03T22:00:32-03:00",
     "message": "fix: corrigir Boss Smith - habilidades e passiva funcionais",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "665bae5",
-    "date": "2026-05-03T20:25:40-03:00",
-    "message": "feat: implementar Boss Smith - O Agente Corruptor",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "ea721ca",
-    "date": "2026-05-03T17:23:57-03:00",
-    "message": "fix: corrigir passivas do Espectro de Raziel e bosses do Limbo",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "a4488f3",
-    "date": "2026-05-03T16:47:27-03:00",
-    "message": "feat: impedir multi-login (mesma conta em multiplos navegadores)",
     "author": "williamdouglasmsouza"
   }
 ]

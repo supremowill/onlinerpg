@@ -1,0 +1,306 @@
+<div class="row">
+    <div class="col-12">
+        <div class="card card-dark" style="background: #1e1e2d; border-radius: 8px; border: 1px solid #2d2d3f; color: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+            <div class="card-header" style="background: #1b1b28; border-bottom: 1px solid #2d2d3f; padding: 15px 20px; display: flex; align-items: center; justify-content: space-between;">
+                <h3 class="card-title" style="color: #f1c40f; font-weight: bold; font-family: 'Outfit', sans-serif; margin: 0; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-image"></i> Gerenciador de Imagens de Itens
+                </h3>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="item-search" placeholder="Buscar item..." style="background: #2b2b3d; border: 1px solid #3d3d5c; color: #fff; border-radius: 4px; padding: 5px 12px; font-size: 0.85rem;" />
+                    <button class="btn btn-warning btn-sm" onclick="saveAllMappings()" style="font-weight: bold; background: #f1c40f; border-color: #f1c40f; color: #1e1e2d;">
+                        <i class="fas fa-save"></i> Salvar Alterações
+                    </button>
+                </div>
+            </div>
+            
+            <div class="card-body" style="padding: 20px;">
+                <p style="color: #a2a2c2; font-size: 0.9rem; margin-bottom: 20px;">
+                    Associe cada um dos 51 itens do jogo a um dos 1244 arquivos PNG disponíveis no diretório <code>client/items/</code>. As alterações serão refletidas em tempo real no inventário do lobby, na tela de Game Over e nas orbes 3D dentro da partida.
+                </p>
+                
+                <div id="items-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 15px;">
+                    {% for id, details in items %}
+                        {% set current_image = mapping[id] ?: 'item1.png' %}
+                        <div class="item-card" data-id="{{ id }}" data-name="{{ details.name }}" data-rarity="{{ details.rarity }}" style="background: #242436; border: 1px solid #33334c; border-radius: 6px; padding: 15px; display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; transition: transform 0.2s, border-color 0.2s;">
+                            
+                            <span class="badge-rarity rarity-{{ details.rarity }}" style="position: absolute; top: 10px; right: 10px; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; padding: 2px 6px; border-radius: 3px;">
+                                {{ details.rarity }}
+                            </span>
+                            
+                            <div class="image-preview-container" style="width: 70px; height: 70px; display: flex; align-items: center; justify-content: center; background: #1a1a26; border: 2px dashed #444466; border-radius: 8px; margin-top: 15px; margin-bottom: 12px; transition: border-color 0.2s;">
+                                <img id="img-{{ id }}" src="" data-filename="{{ current_image }}" class="item-preview-img" style="width: 50px; height: 50px; object-fit: contain;" />
+                            </div>
+                            
+                            <div style="font-weight: bold; font-size: 0.85rem; color: #fff; margin-bottom: 4px; line-height: 1.2; height: 32px; display: flex; align-items: center; justify-content: center; overflow: hidden; text-overflow: ellipsis;">
+                                {{ details.name }}
+                            </div>
+                            
+                            <div style="font-size: 0.7rem; color: #7f7f9c; font-family: monospace; margin-bottom: 12px;" id="lbl-{{ id }}">
+                                {{ current_image }}
+                            </div>
+                            
+                            <button class="btn btn-outline-info btn-block btn-xs" onclick="openImageSelector('{{ id }}')" style="font-size: 0.75rem; border-color: #38bdf8; color: #38bdf8; padding: 4px 10px; background: transparent; border-radius: 4px; font-weight: bold;">
+                                <i class="fas fa-edit"></i> Alterar Foto
+                            </button>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Seleção de Imagens -->
+<div class="modal fade" id="image-gallery-modal" tabindex="-1" role="dialog" aria-hidden="true" style="color: #fff;">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content" style="background: #1e1e2d; border: 1px solid #2d2d3f; border-radius: 8px;">
+            <div class="modal-header" style="background: #1b1b28; border-bottom: 1px solid #2d2d3f; padding: 15px 20px;">
+                <h5 class="modal-title" style="color: #f1c40f; font-weight: bold;" id="modal-item-title">Selecionar Imagem</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: #fff; opacity: 0.8;">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            
+            <div class="modal-body" style="padding: 20px;">
+                <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+                    <input type="text" id="gallery-search" placeholder="Filtrar por nome (ex: item10)..." style="flex: 1; background: #2b2b3d; border: 1px solid #3d3d5c; color: #fff; border-radius: 4px; padding: 6px 12px; font-size: 0.85rem;" />
+                    
+                    <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('upload-input').click()" style="font-weight: bold;">
+                        <i class="fas fa-upload"></i> Enviar PNG
+                    </button>
+                    <input type="file" id="upload-input" accept="image/png" style="display: none;" onchange="uploadImage(this)" />
+
+                    <div style="display: flex; gap: 5px; align-items: center;" id="pagination-controls">
+                        <button class="btn btn-secondary btn-sm" onclick="changePage(-1)"><i class="fas fa-chevron-left"></i></button>
+                        <span id="page-indicator" style="font-size: 0.85rem; font-weight: bold; font-family: monospace; padding: 0 10px;">Pág. 1 / 16</span>
+                        <button class="btn btn-secondary btn-sm" onclick="changePage(1)"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                </div>
+                
+                <div id="gallery-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(75px, 1fr)); gap: 10px; max-height: 400px; overflow-y: auto; padding: 10px; background: #151521; border-radius: 6px; border: 1px solid #252538;">
+                    <!-- Preenchido dinamicamente via JS -->
+                </div>
+            </div>
+            
+            <div class="modal-footer" style="background: #1b1b28; border-top: 1px solid #2d2d3f; padding: 15px 20px;">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal" style="font-weight: bold;">Cancelar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .item-card:hover {
+        transform: translateY(-3px);
+        border-color: #f1c40f !important;
+        box-shadow: 0 5px 15px rgba(241, 196, 15, 0.1);
+    }
+    .item-card:hover .image-preview-container {
+        border-color: #f1c40f !important;
+    }
+    .rarity-basic { background: #64748b; color: #fff; }
+    .rarity-epic { background: #a855f7; color: #fff; }
+    .rarity-legendary { background: #f97316; color: #fff; }
+    
+    .gallery-item {
+        background: #242436;
+        border: 1px solid #33334c;
+        border-radius: 4px;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .gallery-item:hover {
+        background: #33334c;
+        border-color: #f1c40f;
+        transform: scale(1.05);
+    }
+</style>
+
+<script>
+    // Configurações de host e porta para achar as imagens no servidor do jogo
+    const ITEMS_BASE_URL = window.location.origin + '/items/';
+    
+    const allImageFilenames = {{ all_images | json_encode | raw }};
+    const totalImages = allImageFilenames.length;
+    const imagesPerPage = 80;
+    
+    let currentEditingItemId = null;
+    let selectedImageFilename = null;
+    let currentPage = 1;
+    let currentFilteredImages = [];
+    let isFiltering = false;
+
+    // Inicializar imagens nos cards com a url correta
+    document.querySelectorAll('.item-preview-img').forEach(img => {
+        const filename = img.getAttribute('data-filename');
+        img.src = ITEMS_BASE_URL + filename;
+    });
+
+    async function uploadImage(input) {
+        if (!input.files || input.files.length === 0) return;
+        const file = input.files[0];
+        
+        const formData = new FormData();
+        formData.append('new_image', file);
+        formData.append('upload_image', '1');
+
+        try {
+            const res = await fetch('{{ api_url }}', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                alert('Imagem enviada com sucesso!');
+                allImageFilenames.push(data.filename);
+                // Seleciona automaticamente a imagem recem enviada se tiver um item aberto
+                if (currentEditingItemId) {
+                    selectImageForCurrentItem(data.filename);
+                }
+                renderGallery();
+            } else {
+                alert('Erro ao enviar imagem: ' + (data.error || 'Desconhecido'));
+            }
+        } catch (e) {
+            alert('Erro de conexão ao enviar imagem: ' + e.message);
+        }
+        input.value = ''; // reseta o input
+    }
+
+    // Buscador de itens
+    document.getElementById('item-search').addEventListener('input', function(e) {
+        const query = e.target.value.toLowerCase();
+        document.querySelectorAll('.item-card').forEach(card => {
+            const name = card.getAttribute('data-name').toLowerCase();
+            const id = card.getAttribute('data-id').toLowerCase();
+            if (name.includes(query) || id.includes(query)) {
+                card.style.display = 'flex';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    });
+
+    // Buscador da galeria
+    document.getElementById('gallery-search').addEventListener('input', function(e) {
+        const query = e.target.value.toLowerCase().trim();
+        if (query === '') {
+            isFiltering = false;
+            currentPage = 1;
+            renderGallery();
+            document.getElementById('pagination-controls').style.display = 'flex';
+        } else {
+            isFiltering = true;
+            currentFilteredImages = allImageFilenames.filter(name => name.toLowerCase().includes(query));
+            renderGallery();
+            document.getElementById('pagination-controls').style.display = 'none';
+        }
+    });
+
+    function openImageSelector(itemId) {
+        currentEditingItemId = itemId;
+        const card = document.querySelector(`.item-card[data-id="${itemId}"]`);
+        const itemName = card.getAttribute('data-name');
+        
+        document.getElementById('modal-item-title').textContent = `Imagem para: ${itemName}`;
+        document.getElementById('gallery-search').value = '';
+        isFiltering = false;
+        currentPage = 1;
+        
+        renderGallery();
+        document.getElementById('pagination-controls').style.display = 'flex';
+        $('#image-gallery-modal').modal('show');
+    }
+
+    function renderGallery() {
+        const grid = document.getElementById('gallery-grid');
+        grid.innerHTML = '';
+        
+        let imagesToRender = [];
+        if (isFiltering) {
+            imagesToRender = currentFilteredImages;
+        } else {
+            const startIdx = (currentPage - 1) * imagesPerPage;
+            const endIdx = Math.min(startIdx + imagesPerPage, allImageFilenames.length);
+            imagesToRender = allImageFilenames.slice(startIdx, endIdx);
+            
+            const totalPages = Math.ceil(allImageFilenames.length / imagesPerPage);
+            document.getElementById('page-indicator').textContent = `Pág. ${currentPage} / ${totalPages}`;
+        }
+        
+        if (imagesToRender.length === 0) {
+            grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #7f7f9c; padding: 20px;">Nenhuma imagem encontrada.</div>';
+            return;
+        }
+        
+        imagesToRender.forEach(filename => {
+            const div = document.createElement('div');
+            div.className = 'gallery-item';
+            div.onclick = () => selectImageForCurrentItem(filename);
+            
+            div.innerHTML = `
+                <img src="${ITEMS_BASE_URL}${filename}" style="width: 40px; height: 40px; object-fit: contain; margin-bottom: 5px;" loading="lazy" />
+                <span style="font-size: 0.65rem; color: #a2a2c2; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center;">${filename}</span>
+            `;
+            grid.appendChild(div);
+        });
+    }
+
+    function changePage(direction) {
+        const totalPages = Math.ceil(allImageFilenames.length / imagesPerPage);
+        currentPage += direction;
+        if (currentPage < 1) currentPage = 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+        renderGallery();
+    }
+
+    function selectImageForCurrentItem(filename) {
+        if (!currentEditingItemId) return;
+        
+        // Atualizar o preview no card correspondente
+        const img = document.getElementById(`img-${currentEditingItemId}`);
+        img.src = ITEMS_BASE_URL + filename;
+        img.setAttribute('data-filename', filename);
+        
+        const label = document.getElementById(`lbl-${currentEditingItemId}`);
+        label.textContent = filename;
+        
+        $('#image-gallery-modal').modal('hide');
+        currentEditingItemId = null;
+    }
+
+    async function saveAllMappings() {
+        const mapping = {};
+        document.querySelectorAll('.item-preview-img').forEach(img => {
+            const itemId = img.id.replace('img-', '');
+            const filename = img.getAttribute('data-filename');
+            mapping[itemId] = filename;
+        });
+
+        try {
+            const res = await fetch('{{ api_url }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(mapping)
+            });
+            
+            if (res.ok) {
+                alert('Mapeamento de fotos atualizado e salvo com sucesso no Game Server!');
+                // Recarregar os dados do jogo se possível ou rodar requisição no servidor admin
+                try {
+                    await fetch('/api/admin/reload-data', { method: 'POST' });
+                } catch(e) {}
+            } else {
+                alert('Falha ao salvar mapeamento de imagens no servidor.');
+            }
+        } catch(e) {
+            alert('Erro de conexão ao salvar alterações: ' + e.message);
+        }
+    }
+</script>

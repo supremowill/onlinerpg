@@ -7,7 +7,7 @@ import { Vec3 } from '../utils/Vector3';
 import { CONFIG } from '../config';
 import { WorldSnapshot, PlayerBuild } from '../network/Protocol';
 import { PurpleCubeEnemy, RedConeEnemy, EnemyTowerEnemy, GuardianGuerreiroEnemy, GuardianMagoEnemy, GuardianArqueiroEnemy } from './enemies/BasicEnemies';
-import { BruxaDoGeloEnemy, MestraDaIlusaoEnemy, BombardeiroInsanoEnemy, CloneIlusorioEnemy } from './enemies/Defenders';
+import { BruxaDoGeloEnemy, EscravoGlacialEnemy, FarsanteCarmesimEnemy, BombardeiroInsanoEnemy, CloneIlusorioEnemy } from './enemies/Defenders';
 import { SuperBossEnemy, GangplankEnemy, RainhaDasTrevasEnemy } from './enemies/Bosses';
 import { FeiticeiroImortalEnemy, LichKingEnemy, PlantaCarnivoraEnemy, CaoDosInfernosEnemy, TheMightyOneEnemy, MatilhaGeometraEnemy, GhoulEnemy, ValkyrEnemy } from './enemies/AdvancedBosses';
 import { GuardiaoDoLimboEnemy, MinosEnemy, CerberoEnemy, PlutaoEnemy, FuriaEnemy, MegeraEnemy, MinotauroEnemy, GeriaoEnemy, LuciferEnemy } from './enemies/LimboBosses';
@@ -16,6 +16,7 @@ import { EspectroDeRazielEnemy } from './enemies/EspectroDeRaziel';
 import { SmithEnemy } from './enemies/SmithEnemy';
 import { FaraoEnemy, EscaravelhoFaraoEnemy } from './enemies/Farao';
 import { DoutorDoencaEnemy } from './enemies/DoutorDoenca';
+import { ThreatScalingSystem, ThreatContext } from './ThreatScalingSystem';
 
 export interface Orb { id: string; type: 'xp' | 'healing' | 'buff'; position: Vec3; hitboxRadius: number; buffType?: string; buffEffects?: any; buffDuration?: number; }
 export interface DynamicZone { id: string; type: string; position: Vec3; radius: number; duration: number; timer: number; damagePerSec: number; lastTick: number; extras?: any; }
@@ -31,9 +32,11 @@ export class GameEngine {
     public spawnManager: SpawnManager;
     public slipperyZones: { position: Vec3; radius: number }[] = [];
     public collisionSystem: CollisionSystem;
+    public threatScaling: ThreatScalingSystem;
     public tick = 0;
     public gameTime = 0;
     public isGameOver = false;
+    private lastThreatSignature = '';
     private towerRespawnQueue: { enemy: EnemyTowerEnemy; timer: number }[] = [];
     private healingTowerPos = new Vec3(0, 1.5, 0);
     private healingTowerLastHeal = 0;
@@ -45,6 +48,7 @@ export class GameEngine {
     constructor(numPlayers: number) {
         this.spawnManager = new SpawnManager();
         this.collisionSystem = new CollisionSystem();
+        this.threatScaling = new ThreatScalingSystem();
         this.spawnInitialEntities();
         (global as any).__gameEngine = this;
     }
@@ -56,8 +60,8 @@ export class GameEngine {
         }
         // Enemy towers
         for (const tp of CONFIG.TOWER_POSITIONS) {
-            const tower = new EnemyTowerEnemy(new Vec3(tp.x, 0, tp.z), this.spawnManager.globalMultiplier);
-            this.enemies.push(tower);
+            const tower = new EnemyTowerEnemy(new Vec3(tp.x, 0, tp.z), 1);
+            this.addEnemy(tower, 'initial_tower');
         }
         
         // Random Obstacles (Walls)
@@ -92,9 +96,29 @@ export class GameEngine {
         });
     }
 
-    addPlayer(id: string, name: string, platform: 'pc' | 'mobile' = 'pc', build?: PlayerBuild): ServerPlayer {
+    addPlayer(id: string, name: string, platform: 'pc' | 'mobile' = 'pc', build?: PlayerBuild, loadout?: string[]): ServerPlayer {
         const p = new ServerPlayer(id, name, build);
         p.platform = platform;
+        
+        // Loadout Validation
+        const items = loadout || (build && build.loadoutItems);
+        if (items && Array.isArray(items)) {
+            const ItemDatabase = require('../data/ItemDatabase').ItemDatabase;
+            let legCount = 0, epicCount = 0, basicCount = 0;
+            const validLoadout: string[] = [];
+            
+            for (const itemId of items) {
+                const item = ItemDatabase[itemId];
+                if (!item) continue;
+                
+                if (item.rarity === 'legendary' && legCount < 1) { legCount++; validLoadout.push(itemId); }
+                else if (item.rarity === 'epic' && epicCount < 2) { epicCount++; validLoadout.push(itemId); }
+                else if (item.rarity === 'basic' && basicCount < 3) { basicCount++; validLoadout.push(itemId); }
+            }
+            p.loadoutItems = validLoadout;
+            p.applyLoadoutPassives();
+        }
+
         this.players.set(id, p);
         return p;
     }
@@ -178,6 +202,45 @@ export class GameEngine {
                         proj.isBuffed = 'arqueiro';
                         proj.isCritical = p.lastHitWasCrit;
                         this.playerProjectiles.push(proj);
+                    }
+                } else if (p.loadoutItems && p.loadoutItems.includes('coroa_gelida')) {
+                    // Coroa Gélida: Ataques = Cleave de Gelo
+                    const dmg = p.getDamage();
+                    this.pendingEvents.push({
+                        event: 'ICE_CLEAVE',
+                        data: {
+                            playerId: p.id,
+                            x: p.position.x,
+                            y: p.position.y,
+                            z: p.position.z,
+                            dir: { x: dir.x, z: dir.z }
+                        }
+                    });
+                    this.zones.push({
+                        id: `zone_${this.zoneIdCounter++}`,
+                        type: 'item_ice_cleave',
+                        position: p.position.clone(),
+                        radius: 4.0,
+                        duration: 260,
+                        timer: 260,
+                        damagePerSec: 0,
+                        lastTick: 0,
+                        extras: { sourceId: p.id, rotY: p.rotationY }
+                    });
+                    
+                    // Hit enemies in an arc/area in front of player
+                    for (const enemy of this.enemies) {
+                        if (enemy.isDestroyed) continue;
+                        const dist = p.position.distanceToXZ(enemy.position);
+                        if (dist <= 4.0) { // 4m range
+                            // Check if enemy is in front of the player
+                            const toEnemy = enemy.position.clone().sub(p.position).normalize();
+                            const dot = toEnemy.x * dir.x + toEnemy.z * dir.z;
+                            if (dot > 0.5) { // roughly 120 degree cone
+                                enemy.takeDamage(dmg, p);
+                                enemy.statusManager.applyStatus('freeze', 1000, 0, p);
+                            }
+                        }
                     }
                 } else {
                     const dmg = p.getDamage();
@@ -324,12 +387,53 @@ export class GameEngine {
         this.updateTowerRespawns(dt);
         // Cleanup destroyed
         this.cleanup();
+        this.recalculateThreatIfNeeded('tick');
+    }
+
+    private getThreatContext(players?: ServerPlayer[]): ThreatContext {
+        const sourcePlayers = players && players.length > 0 ? players : [...this.players.values()].filter(p => !p.isDead);
+        const playerLevel = sourcePlayers.length > 0 ? Math.max(...sourcePlayers.map(p => p.level || 1)) : 1;
+        return {
+            gameTime: this.gameTime,
+            playerLevel,
+            collapseLevel: this.spawnManager.collapseLevel,
+        };
+    }
+
+    public addEnemy(enemy: ServerEnemy, reason: string, players?: ServerPlayer[]): void {
+        const context = this.getThreatContext(players);
+        const multipliers = this.threatScaling.applyToEnemy(enemy, context, false);
+        this.enemies.push(enemy);
+
+        if (process.env.THREAT_DEBUG === '1') {
+            console.log(`[ThreatScaling] spawn reason=${reason} type=${enemy.type} category=${multipliers.category} minute=${Math.floor(context.gameTime / 60)} level=${context.playerLevel} collapse=${context.collapseLevel} hp=${enemy.maxHp} dmg=${enemy.damage.toFixed(2)} def=${enemy.defense.toFixed(2)} speed=${enemy.originalSpeed.toFixed(2)}`);
+        }
+    }
+
+    private recalculateThreatIfNeeded(reason: string): void {
+        const context = this.getThreatContext();
+        const signature = this.threatScaling.getSignature(context);
+        if (signature === this.lastThreatSignature) return;
+        this.recalculateThreatForLivingEnemies(reason, context);
+    }
+
+    private recalculateThreatForLivingEnemies(reason: string, context = this.getThreatContext()): void {
+        const signature = this.threatScaling.getSignature(context);
+        this.lastThreatSignature = signature;
+
+        let count = 0;
+        for (const enemy of this.enemies) {
+            if (enemy.isDestroyed) continue;
+            this.threatScaling.applyToEnemy(enemy, context, true);
+            count++;
+        }
+
+        console.log(`[ThreatScaling] recalculated reason=${reason} minute=${Math.floor(context.gameTime / 60)} level=${context.playerLevel} collapse=${context.collapseLevel} enemies=${count}`);
     }
 
     private handleSpawnEvent(ev: SpawnEvent, players: ServerPlayer[]): void {
-        const gm = this.spawnManager.globalMultiplier;
-        const np = this.players.size;
-        const scale = gm * (1 + CONFIG.ENEMY_SCALE_PER_PLAYER * (np - 1));
+        const gm = 1;
+        const scale = 1;
         const avgLevel = players.length > 0 ? players.reduce((s, p) => s + p.level, 0) / players.length : 1;
         const avgMaxHp = players.length > 0 ? players.reduce((s, p) => s + p.maxHp, 0) / players.length : CONFIG.PLAYER.MAX_HP;
 
@@ -341,7 +445,7 @@ export class GameEngine {
             case 'GuardianMago': enemy = new GuardianMagoEnemy(ev.position, scale, ev.isElite); break;
             case 'GuardianArqueiro': enemy = new GuardianArqueiroEnemy(ev.position, scale, ev.isElite); break;
             case 'BruxaDoGelo': enemy = new BruxaDoGeloEnemy(ev.position, scale); break;
-            case 'MestraDaIlusao': enemy = new MestraDaIlusaoEnemy(ev.position, scale); break;
+            case 'MestraDaIlusao': enemy = new FarsanteCarmesimEnemy(ev.position, scale); break;
             case 'BombardeiroInsano': enemy = new BombardeiroInsanoEnemy(ev.position, scale); break;
             case 'SuperBoss': enemy = new SuperBossEnemy(ev.position, gm); this.spawnManager.activeBoss = enemy.id; break;
             case 'Gangplank': enemy = new GangplankEnemy(ev.position, gm); this.spawnManager.activeBoss = enemy.id; break;
@@ -411,7 +515,7 @@ export class GameEngine {
                 break;
             }
             case 'DoutorDoenca': {
-                enemy = new DoutorDoencaEnemy(ev.position, this.spawnManager.globalMultiplier, avgLevel);
+                enemy = new DoutorDoencaEnemy(ev.position, 1, avgLevel);
                 this.spawnManager.isDoutorDoencaSpawned = true;
                 this.spawnManager.isDoutorDoencaAlive = true;
                 this.spawnManager.activeBoss = enemy.id;
@@ -421,7 +525,7 @@ export class GameEngine {
             }
             default: return;
         }
-        this.enemies.push(enemy);
+        this.addEnemy(enemy, `spawn:${ev.type}`, players);
     }
 
     private processEnemyActions(players: ServerPlayer[]): void {
@@ -446,7 +550,7 @@ export class GameEngine {
                 for (const atk of asAny.pendingMeleeAttacks) {
                     const target = this.players.get(atk.targetId);
                     if (target && !target.isDead) {
-                        if (e && (e as any).blindedTimer > 0) {
+                        if (e && ((e as any).blindedTimer > 0 || e.statusManager.hasStatus('blind'))) {
                             // miss, trigger HIT_NUMBER event showing 0 value
                             this.pendingEvents.push({
                                 event: 'HIT_NUMBER',
@@ -598,6 +702,9 @@ export class GameEngine {
                 }
                 p.pendingZones = [];
             }
+            // Update loadout-specific active timers
+            p.updateLoadoutTimers(dt);
+
             // R skill effects
             if (p.skills.r.isActive) {
                 // Destroy nearby enemy projectiles
@@ -728,18 +835,132 @@ export class GameEngine {
 
     private handleAbility(ab: any, source: ServerEnemy, players: ServerPlayer[]): void {
         switch (ab.type) {
+            // --- Bruxa do Gelo Rework ---
+            case 'ice_w_root':
+                for (const p of players) {
+                    if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < ab.radius) {
+                        p.takeDamage(ab.damage, false, false, source);
+                        p.applyRoot(1500); // 1.5s root
+                    }
+                }
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'ice_w_root', position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: 500, timer: 500, damagePerSec: 0, lastTick: 0 });
+                break;
+            case 'ice_e_claw_spawn':
+                // Client-side visual only. The server handles the position inside the AI.
+                // We could just emit an event, or create a visual zone.
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'ice_e_claw_spawn', position: new Vec3(ab.x, 0, ab.z), radius: 2, duration: 2500, timer: 2500, damagePerSec: 0, lastTick: 0, extras: { dirX: ab.dirX, dirZ: ab.dirZ, sourceId: source.id } });
+                break;
+            case 'ice_r_self':
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'ice_r_self', position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: 3000, timer: 3000, damagePerSec: ab.damage / 3, lastTick: 0 });
+                for (const p of players) {
+                    if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < ab.radius) {
+                        p.applySlow(2000, 0.5);
+                    }
+                }
+                break;
+            case 'ice_r_stun':
+                const target = this.players.get(ab.targetId);
+                if (target && !target.isDead) {
+                    target.takeDamage(ab.damage, false, false, source);
+                    target.applyStun(1500);
+                }
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'ice_r_stun', position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: 3000, timer: 3000, damagePerSec: ab.damage / 3, lastTick: 0 });
+                for (const p of players) {
+                    if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < ab.radius) {
+                        p.applySlow(2000, 0.5);
+                    }
+                }
+                break;
+            case 'zhonya_effect':
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'zhonya_effect', position: new Vec3(ab.x, 0, ab.z), radius: 1, duration: 2500, timer: 2500, damagePerSec: 0, lastTick: 0, extras: { sourceId: source.id } });
+                break;
+            case 'ice_slave_explosion':
+                for (const p of players) {
+                    if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < ab.radius) {
+                        p.takeDamage(ab.damage, false, false, source);
+                    }
+                }
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'ice_slave_explosion', position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: 500, timer: 500, damagePerSec: 0, lastTick: 0 });
+                break;
+            // ----------------------------
+            case 'mestra_arcane_mark': {
+                const target = this.players.get(ab.targetId);
+                if (target && !target.isDead) {
+                    const bonus = (source as any).consumeArcaneMark?.(target.id, ab.detonationMultiplier || 1) || 0;
+                    target.takeDamage((ab.damage || 0) + bonus, false, false, source);
+                    if (!ab.mimic || bonus === 0) {
+                        (source as any).applyArcaneMark?.(target.id, ab.markDuration || 3500);
+                    }
+                    this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: bonus > 0 ? 'mestra_mark_pop' : 'mestra_arcane_mark', position: target.position.clone(), radius: bonus > 0 ? 2.2 : 1.2, duration: 700, timer: 700, damagePerSec: 0, lastTick: 0, extras: { sourceId: source.id } });
+                }
+                break;
+            }
+            case 'mestra_distortion_impact': {
+                const center = new Vec3(ab.x, 0, ab.z);
+                for (const p of players) {
+                    if (!p.isDead && p.position.distanceToXZ(center) < (ab.radius || 3.3)) {
+                        const bonus = (source as any).consumeArcaneMark?.(p.id, ab.detonationMultiplier || 1) || 0;
+                        p.takeDamage((ab.damage || 0) + bonus, false, false, source);
+                        if (bonus > 0) {
+                            this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'mestra_mark_pop', position: p.position.clone(), radius: 2.4, duration: 600, timer: 600, damagePerSec: 0, lastTick: 0 });
+                        }
+                    }
+                }
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: ab.mimic ? 'mestra_mimic_distortion' : 'mestra_distortion_impact', position: center, radius: ab.radius || 3.3, duration: 650, timer: 650, damagePerSec: 0, lastTick: 0, extras: { sourceId: source.id } });
+                break;
+            }
+            case 'mestra_distortion_return':
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'mestra_distortion_return', position: new Vec3(ab.targetX, 0, ab.targetZ), radius: 2.2, duration: 650, timer: 650, damagePerSec: 0, lastTick: 0, extras: { sourceId: source.id } });
+                break;
+            case 'mestra_chain_start': {
+                const target = this.players.get(ab.targetId);
+                if (target && !target.isDead) {
+                    const bonus = (source as any).consumeArcaneMark?.(target.id, ab.detonationMultiplier || 1) || 0;
+                    target.takeDamage((ab.damage || 0) + bonus, false, false, source);
+                    if (bonus > 0) {
+                        this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'mestra_mark_pop', position: target.position.clone(), radius: 2.4, duration: 600, timer: 600, damagePerSec: 0, lastTick: 0 });
+                    }
+                    const mid = new Vec3((ab.x + target.position.x) / 2, 0, (ab.z + target.position.z) / 2);
+                    this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: ab.mimic ? 'mestra_mimic_chain' : 'mestra_chain_start', position: mid, radius: Math.max(1.5, source.position.distanceToXZ(target.position) / 2), duration: 900, timer: 900, damagePerSec: 0, lastTick: 0 });
+                }
+                break;
+            }
+            case 'mestra_chain_root': {
+                const target = this.players.get(ab.targetId);
+                if (target && !target.isDead) {
+                    target.takeDamage(ab.damage || 0, false, false, source);
+                    target.applyRoot(ab.rootDuration || 1600);
+                    this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: ab.mimic ? 'mestra_mimic_root' : 'mestra_chain_root', position: target.position.clone(), radius: 2.6, duration: ab.rootDuration || 1600, timer: ab.rootDuration || 1600, damagePerSec: 0, lastTick: 0 });
+                }
+                break;
+            }
+            case 'mestra_chain_break':
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'mestra_chain_break', position: new Vec3(ab.x, 0, ab.z), radius: 1.5, duration: 450, timer: 450, damagePerSec: 0, lastTick: 0 });
+                break;
+            case 'mestra_mimic_cast':
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'mestra_mimic_cast', position: new Vec3(ab.x, 0, ab.z), radius: 3.0, duration: 850, timer: 850, damagePerSec: 0, lastTick: 0 });
+                break;
+            case 'mestra_passive_vanish':
+            case 'mestra_reappear':
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: ab.type, position: new Vec3(ab.x, 0, ab.z), radius: ab.passive ? 4.0 : 2.5, duration: 900, timer: 900, damagePerSec: 0, lastTick: 0 });
+                break;
             case 'spawnClone':
                 // Limit to 1 clone per MestraDaIlusao
-                const ownerMestra = this.enemies.find(e => Math.abs(e.position.x - ab.x) < 5 && Math.abs(e.position.z - ab.z) < 5 && e.type === 'MestraDaIlusao');
+                const ownerMestra = ab.ownerId
+                    ? this.enemies.find(e => e.id === ab.ownerId)
+                    : this.enemies.find(e => Math.abs(e.position.x - ab.x) < 5 && Math.abs(e.position.z - ab.z) < 5 && e.type === 'MestraDaIlusao');
                 if (ownerMestra) {
                     const activeClones = this.enemies.filter(e => e.type === 'CloneIlusorio' && (e as any).ownerId === ownerMestra.id).length;
-                    if (activeClones >= 1) break; // only 1 clone at a time
+                    if (activeClones >= (ab.ownerId ? 2 : 1)) break;
                 }
-                const clone = new CloneIlusorioEnemy(new Vec3(ab.x, 0, ab.z), this.spawnManager.globalMultiplier);
+                const clone = new CloneIlusorioEnemy(new Vec3(ab.x, 0, ab.z), 1);
                 if (ownerMestra) (clone as any).ownerId = ownerMestra.id;
+                if (ab.dirX !== undefined || ab.dirZ !== undefined) (clone as any).moveDir = new Vec3(ab.dirX || 0, 0, ab.dirZ || 0).normalize();
+                if (ab.lifetime) (clone as any).lifetime = ab.lifetime;
+                if (ab.speed) (clone as any).speed = ab.speed;
                 clone.xp = 0;
                 clone.score = 0;
-                this.enemies.push(clone);
+                this.addEnemy(clone, 'ability:spawnClone', players);
                 break;
             case 'blizzard': case 'iceWall': case 'tormentFlames': case 'nevascaZone':
                 this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: ab.type, position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: ab.duration, timer: ab.duration, damagePerSec: ab.damagePerSec || ab.damage || 0, lastTick: 0, extras: ab });
@@ -843,6 +1064,21 @@ export class GameEngine {
                     this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'mineField', position: new Vec3(mx, 0, mz), radius: ab.mineRadius, duration: ab.duration, timer: ab.duration, damagePerSec: ab.mineDamage, lastTick: 0, extras: { burst: true } });
                 }
                 break;
+            case 'satchel_charge':
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'satchel_charge', position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: ab.duration, timer: ab.duration, damagePerSec: ab.damage, lastTick: 0, extras: { sourceId: ab.sourceId, knockbackForce: 18 } });
+                break;
+            case 'hexplosive_minefield':
+                for (let i = 0; i < ab.count; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const r = Math.random() * ab.radius;
+                    const mx = ab.x + Math.cos(angle) * r;
+                    const mz = ab.z + Math.sin(angle) * r;
+                    this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'hexplosive_mine', position: new Vec3(mx, 0, mz), radius: ab.mineRadius, duration: ab.duration, timer: ab.duration, damagePerSec: ab.mineDamage, lastTick: 0 });
+                }
+                break;
+            case 'mega_inferno_bomb':
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'mega_inferno_warning', position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: ab.duration, timer: ab.duration, damagePerSec: ab.damage, lastTick: 0 });
+                break;
             case 'smith_teleport_aoe':
                 // AoE explosion after teleport
                 for (const p of players) {
@@ -862,8 +1098,8 @@ export class GameEngine {
                         const angle = (i / ab.count) * Math.PI * 2;
                         const sx = ab.x + Math.cos(angle) * 4;
                         const sz = ab.z + Math.sin(angle) * 4;
-                        const soul = new AlmaAmaldicoadaEnemy(new Vec3(sx, 0, sz), ab.ownerId, this.spawnManager.globalMultiplier);
-                        this.enemies.push(soul);
+                        const soul = new AlmaAmaldicoadaEnemy(new Vec3(sx, 0, sz), ab.ownerId, 1);
+                        this.addEnemy(soul, 'ability:spawnSouls', players);
                         if (!(ownerSouls as any).souls) (ownerSouls as any).souls = [];
                         (ownerSouls as any).souls.push(soul.id);
                     }
@@ -875,8 +1111,8 @@ export class GameEngine {
                     const angle = (i / ab.count) * Math.PI * 2;
                     const sx = ab.x + Math.cos(angle) * 2;
                     const sz = ab.z + Math.sin(angle) * 2;
-                    const skull = new CaveiraExplosivaEnemy(new Vec3(sx, 0, sz), ab.damage, this.spawnManager.globalMultiplier);
-                    this.enemies.push(skull);
+                    const skull = new CaveiraExplosivaEnemy(new Vec3(sx, 0, sz), ab.damage, 1);
+                    this.addEnemy(skull, 'ability:spawnCaveiras', players);
                 }
                 break;
             case 'spawnEspectro':
@@ -897,18 +1133,18 @@ export class GameEngine {
                     origSpd = cfg.SPEED || 3;
                 }
                 const espectro = new EspectroSombrioEnemy(
-                    new Vec3(ab.x, 0, ab.z), origHp, origDmg, origSpd, this.spawnManager.globalMultiplier
+                    new Vec3(ab.x, 0, ab.z), origHp, origDmg, origSpd, 1
                 );
                 espectro.xp = 0; espectro.score = 0;
-                this.enemies.push(espectro);
+                this.addEnemy(espectro, 'ability:spawnEspectro', players);
                 break;
             case 'spawnBrotos':
                 for (let i = 0; i < ab.count; i++) {
                     const angle = Math.random() * Math.PI * 2;
                     const bx = ab.x + Math.cos(angle) * 3;
                     const bz = ab.z + Math.sin(angle) * 3;
-                    const broto = new BrotoCarnivoroEnemy(new Vec3(bx, 0, bz), ab.playerLevel || 1, this.spawnManager.globalMultiplier);
-                    this.enemies.push(broto);
+                    const broto = new BrotoCarnivoroEnemy(new Vec3(bx, 0, bz), ab.playerLevel || 1, 1);
+                    this.addEnemy(broto, 'ability:spawnBrotos', players);
                 }
                 break;
             case 'spawnBrotos':
@@ -916,13 +1152,13 @@ export class GameEngine {
                     const angle = Math.random() * Math.PI * 2;
                     const bx = ab.x + Math.cos(angle) * 3;
                     const bz = ab.z + Math.sin(angle) * 3;
-                    const broto = new BrotoCarnivoroEnemy(new Vec3(bx, 0, bz), ab.playerLevel || 1, this.spawnManager.globalMultiplier);
-                    this.enemies.push(broto);
+                    const broto = new BrotoCarnivoroEnemy(new Vec3(bx, 0, bz), ab.playerLevel || 1, 1);
+                    this.addEnemy(broto, 'ability:spawnBrotos', players);
                 }
                 break;
             // Cao Dos Infernos abilities
             case 'spawnMatilha':
-                const matilha = new MatilhaGeometraEnemy(new Vec3(ab.x, 0, ab.z), ab.playerLevel || 1, this.spawnManager.globalMultiplier);
+                const matilha = new MatilhaGeometraEnemy(new Vec3(ab.x, 0, ab.z), ab.playerLevel || 1, 1);
                 matilha.parentId = ab.parentId;
                 matilha.xp = 0; matilha.score = 0;
                 const boss = this.enemies.find(e => e.id === ab.parentId);
@@ -930,7 +1166,7 @@ export class GameEngine {
                     matilha.parentBoss = boss as CaoDosInfernosEnemy;
                     if ((boss as any).matilhaIds) (boss as any).matilhaIds.push(matilha.id);
                 }
-                this.enemies.push(matilha);
+                this.addEnemy(matilha, 'ability:spawnMatilha', players);
                 break;
             case 'prismaSombrio':
                 const projQ = new ServerProjectile(
@@ -955,11 +1191,11 @@ export class GameEngine {
                         const angle = Math.random() * Math.PI * 2;
                         const mx = parentBoss.position.x + Math.cos(angle) * 2;
                         const mz = parentBoss.position.z + Math.sin(angle) * 2;
-                        const repairedPup = new MatilhaGeometraEnemy(new Vec3(mx, 0, mz), parentBoss.playerLevel || 1, this.spawnManager.globalMultiplier);
+                        const repairedPup = new MatilhaGeometraEnemy(new Vec3(mx, 0, mz), parentBoss.playerLevel || 1, 1);
                         repairedPup.parentId = parentBoss.id;
                         repairedPup.parentBoss = parentBoss;
                         repairedPup.xp = 0; repairedPup.score = 0;
-                        this.enemies.push(repairedPup);
+                        this.addEnemy(repairedPup, 'ability:repairMatilha', players);
                         parentBoss.matilhaIds.push(repairedPup.id);
                     }
                     (parentBoss as any).habilidades.matilhaCount = CONFIG.CAO_DOS_INFERNOS.MATILHA_MAX;
@@ -1115,7 +1351,7 @@ export class GameEngine {
                 break;
             case 'spawnEscaravelhoFarao': {
                 const escaravelho = new EscaravelhoFaraoEnemy(new Vec3(ab.x, 0, ab.z), ab.ownerId);
-                this.enemies.push(escaravelho);
+                this.addEnemy(escaravelho, 'ability:spawnEscaravelhoFarao', players);
                 break;
             }
             case 'faraoEclipse':
@@ -1140,16 +1376,16 @@ export class GameEngine {
                     const spawnPos3 = this.spawnManager.getSpawnPosition();
                     const spawnPos4 = this.spawnManager.getSpawnPosition();
 
-                    const superBoss = new SuperBossEnemy(spawnPos1, this.spawnManager.globalMultiplier);
-                    this.enemies.push(superBoss);
+                    const superBoss = new SuperBossEnemy(spawnPos1, 1);
+                    this.addEnemy(superBoss, 'mightyOneInit:SuperBoss', players);
                     this.spawnManager.activeBoss = superBoss.id;
 
-                    const g1 = new GuardianGuerreiroEnemy(spawnPos2, this.spawnManager.globalMultiplier, true);
-                    const g2 = new GuardianMagoEnemy(spawnPos3, this.spawnManager.globalMultiplier, true);
-                    const g3 = new GuardianArqueiroEnemy(spawnPos4, this.spawnManager.globalMultiplier, true);
-                    this.enemies.push(g1);
-                    this.enemies.push(g2);
-                    this.enemies.push(g3);
+                    const g1 = new GuardianGuerreiroEnemy(spawnPos2, 1, true);
+                    const g2 = new GuardianMagoEnemy(spawnPos3, 1, true);
+                    const g3 = new GuardianArqueiroEnemy(spawnPos4, 1, true);
+                    this.addEnemy(g1, 'mightyOneInit:GuardianGuerreiro', players);
+                    this.addEnemy(g2, 'mightyOneInit:GuardianMago', players);
+                    this.addEnemy(g3, 'mightyOneInit:GuardianArqueiro', players);
                 }
                 break;
             }
@@ -1171,8 +1407,8 @@ export class GameEngine {
                     const angle = Math.random() * Math.PI * 2;
                     const r = 3.0;
                     const spawnPos = new Vec3(ab.x + Math.cos(angle) * r, 0.4, ab.z + Math.sin(angle) * r);
-                    const ghoul = new GhoulEnemy(spawnPos, ab.damage || 120, this.spawnManager.globalMultiplier);
-                    this.enemies.push(ghoul);
+                    const ghoul = new GhoulEnemy(spawnPos, ab.damage || 120, 1);
+                    this.addEnemy(ghoul, 'ability:spawnGhouls', players);
                 }
                 break;
             }
@@ -1202,11 +1438,11 @@ export class GameEngine {
                     const offset1 = new Vec3(Math.cos(angle) * dist, 3.5, Math.sin(angle) * dist);
                     const offset2 = new Vec3(Math.cos(angle + Math.PI) * dist, 3.5, Math.sin(angle + Math.PI) * dist);
                     
-                    const valk1 = new ValkyrEnemy(target.position.clone().add(offset1), ab.damage, this.spawnManager.globalMultiplier);
-                    const valk2 = new ValkyrEnemy(target.position.clone().add(offset2), ab.damage, this.spawnManager.globalMultiplier);
+                    const valk1 = new ValkyrEnemy(target.position.clone().add(offset1), ab.damage, 1);
+                    const valk2 = new ValkyrEnemy(target.position.clone().add(offset2), ab.damage, 1);
                     
-                    this.enemies.push(valk1);
-                    this.enemies.push(valk2);
+                    this.addEnemy(valk1, 'ability:spawnValkyrs', players);
+                    this.addEnemy(valk2, 'ability:spawnValkyrs', players);
                 }
                 break;
             }
@@ -1366,7 +1602,7 @@ export class GameEngine {
                 const proj = this.enemyProjectiles.find(pr => pr.id === hit.projectileId);
                 if (proj && proj.ownerId) {
                     const owner = this.enemies.find(en => en.id === proj.ownerId);
-                    if (owner && (owner as any).blindedTimer > 0) {
+                    if (owner && ((owner as any).blindedTimer > 0 || owner.statusManager.hasStatus('blind'))) {
                         finalDamage = 0; // miss!
                     }
                 }
@@ -1495,7 +1731,8 @@ export class GameEngine {
                     }
                     // Dardo Cegante (10% chance to blind for 2s)
                     if (instigator.build.floor2 === 2 && Math.random() < 0.10) {
-                        enemy.blindedTimer = 2000;
+                        enemy.statusManager.applyStatus('blind', 2000);
+
                     }
                 }
 
@@ -1664,7 +1901,8 @@ export class GameEngine {
                     }
                 });
             }
-            if (hit.bleedDamage > 0) enemy.status.isMarked = true;
+            if (hit.bleedDamage > 0) enemy.mark();
+
             
             // Handle special effects from upgrades
             if (hit.specialEffect === 'q_armorFracture') {
@@ -1714,7 +1952,46 @@ export class GameEngine {
                 killerPlayer.skills.w.lastUsed = 0;
                 killerPlayer.skills.e.lastUsed = 0;
             }
+
+            // In-Game Scaling: PurpleCube progression
+            if (enemy.type === 'PurpleCube') {
+                killerPlayer.purpleCubesKilled++;
+                if (killerPlayer.purpleCubesKilled % 100 === 0) {
+                    killerPlayer.upgradeLoadoutItems();
+                }
+            }
         }
+
+        // --- Bruxa do Gelo Passive (Submissão Glacial adapted to Cubes) ---
+        if (enemy.type === 'PurpleCube') {
+            const bruxa = this.enemies.find(e => e.type === 'BruxaDoGelo' && !e.isDestroyed);
+            if (bruxa && bruxa.position.distanceToXZ(enemy.position) < 15) {
+                // Spawn an Escravo Glacial at the dead cube's position
+                const escravo = new EscravoGlacialEnemy(enemy.position.clone(), 1);
+                this.addEnemy(escravo, 'passive:EscravoGlacial');
+            }
+        }
+
+        // Plague spread logic (and Epidemia Acida)
+        if (enemy.statusManager.hasStatus('plague')) {
+            const plagueIntensity = enemy.statusManager.getIntensity('plague') || 10;
+            const instigator = enemy.statusManager.active.get('plague')?.instigator;
+            let hasEpidemia = false;
+            if (instigator && instigator.loadoutItems && instigator.loadoutItems.includes('epidemia_acida')) {
+                hasEpidemia = true;
+            }
+            // Spread to nearby enemies
+            for (const other of this.enemies) {
+                if (!other.isDestroyed && other !== enemy && other.position.distanceToXZ(enemy.position) < 5.0) {
+                    other.statusManager.applyStatus('plague', 6000, plagueIntensity, instigator);
+                    if (hasEpidemia) {
+                        other.statusManager.applyStatus('acid', 4000, plagueIntensity, instigator);
+                        other.statusManager.applyStatus('acid', 4000, plagueIntensity, instigator); // Apply twice to get 2 stacks
+                    }
+                }
+            }
+        }
+
         // Legião do Flagelo: Ghoul death explosion and Ceifador de Almas heal
         if (enemy.type === 'Ghoul') {
             this.zones.push({
@@ -1760,9 +2037,7 @@ export class GameEngine {
         if (t === 'SuperBoss') { this.spawnManager.isSuperBossAlive = false; this.spawnManager.activeBoss = null; }
         if (t === 'TheMightyOne') {
             this.spawnManager.onMightyOneDefeated();
-            for (const e of this.enemies) {
-                if (!e.isDestroyed) e.applyGlobalBuff(CONFIG.COLLAPSE_MULTIPLIER);
-            }
+            this.recalculateThreatForLivingEnemies('mighty_one_defeated');
             this.pendingEvents.push({ event: 'MIGHTY_ONE_DEFEATED', data: {} });
             this.pendingEvents.push({ event: 'MESSAGE', data: { message: "🌀 O Poderoso caiu… mas algo no mundo mudou para sempre…" } });
         }
@@ -1996,8 +2271,8 @@ export class GameEngine {
                             const angle = Math.random() * Math.PI * 2;
                             const rx = z.position.x + Math.cos(angle) * z.radius;
                             const rz = z.position.z + Math.sin(angle) * z.radius;
-                            const ghoul = new GhoulEnemy(new Vec3(rx, 0.4, rz), dps * 0.5, this.spawnManager.globalMultiplier);
-                            this.enemies.push(ghoul);
+                            const ghoul = new GhoulEnemy(new Vec3(rx, 0.4, rz), dps * 0.5, 1);
+                            this.addEnemy(ghoul, 'zone:defile');
                         }
                     }
                 }
@@ -2085,7 +2360,32 @@ export class GameEngine {
                 }
             }
 
-            if (z.timer <= 0) { this.zones.splice(i, 1); continue; }
+            if (z.timer <= 0) {
+                if (z.type === 'satchel_charge') {
+                    for (const p of players) {
+                        if (!p.isDead && p.position.distanceToXZ(z.position) < z.radius) {
+                            p.takeDamage(z.damagePerSec, false);
+                            const dir = p.position.clone().sub(z.position); dir.y = 0;
+                            if (dir.lengthSq() > 0.01) p.applyKnockback(dir.normalize(), z.extras?.knockbackForce || 18);
+                        }
+                    }
+                    const boss = this.enemies.find(e => e.id === z.extras?.sourceId);
+                    if (boss && !boss.isDestroyed && boss.position.distanceToXZ(z.position) < z.radius) {
+                        const dir = boss.position.clone().sub(z.position); dir.y = 0;
+                        if (dir.lengthSq() > 0.01) boss.applyKnockback(dir.normalize(), z.extras?.knockbackForce || 18);
+                    }
+                }
+                if (z.type === 'mega_inferno_warning') {
+                    this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'mega_inferno_explosion', position: z.position.clone(), radius: z.radius, duration: 500, timer: 500, damagePerSec: z.damagePerSec, lastTick: 0 });
+                    for (const p of players) {
+                        if (!p.isDead && p.position.distanceToXZ(z.position) < z.radius) {
+                            p.takeDamage(z.damagePerSec, false);
+                        }
+                    }
+                }
+                this.zones.splice(i, 1);
+                continue;
+            }
 
             // Handle mine explosion (Q upgrade)
             if (z.type === 'mine') {
@@ -2097,6 +2397,17 @@ export class GameEngine {
                             e.applyBleed(3000, p.getDamage(true) * 0.1);
                         }
                         z.timer = 0; // explode
+                        break;
+                    }
+                }
+            }
+
+            // Handle hexplosive_mine
+            if (z.type === 'hexplosive_mine') {
+                for (const p of players) {
+                    if (!p.isDead && z.position.distanceToXZ(p.position) < z.radius) {
+                        p.takeDamage(z.damagePerSec, false);
+                        z.timer = 0; // trigger removal
                         break;
                     }
                 }
@@ -2494,7 +2805,7 @@ export class GameEngine {
             enemies: this.enemies.filter(e => !e.isDestroyed).map(e => e.toSnapshot()),
             projectiles: [...this.playerProjectiles, ...this.enemyProjectiles].map(p => p.toSnapshot()),
             orbs: this.orbs.map(o => ({ id: o.id, type: o.type, x: o.position.x, z: o.position.z, buffType: o.buffType })),
-            dynamicEntities: this.zones.map(z => ({ id: z.id, type: z.type, x: z.position.x, y: 0, z: z.position.z, radius: z.radius, opacity: z.timer / z.duration, rotY: z.extras?.rotY })),
+            dynamicEntities: this.zones.map(z => ({ id: z.id, type: z.type, x: z.position.x, y: 0, z: z.position.z, radius: z.radius, duration: z.duration, timer: z.timer, opacity: z.timer / z.duration, rotY: z.extras?.rotY })),
             boss: this.spawnManager.activeBoss ? (() => { const b = this.enemies.find(e => e.id === this.spawnManager.activeBoss); return b ? { id: b.id, name: b.name, hp: b.hp, maxHp: b.maxHp } : null; })() : null,
             mightyOne: this.spawnManager.mightyOneAlive ? (() => { const m = this.enemies.find(e => e.type === 'TheMightyOne'); return m ? { hp: m.hp, maxHp: m.maxHp, damageBonus: (m as TheMightyOneEnemy).damageBonus } : null; })() : null,
             collapseLevel: this.spawnManager.collapseLevel,

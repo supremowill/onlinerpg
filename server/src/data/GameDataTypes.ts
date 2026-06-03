@@ -114,7 +114,7 @@ export interface SpawnConfig {
 export interface EnemyDefinition {
     id: string;                 // ID oficial, igual à chave do Record
     name: string;               // nome de exibição
-    category: 'basic' | 'guardian' | 'defender' | 'boss' | 'miniboss' | 'minion' | 'structure';
+    category: 'basic' | 'guardian' | 'defender' | 'boss' | 'miniboss' | 'minion' | 'structure' | 'route_special' | 'elite_boss' | 'great_boss' | 'supreme_entity' | 'summoned_minion';
     visuals: EnemyVisuals;
     stats: EnemyStats;
     passives: PassiveDefinition[];

@@ -5,6 +5,8 @@ import { CONFIG } from '../config';
 import { ClientMessage, ServerMessage, PlayerBuild } from '../network/Protocol';
 import { rankingService } from '../database/ranking';
 import { getUpgradePromptForLevel, applyUpgrade } from '../game/UpgradeSystem';
+import { LootEngine } from '../game/LootEngine';
+import { findPlayerByUsername, updateUserInventory } from '../database/db';
 
 export class Room {
     public id: string = uuidv4();
@@ -19,10 +21,10 @@ export class Room {
         this.engine = new GameEngine(0);
     }
 
-    addPlayer(playerId: string, name: string, ws: WebSocket, platform: 'pc' | 'mobile' = 'pc', build?: PlayerBuild): void {
+    addPlayer(playerId: string, name: string, ws: WebSocket, platform: 'pc' | 'mobile' = 'pc', build?: PlayerBuild, loadout?: string[]): void {
         this.players.set(playerId, ws);
         this.playerNames.set(playerId, name);
-        this.engine.addPlayer(playerId, name, platform, build);
+        this.engine.addPlayer(playerId, name, platform, build, loadout);
         console.log(`[Room ${this.id.slice(0, 8)}] Player joined: ${name} [${platform}] (${this.players.size}/${CONFIG.MAX_PLAYERS_PER_ROOM})`);
     }
 
@@ -92,18 +94,15 @@ export class Room {
         switch (msg.type) {
             case 'INPUT_STATE':
                 player.input = msg.payload;
-                if (player.platform === 'pc') {
-                    // Use raycaster world coords for both projectile direction AND visual rotation
-                    if (msg.payload.worldX !== undefined && msg.payload.worldZ !== undefined) {
-                        // setFacingDirection updates both facingDirection AND rotationY from world coords
-                        player.setFacingDirection(msg.payload.worldX, msg.payload.worldZ);
-                    } else {
-                        // Fallback: derive from screen-space mouse position
-                        const mx = msg.payload.mouseX ?? 0;
-                        const my = msg.payload.mouseY ?? 0;
-                        player.rotationY = Math.atan2(mx, -my);
-                        player.setFacingDirectionFromScreen(mx, -my);
-                    }
+                if (msg.payload.worldX !== undefined && msg.payload.worldZ !== undefined) {
+                    // Updates both facingDirection and rotationY from world coords
+                    player.setFacingDirection(msg.payload.worldX, msg.payload.worldZ);
+                } else if (player.platform === 'pc') {
+                    // Fallback: derive from screen-space mouse position
+                    const mx = msg.payload.mouseX ?? 0;
+                    const my = msg.payload.mouseY ?? 0;
+                    player.rotationY = Math.atan2(mx, -my);
+                    player.setFacingDirectionFromScreen(mx, -my);
                 }
                 break;
             case 'MOVE_TO':
@@ -140,11 +139,41 @@ export class Room {
             .sort((a, b) => b.score - a.score)
             .map((p, i) => ({ playerId: p.id, playerName: p.name, score: p.score, rank: i + 1 }));
         const time = (Date.now() - this.startTime) / 1000;
+        const timeMinutes = time / 60;
+        
+        const droppedItems: { playerId: string; itemId: string }[] = [];
+        for (const p of this.engine.players.values()) {
+            if (timeMinutes >= 5 && p.score >= 100000) {
+                const drop = LootEngine.calculateDrop(timeMinutes);
+                if (drop) {
+                    droppedItems.push({ playerId: p.id, itemId: drop });
+                }
+            }
+        }
+
         const winner = scores[0];
-        this.broadcast({ type: 'GAME_OVER', payload: { scores, time, collapseLevel: this.engine.spawnManager.collapseLevel, winner } });
+        this.broadcast({ type: 'GAME_OVER', payload: { scores, time, collapseLevel: this.engine.spawnManager.collapseLevel, winner, droppedItems } });
         // Save to DB
         try {
             for (const p of this.engine.players.values()) {
+                // Find if there is any drop for this player
+                const playerDrop = droppedItems.find(d => d.playerId === p.id);
+                if (playerDrop) {
+                    try {
+                        const dbPlayer = await findPlayerByUsername(p.name);
+                        if (dbPlayer) {
+                            const currentInventory = [...(dbPlayer.inventory || [])];
+                            currentInventory.push(playerDrop.itemId);
+                            await updateUserInventory(dbPlayer.id, currentInventory);
+                            console.log(`[Room] Saved drop '${playerDrop.itemId}' to player '${p.name}' inventory.`);
+                        } else {
+                            console.warn(`[Room] Player '${p.name}' not found in DB, skipping drop persistence.`);
+                        }
+                    } catch (dbErr) {
+                        console.error(`[Room] Failed to persist drop for player '${p.name}':`, dbErr);
+                    }
+                }
+
                 const deaths = p.isDead ? 1 : 0;
                 const assists = 0; // Not tracked currently
                 const rUpgrade = p.selectedUpgrades?.['r'];
@@ -162,7 +191,7 @@ export class Room {
                 await rankingService.postScore(p.name, p.score, time, this.engine.spawnManager.collapseLevel, p.kills, this.id, this.players.size, deaths, assists, p.build);
             }
             await rankingService.saveMatchHistory(this.id, scores.length, time, this.engine.spawnManager.collapseLevel);
-        } catch (e) { console.error('[Room] Failed to save scores:', e); }
+        } catch (e) { console.error('[Room] Failed to save scores/drops:', e); }
         console.log(`[Room ${this.id.slice(0, 8)}] Game over. Winner: ${winner?.playerName} (${winner?.score})`);
     }
 

@@ -39,3 +39,21 @@ test-results/
 tools/balance-editor/dist/
 onlinerpg-key.pem
 onlinerpg.tar.gz
+
+# Desktop build directories and node_modules
+desktop/node_modules/
+desktop/dist/
+desktop/build/
+
+# Executable builds and other temporary files
+client/downloads/
+.agents/
+.codex/
+3D personagens/
+deploy.tar.gz
+query.sh
+run_deploy.sh
+scratch/reset_db.sh
+myaac-main/test.php
+myaac-main/test_login.php
+myaac-main/test_verify.php
