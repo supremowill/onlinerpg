@@ -17,6 +17,7 @@ import { SmithEnemy } from './enemies/SmithEnemy';
 import { FaraoEnemy, EscaravelhoFaraoEnemy } from './enemies/Farao';
 import { DoutorDoencaEnemy } from './enemies/DoutorDoenca';
 import { ThreatScalingSystem, ThreatContext } from './ThreatScalingSystem';
+import type { DamageSourceInfo, DamageSourceType } from './DamageTracker';
 
 export interface Orb { id: string; type: 'xp' | 'healing' | 'buff'; position: Vec3; hitboxRadius: number; buffType?: string; buffEffects?: any; buffDuration?: number; }
 export interface DynamicZone { id: string; type: string; position: Vec3; radius: number; duration: number; timer: number; damagePerSec: number; lastTick: number; extras?: any; }
@@ -51,6 +52,46 @@ export class GameEngine {
         this.threatScaling = new ThreatScalingSystem();
         this.spawnInitialEntities();
         (global as any).__gameEngine = this;
+    }
+
+    private getEnemyById(id?: string | null): ServerEnemy | null {
+        if (!id) return null;
+        return this.enemies.find(e => e.id === id) || null;
+    }
+
+    private resolveAbilitySource(ab: any, fallback?: ServerEnemy | null): ServerEnemy | null {
+        return this.getEnemyById(ab?.sourceId)
+            || this.getEnemyById(ab?.ownerId)
+            || this.getEnemyById(ab?.bossId)
+            || this.getEnemyById(ab?.parentId)
+            || fallback
+            || null;
+    }
+
+    private getZoneSource(z: DynamicZone): ServerEnemy | null {
+        return this.getEnemyById(z.extras?.sourceId)
+            || this.getEnemyById(z.extras?.ownerId)
+            || this.getEnemyById(z.extras?.bossId)
+            || null;
+    }
+
+    private buildDamageInfo(source: ServerEnemy | null, abilityName: string, sourceType?: DamageSourceType, isContinuous = false): Partial<DamageSourceInfo> {
+        const owner = source ? this.getEnemyById((source as any).ownerId || (source as any).summonerId) : null;
+        const directSourceName = source?.name || abilityName || 'Fonte ambiental';
+        const primarySourceName = owner?.name || (source as any)?.ownerName || (source as any)?.summonerName || directSourceName;
+        return {
+            directSourceName,
+            primarySourceName,
+            abilityName: abilityName || directSourceName,
+            sourceType: source ? undefined : (sourceType || 'environment'),
+            isContinuous,
+            isStatus: false,
+            isSummoned: Boolean(source && ((source as any).ownerId || (source as any).summonerId)),
+        };
+    }
+
+    private damagePlayer(target: ServerPlayer, amount: number, source: ServerEnemy | null, abilityName: string, fromProjectile = false, isTrueDamage = false, sourceType?: DamageSourceType, isContinuous = false): void {
+        target.takeDamage(amount, fromProjectile, isTrueDamage, source, this.buildDamageInfo(source, abilityName, sourceType, isContinuous));
     }
 
     private spawnInitialEntities(): void {
@@ -355,12 +396,13 @@ export class GameEngine {
                     timer: 800,
                     damagePerSec: 0,
                     lastTick: 0,
-                    extras: { burst: true }
+                    extras: { burst: true, sourceId: p.ownerId }
                 });
 
+                const projectileOwner = this.getEnemyById(p.ownerId);
                 for (const pl of alivePlayers) {
                     if (!pl.isDead && pl.position.distanceToXZ(p.position) < 3.5) {
-                        pl.takeDamage(p.damage, false);
+                        this.damagePlayer(pl, p.damage, projectileOwner, p.specialEffect || 'esporo_explosion');
                         if (Math.random() < 0.40) {
                             const PATHOGENS = [
                                 'febre_critica',
@@ -564,7 +606,7 @@ export class GameEngine {
                                 }
                             });
                         } else {
-                            target.takeDamage(atk.damage);
+                            this.damagePlayer(target, atk.damage, e, atk.type || 'Ataque corpo a corpo');
                             if (atk.stun) target.applyStun(atk.stun);
                         }
                     }
@@ -839,7 +881,7 @@ export class GameEngine {
             case 'ice_w_root':
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < ab.radius) {
-                        p.takeDamage(ab.damage, false, false, source);
+                        this.damagePlayer(p, ab.damage, source, ab.type);
                         p.applyRoot(1500); // 1.5s root
                     }
                 }
@@ -851,7 +893,7 @@ export class GameEngine {
                 this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'ice_e_claw_spawn', position: new Vec3(ab.x, 0, ab.z), radius: 2, duration: 2500, timer: 2500, damagePerSec: 0, lastTick: 0, extras: { dirX: ab.dirX, dirZ: ab.dirZ, sourceId: source.id } });
                 break;
             case 'ice_r_self':
-                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'ice_r_self', position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: 3000, timer: 3000, damagePerSec: ab.damage / 3, lastTick: 0 });
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'ice_r_self', position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: 3000, timer: 3000, damagePerSec: ab.damage / 3, lastTick: 0, extras: { sourceId: source.id } });
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < ab.radius) {
                         p.applySlow(2000, 0.5);
@@ -861,10 +903,10 @@ export class GameEngine {
             case 'ice_r_stun':
                 const target = this.players.get(ab.targetId);
                 if (target && !target.isDead) {
-                    target.takeDamage(ab.damage, false, false, source);
+                    this.damagePlayer(target, ab.damage, source, ab.type);
                     target.applyStun(1500);
                 }
-                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'ice_r_stun', position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: 3000, timer: 3000, damagePerSec: ab.damage / 3, lastTick: 0 });
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'ice_r_stun', position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: 3000, timer: 3000, damagePerSec: ab.damage / 3, lastTick: 0, extras: { sourceId: source.id } });
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < ab.radius) {
                         p.applySlow(2000, 0.5);
@@ -877,7 +919,7 @@ export class GameEngine {
             case 'ice_slave_explosion':
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < ab.radius) {
-                        p.takeDamage(ab.damage, false, false, source);
+                        this.damagePlayer(p, ab.damage, source, ab.type);
                     }
                 }
                 this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'ice_slave_explosion', position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: 500, timer: 500, damagePerSec: 0, lastTick: 0 });
@@ -887,7 +929,7 @@ export class GameEngine {
                 const target = this.players.get(ab.targetId);
                 if (target && !target.isDead) {
                     const bonus = (source as any).consumeArcaneMark?.(target.id, ab.detonationMultiplier || 1) || 0;
-                    target.takeDamage((ab.damage || 0) + bonus, false, false, source);
+                    this.damagePlayer(target, (ab.damage || 0) + bonus, source, ab.type);
                     if (!ab.mimic || bonus === 0) {
                         (source as any).applyArcaneMark?.(target.id, ab.markDuration || 3500);
                     }
@@ -900,7 +942,7 @@ export class GameEngine {
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(center) < (ab.radius || 3.3)) {
                         const bonus = (source as any).consumeArcaneMark?.(p.id, ab.detonationMultiplier || 1) || 0;
-                        p.takeDamage((ab.damage || 0) + bonus, false, false, source);
+                        this.damagePlayer(p, (ab.damage || 0) + bonus, source, ab.type);
                         if (bonus > 0) {
                             this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'mestra_mark_pop', position: p.position.clone(), radius: 2.4, duration: 600, timer: 600, damagePerSec: 0, lastTick: 0 });
                         }
@@ -916,7 +958,7 @@ export class GameEngine {
                 const target = this.players.get(ab.targetId);
                 if (target && !target.isDead) {
                     const bonus = (source as any).consumeArcaneMark?.(target.id, ab.detonationMultiplier || 1) || 0;
-                    target.takeDamage((ab.damage || 0) + bonus, false, false, source);
+                    this.damagePlayer(target, (ab.damage || 0) + bonus, source, ab.type);
                     if (bonus > 0) {
                         this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'mestra_mark_pop', position: target.position.clone(), radius: 2.4, duration: 600, timer: 600, damagePerSec: 0, lastTick: 0 });
                     }
@@ -928,7 +970,7 @@ export class GameEngine {
             case 'mestra_chain_root': {
                 const target = this.players.get(ab.targetId);
                 if (target && !target.isDead) {
-                    target.takeDamage(ab.damage || 0, false, false, source);
+                    this.damagePlayer(target, ab.damage || 0, source, ab.type);
                     target.applyRoot(ab.rootDuration || 1600);
                     this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: ab.mimic ? 'mestra_mimic_root' : 'mestra_chain_root', position: target.position.clone(), radius: 2.6, duration: ab.rootDuration || 1600, timer: ab.rootDuration || 1600, damagePerSec: 0, lastTick: 0 });
                 }
@@ -963,7 +1005,7 @@ export class GameEngine {
                 this.addEnemy(clone, 'ability:spawnClone', players);
                 break;
             case 'blizzard': case 'iceWall': case 'tormentFlames': case 'nevascaZone':
-                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: ab.type, position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: ab.duration, timer: ab.duration, damagePerSec: ab.damagePerSec || ab.damage || 0, lastTick: 0, extras: ab });
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: ab.type, position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: ab.duration, timer: ab.duration, damagePerSec: ab.damagePerSec || ab.damage || 0, lastTick: 0, extras: { ...ab, sourceId: source.id } });
                 break;
             case 'disorient':
                 for (const p of players) { if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < ab.radius) p.applyDisorientation(ab.duration); }
@@ -1022,7 +1064,7 @@ export class GameEngine {
             case 'dashExplosion': case 'rugido':
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < ab.radius) {
-                        p.takeDamage(ab.damage, false);
+                        this.damagePlayer(p, ab.damage, this.resolveAbilitySource(ab, source), ab.type);
                         if (ab.stunDuration) p.applyStun(ab.stunDuration);
                     }
                 }
@@ -1030,7 +1072,7 @@ export class GameEngine {
             case 'devastation':
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < ab.radius) {
-                        p.takeDamage(p.maxHp * ab.hpPercent, false);
+                        this.damagePlayer(p, p.maxHp * ab.hpPercent, this.resolveAbilitySource(ab, source), ab.type);
                         p.applyStun(ab.stunDuration);
                     }
                 }
@@ -1045,15 +1087,15 @@ export class GameEngine {
                 break;
             case 'cannonSalvo':
                 // Delayed AoE - create zone with delay
-                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'cannonSalvo', position: new Vec3(ab.x, 0, ab.z), radius: ab.areaSize, duration: ab.delayMs + ab.salvos * ab.salvoInterval + 1000, timer: ab.delayMs + ab.salvos * ab.salvoInterval + 1000, damagePerSec: ab.damage, lastTick: 0, extras: ab });
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'cannonSalvo', position: new Vec3(ab.x, 0, ab.z), radius: ab.areaSize, duration: ab.delayMs + ab.salvos * ab.salvoInterval + 1000, timer: ab.delayMs + ab.salvos * ab.salvoInterval + 1000, damagePerSec: ab.damage, lastTick: 0, extras: { ...ab, sourceId: source.id } });
                 break;
             case 'powderKeg':
                 // Simplified: immediate explosion zone
-                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'powderKeg', position: new Vec3(ab.x, 0, ab.z), radius: 5, duration: 3000, timer: 3000, damagePerSec: ab.damage, lastTick: 0, extras: ab });
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'powderKeg', position: new Vec3(ab.x, 0, ab.z), radius: 5, duration: 3000, timer: 3000, damagePerSec: ab.damage, lastTick: 0, extras: { ...ab, sourceId: source.id } });
                 break;
             case 'bouncingBomb':
                 // Delayed burst zone
-                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'bouncingBomb', position: new Vec3(ab.targetX, 0, ab.targetZ), radius: ab.explosionRadius, duration: 1500, timer: 1500, damagePerSec: ab.damage, lastTick: 0, extras: { burst: true, ...ab } });
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'bouncingBomb', position: new Vec3(ab.targetX, 0, ab.targetZ), radius: ab.explosionRadius, duration: 1500, timer: 1500, damagePerSec: ab.damage, lastTick: 0, extras: { burst: true, ...ab, sourceId: source.id } });
                 break;
             case 'mineField':
                 for (let i = 0; i < ab.count; i++) {
@@ -1061,11 +1103,11 @@ export class GameEngine {
                     const r = Math.random() * ab.radius;
                     const mx = ab.x + Math.cos(angle) * r;
                     const mz = ab.z + Math.sin(angle) * r;
-                    this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'mineField', position: new Vec3(mx, 0, mz), radius: ab.mineRadius, duration: ab.duration, timer: ab.duration, damagePerSec: ab.mineDamage, lastTick: 0, extras: { burst: true } });
+                    this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'mineField', position: new Vec3(mx, 0, mz), radius: ab.mineRadius, duration: ab.duration, timer: ab.duration, damagePerSec: ab.mineDamage, lastTick: 0, extras: { burst: true, sourceId: source.id } });
                 }
                 break;
             case 'satchel_charge':
-                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'satchel_charge', position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: ab.duration, timer: ab.duration, damagePerSec: ab.damage, lastTick: 0, extras: { sourceId: ab.sourceId, knockbackForce: 18 } });
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'satchel_charge', position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: ab.duration, timer: ab.duration, damagePerSec: ab.damage, lastTick: 0, extras: { sourceId: ab.sourceId || source.id, knockbackForce: 18 } });
                 break;
             case 'hexplosive_minefield':
                 for (let i = 0; i < ab.count; i++) {
@@ -1073,17 +1115,17 @@ export class GameEngine {
                     const r = Math.random() * ab.radius;
                     const mx = ab.x + Math.cos(angle) * r;
                     const mz = ab.z + Math.sin(angle) * r;
-                    this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'hexplosive_mine', position: new Vec3(mx, 0, mz), radius: ab.mineRadius, duration: ab.duration, timer: ab.duration, damagePerSec: ab.mineDamage, lastTick: 0 });
+                    this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'hexplosive_mine', position: new Vec3(mx, 0, mz), radius: ab.mineRadius, duration: ab.duration, timer: ab.duration, damagePerSec: ab.mineDamage, lastTick: 0, extras: { sourceId: source.id } });
                 }
                 break;
             case 'mega_inferno_bomb':
-                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'mega_inferno_warning', position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: ab.duration, timer: ab.duration, damagePerSec: ab.damage, lastTick: 0 });
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'mega_inferno_warning', position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: ab.duration, timer: ab.duration, damagePerSec: ab.damage, lastTick: 0, extras: { sourceId: source.id } });
                 break;
             case 'smith_teleport_aoe':
                 // AoE explosion after teleport
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.position.x, 0, ab.position.z)) < ab.radius) {
-                        p.takeDamage(ab.damage);
+                        this.damagePlayer(p, ab.damage, this.resolveAbilitySource(ab, source), ab.type);
                         if (ab.invertControls) {
                             p.applyInvertedControls(ab.invertDuration || 2000);
                         }
@@ -1205,7 +1247,7 @@ export class GameEngine {
             case 'investidaImpact':
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < (ab.type === 'investidaChannel' ? 3 : 2)) {
-                        p.takeDamage(ab.damage || 0);
+                        this.damagePlayer(p, ab.damage || 0, this.resolveAbilitySource(ab, source), ab.type);
                         if (ab.stunDuration) p.applyStun(ab.stunDuration);
                     }
                 }
@@ -1214,7 +1256,7 @@ export class GameEngine {
             case 'eviscerarSlam':
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < 6) {
-                        p.takeDamage(ab.damage || 0);
+                        this.damagePlayer(p, ab.damage || 0, this.resolveAbilitySource(ab, source), ab.type);
                     }
                 }
                 const bossSlam = this.enemies.find(e => e.id === ab.bossId);
@@ -1230,7 +1272,7 @@ export class GameEngine {
                 }
                 break;
             case 'chamadoAbismo':
-                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'chamadoAbismo', position: new Vec3(ab.x, 0, ab.z), radius: 8, duration: ab.duration || 15000, timer: ab.duration || 15000, damagePerSec: 0, lastTick: 0, extras: ab });
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'chamadoAbismo', position: new Vec3(ab.x, 0, ab.z), radius: 8, duration: ab.duration || 15000, timer: ab.duration || 15000, damagePerSec: 0, lastTick: 0, extras: { ...ab, sourceId: source.id } });
                 break;
             case 'surto_epidemico':
                 // Duplicate 1 stack of a random pathogen for all players in range, or apply a random one if they have none.
@@ -1267,28 +1309,28 @@ export class GameEngine {
                     timer: ab.duration,
                     damagePerSec: ab.damagePerSec,
                     lastTick: 0,
-                    extras: ab
+                    extras: { ...ab, sourceId: source.id }
                 });
                 break;
 
             // ======= O FARAÓ — Abilities =======
             case 'raioDeRaWarning':
                 // Warning circle on the ground (VFX only, handled by client via zone)
-                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'raioDeRaWarning', position: new Vec3(ab.x, 0, ab.z), radius: 3, duration: ab.warningDuration, timer: ab.warningDuration, damagePerSec: 0, lastTick: 0, extras: ab });
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'raioDeRaWarning', position: new Vec3(ab.x, 0, ab.z), radius: 3, duration: ab.warningDuration, timer: ab.warningDuration, damagePerSec: 0, lastTick: 0, extras: { ...ab, sourceId: source.id } });
                 break;
             case 'raioDeRaStrike':
                 // AoE damage: 30% max HP + burn
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < ab.radius) {
-                        p.takeDamage(p.maxHp * ab.hpPercent, false, true); // true damage
+                        this.damagePlayer(p, p.maxHp * ab.hpPercent, this.resolveAbilitySource(ab, source), ab.type, false, true); // true damage
                         p.applyBurn(ab.burnDuration, ab.burnDps);
                     }
                 }
-                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'raioDeRaStrike', position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: 1000, timer: 1000, damagePerSec: 0, lastTick: 0, extras: ab });
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'raioDeRaStrike', position: new Vec3(ab.x, 0, ab.z), radius: ab.radius, duration: 1000, timer: 1000, damagePerSec: 0, lastTick: 0, extras: { ...ab, sourceId: source.id } });
                 break;
             case 'prisaoDeGize': {
                 // Create closing pyramid zone, then root if player inside after escape time
-                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'prisaoDeGize', position: new Vec3(ab.x, 0, ab.z), radius: 4, duration: ab.escapeTime, timer: ab.escapeTime, damagePerSec: 0, lastTick: 0, extras: ab });
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'prisaoDeGize', position: new Vec3(ab.x, 0, ab.z), radius: 4, duration: ab.escapeTime, timer: ab.escapeTime, damagePerSec: 0, lastTick: 0, extras: { ...ab, sourceId: source.id } });
                 // Schedule root after escape time
                 setTimeout(() => {
                     const target = this.players.get(ab.targetId);
@@ -1309,7 +1351,7 @@ export class GameEngine {
                     // Safe side: left half (safeX < 0) or right half (safeX > 0)
                     const isSafe = (ab.safeX < 0 && p.position.x < 0) || (ab.safeX > 0 && p.position.x > 0);
                     if (!isSafe) {
-                        p.takeDamage(p.maxHp * ab.damagePercent, false, true); // true damage
+                        this.damagePlayer(p, p.maxHp * ab.damagePercent, this.resolveAbilitySource(ab, source), ab.type, false, true); // true damage
                     }
                 }
                 break;
@@ -1326,7 +1368,7 @@ export class GameEngine {
                         p.applyBlindness(ab.blindDuration);
                     }
                 }
-                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'pragaDeVoxeis', position: new Vec3(ab.x, 0, ab.z), radius: 15, duration: 3000, timer: 3000, damagePerSec: ab.damagePerSec || 10, lastTick: 0, extras: { dirX: ab.dirX, dirZ: ab.dirZ } });
+                this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'pragaDeVoxeis', position: new Vec3(ab.x, 0, ab.z), radius: 15, duration: 3000, timer: 3000, damagePerSec: ab.damagePerSec || 10, lastTick: 0, extras: { dirX: ab.dirX, dirZ: ab.dirZ, sourceId: source.id } });
                 break;
             }
             case 'colapsoStart':
@@ -1337,7 +1379,7 @@ export class GameEngine {
                 // Falling block: damage zone + temporary obstacle
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < 2.5) {
-                        p.takeDamage(ab.damage, false);
+                        this.damagePlayer(p, ab.damage, this.resolveAbilitySource(ab, source), ab.type);
                     }
                 }
                 // Add temporary obstacle
@@ -1415,7 +1457,7 @@ export class GameEngine {
             case 'estilhacar_explosion': {
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < ab.radius) {
-                        p.takeDamage(ab.damage, false);
+                        this.damagePlayer(p, ab.damage, this.resolveAbilitySource(ab, source), ab.type);
                     }
                 }
                 this.zones.push({
@@ -1457,7 +1499,7 @@ export class GameEngine {
                     damagePerSec: 0,
                     lastTick: 0,
                     extras: {
-                        sourceId: ab.sourceId,
+                        sourceId: ab.sourceId || source.id,
                         growthTime: 0,
                         lastGhoulSpawn: 0,
                         damage: ab.damage
@@ -1484,7 +1526,8 @@ export class GameEngine {
                             extras: {
                                 maxRadius: 25.0 * (ab.sizeMultiplier || 1.0),
                                 damage: ab.damage,
-                                hitPlayers: []
+                                hitPlayers: [],
+                                sourceId: ab.sourceId || source.id
                             }
                         });
                     }, delay);
@@ -1550,7 +1593,7 @@ export class GameEngine {
                             extras: {
                                 damage: ab.damage,
                                 sizeMultiplier: ab.sizeMultiplier || 1.0,
-                                sourceId: ab.sourceId
+                                sourceId: ab.sourceId || source.id
                             }
                         });
                         
@@ -1598,10 +1641,11 @@ export class GameEngine {
             const p = this.players.get(hit.playerId);
             if (!p) continue;
             let finalDamage = hit.damage;
-            if (hit.projectileId) {
-                const proj = this.enemyProjectiles.find(pr => pr.id === hit.projectileId);
-                if (proj && proj.ownerId) {
-                    const owner = this.enemies.find(en => en.id === proj.ownerId);
+            const proj = hit.projectileId ? this.enemyProjectiles.find(pr => pr.id === hit.projectileId) : null;
+            const projectileOwner = proj?.ownerId ? this.enemies.find(en => en.id === proj.ownerId) || null : null;
+            if (proj) {
+                if (proj.ownerId) {
+                    const owner = projectileOwner;
                     if (owner && ((owner as any).blindedTimer > 0 || owner.statusManager.hasStatus('blind'))) {
                         finalDamage = 0; // miss!
                     }
@@ -1617,7 +1661,7 @@ export class GameEngine {
             if (hit.specialEffect === 'esporo_basico') {
                 finalDamage = 0;
             }
-            p.takeDamage(finalDamage);
+            this.damagePlayer(p, finalDamage, projectileOwner, hit.specialEffect || proj?.type || 'Projetil inimigo', true);
             // HIT_NUMBER feedback for the local player
             const hitNow = Date.now();
             const pThrottle = this.hitNumberThrottle.get(p.id) || 0;
@@ -1646,8 +1690,7 @@ export class GameEngine {
                 const c = CONFIG.CAO_DOS_INFERNOS;
                 if (p.statusEffects.bleeding && p.statusEffects.bleeding.isActive) {
                     const extraDmg = finalDamage * (c.SKILL_Q_BONUS_DAMAGE_ON_BLEED - 1);
-                    p.takeDamage(extraDmg, true);
-                    const proj = this.enemyProjectiles.find(pr => pr.id === hit.projectileId);
+                    this.damagePlayer(p, extraDmg, projectileOwner, 'prismaSombrio - sangramento', true);
                     const bossId = proj ? proj.ownerId : null;
                     const boss = bossId ? this.enemies.find(e => e.id === bossId) : null;
                     if (boss) {
@@ -2255,10 +2298,11 @@ export class GameEngine {
             if (z.type === 'defile') {
                 let playerInside = false;
                 const dps = z.extras?.damage || 120;
+                const zoneSource = this.getZoneSource(z);
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(z.position) < z.radius) {
                         playerInside = true;
-                        p.takeDamage(dps * dt, false);
+                        this.damagePlayer(p, dps * dt, zoneSource, z.type, false, false, undefined, true);
                     }
                 }
                 if (playerInside) {
@@ -2279,6 +2323,7 @@ export class GameEngine {
             }
 
             if (z.type === 'icecrown_wave') {
+                const zoneSource = this.getZoneSource(z);
                 const maxR = z.extras?.maxRadius || 25.0;
                 const duration = z.duration;
                 const elapsed = duration - z.timer;
@@ -2297,7 +2342,7 @@ export class GameEngine {
                     const dist = p.position.distanceToXZ(z.position);
                     if (Math.abs(dist - z.radius) <= hitThickness) {
                         if (p.jumpTimer > 0) continue;
-                        p.takeDamage(dmg, false);
+                        this.damagePlayer(p, dmg, zoneSource, z.type);
                         p.applySilence(1500);
                         z.extras.hitPlayers.push(p.id);
                     }
@@ -2305,10 +2350,11 @@ export class GameEngine {
             }
 
             if (z.type === 'sindragosa_ice_block') {
+                const zoneSource = this.getZoneSource(z);
                 if (z.timer <= 0) {
                     for (const p of players) {
                         if (!p.isDead && p.position.distanceToXZ(z.position) < z.radius) {
-                            p.takeDamage(p.maxHp * 10.0, false);
+                            this.damagePlayer(p, p.maxHp * 10.0, zoneSource, z.type);
                         }
                     }
                 }
@@ -2362,9 +2408,10 @@ export class GameEngine {
 
             if (z.timer <= 0) {
                 if (z.type === 'satchel_charge') {
+                    const zoneSource = this.getZoneSource(z);
                     for (const p of players) {
                         if (!p.isDead && p.position.distanceToXZ(z.position) < z.radius) {
-                            p.takeDamage(z.damagePerSec, false);
+                            this.damagePlayer(p, z.damagePerSec, zoneSource, z.type, false, false, 'trap');
                             const dir = p.position.clone().sub(z.position); dir.y = 0;
                             if (dir.lengthSq() > 0.01) p.applyKnockback(dir.normalize(), z.extras?.knockbackForce || 18);
                         }
@@ -2376,10 +2423,11 @@ export class GameEngine {
                     }
                 }
                 if (z.type === 'mega_inferno_warning') {
-                    this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'mega_inferno_explosion', position: z.position.clone(), radius: z.radius, duration: 500, timer: 500, damagePerSec: z.damagePerSec, lastTick: 0 });
+                    const zoneSource = this.getZoneSource(z);
+                    this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'mega_inferno_explosion', position: z.position.clone(), radius: z.radius, duration: 500, timer: 500, damagePerSec: z.damagePerSec, lastTick: 0, extras: z.extras });
                     for (const p of players) {
                         if (!p.isDead && p.position.distanceToXZ(z.position) < z.radius) {
-                            p.takeDamage(z.damagePerSec, false);
+                            this.damagePlayer(p, z.damagePerSec, zoneSource, z.type);
                         }
                     }
                 }
@@ -2404,9 +2452,10 @@ export class GameEngine {
 
             // Handle hexplosive_mine
             if (z.type === 'hexplosive_mine') {
+                const zoneSource = this.getZoneSource(z);
                 for (const p of players) {
                     if (!p.isDead && z.position.distanceToXZ(p.position) < z.radius) {
-                        p.takeDamage(z.damagePerSec, false);
+                        this.damagePlayer(p, z.damagePerSec, zoneSource, z.type, false, false, 'trap');
                         z.timer = 0; // trigger removal
                         break;
                     }
@@ -2414,6 +2463,7 @@ export class GameEngine {
             }
 
             if (z.type === 'nuvem_esporos') {
+                const zoneSource = this.getZoneSource(z);
                 if (!z.extras) z.extras = {};
                 if (z.extras.pathogenTimer === undefined) {
                     z.extras.pathogenTimer = 0;
@@ -2426,7 +2476,7 @@ export class GameEngine {
                 }
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(z.position) < z.radius) {
-                        p.takeDamage(10 * dt, false);
+                        this.damagePlayer(p, 10 * dt, zoneSource, z.type, false, false, undefined, true);
                         if (attemptPathogen && Math.random() < 0.35) {
                             const PATHOGENS = [
                                 'febre_critica',
@@ -2460,9 +2510,10 @@ export class GameEngine {
             } else if (!z.extras?.burst && z.damagePerSec > 0 && Date.now() > z.lastTick + 1000) {
                 // Continuous damage from zones (only for non-player zones or specific persistent ones)
                 z.lastTick = Date.now();
+                const zoneSource = this.getZoneSource(z);
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(z.position) < z.radius) {
-                        p.takeDamage(z.damagePerSec, false);
+                        this.damagePlayer(p, z.damagePerSec, zoneSource, z.type, false, false, undefined, true);
                         if (z.type === 'blizzard' || z.type === 'iceWall') p.applySlow(1500, z.extras?.slowAmount || 0.5);
                     }
                 }

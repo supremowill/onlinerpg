@@ -92,6 +92,8 @@ export async function initDatabase(): Promise<Pool> {
             build_floor3 INTEGER DEFAULT 0,
             build_floor4 INTEGER DEFAULT 0,
             build_floor5 INTEGER DEFAULT 0,
+            death_report JSONB,
+            damage_analysis JSONB,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
         CREATE INDEX IF NOT EXISTS idx_ranking_score ON ranking(score DESC);
@@ -197,6 +199,8 @@ export async function initDatabase(): Promise<Pool> {
             await pool.query('ALTER TABLE ranking ADD COLUMN IF NOT EXISTS build_floor3 INTEGER DEFAULT 0');
             await pool.query('ALTER TABLE ranking ADD COLUMN IF NOT EXISTS build_floor4 INTEGER DEFAULT 0');
             await pool.query('ALTER TABLE ranking ADD COLUMN IF NOT EXISTS build_floor5 INTEGER DEFAULT 0');
+            await pool.query('ALTER TABLE ranking ADD COLUMN IF NOT EXISTS death_report JSONB');
+            await pool.query('ALTER TABLE ranking ADD COLUMN IF NOT EXISTS damage_analysis JSONB');
             console.log('[DB] Verified ranking table columns.');
 
             // Ensure market_offers table exists

@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS ranking (
     build_floor3 INTEGER DEFAULT 0,
     build_floor4 INTEGER DEFAULT 0,
     build_floor5 INTEGER DEFAULT 0,
+    death_report JSONB,
+    damage_analysis JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

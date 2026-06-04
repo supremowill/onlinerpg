@@ -1,54 +1,60 @@
 [
   {
-    "hash": "9e55ab0",
+    "hash": "4aea858",
+    "date": "2026-06-03T20:20:35-03:00",
+    "message": "feat: implement item system, loot engine, weekly award service, advanced stats and balance adjustments",
+    "author": "williamdouglasmsouza"
+  },
+  {
+    "hash": "0393aa3",
     "date": "2026-05-31T19:23:58-03:00",
     "message": "fix(mobile): resolve issue where mobile player platform was not set correctly on server, blocking movement joystick",
     "author": "williamdouglasmsouza"
   },
   {
-    "hash": "a7c4706",
+    "hash": "8731a88",
     "date": "2026-05-31T18:34:08-03:00",
     "message": "feat(website): add top 10 builds ranking by essence tower elements",
     "author": "williamdouglasmsouza"
   },
   {
-    "hash": "559e140",
+    "hash": "80c85fc",
     "date": "2026-05-27T22:56:42-03:00",
     "message": "chore: update changelog for poison balance",
     "author": "williamdouglasmsouza"
   },
   {
-    "hash": "ab33d95",
+    "hash": "530d6cc",
     "date": "2026-05-27T22:55:59-03:00",
     "message": "balance: adjust poison DoT formula to 1% player attack + level + 3% enemy max HP",
     "author": "williamdouglasmsouza"
   },
   {
-    "hash": "a214a12",
+    "hash": "04636ec",
     "date": "2026-05-27T22:39:29-03:00",
     "message": "fix: remove server/dist volume mount and update changelog",
     "author": "williamdouglasmsouza"
   },
   {
-    "hash": "2b427d4",
+    "hash": "f724f4a",
     "date": "2026-05-27T22:30:47-03:00",
     "message": "feat: update poison DoT formula to 5% player attack + 5% enemy max hp",
     "author": "williamdouglasmsouza"
   },
   {
-    "hash": "034d489",
+    "hash": "04549c7",
     "date": "2026-05-27T22:09:46-03:00",
     "message": "chore: remove --no-cache from remote build to save disk space",
     "author": "williamdouglasmsouza"
   },
   {
-    "hash": "892fcbe",
+    "hash": "b410337",
     "date": "2026-05-27T21:57:54-03:00",
     "message": "docs: add release note for player stats overlay",
     "author": "williamdouglasmsouza"
   },
   {
-    "hash": "a7860e0",
+    "hash": "88519fe",
     "date": "2026-05-27T21:52:03-03:00",
     "message": "feat: implement player advanced stats overlay (tab key stats menu)",
     "author": "williamdouglasmsouza"
@@ -291,12 +297,6 @@
     "hash": "b1e635e",
     "date": "2026-05-04T22:15:20-03:00",
     "message": "fix: adicionar CORS middleware para permitir requisições do browser",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "d1288eb",
-    "date": "2026-05-03T22:00:32-03:00",
-    "message": "fix: corrigir Boss Smith - habilidades e passiva funcionais",
     "author": "williamdouglasmsouza"
   }
 ]

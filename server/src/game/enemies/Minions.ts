@@ -89,7 +89,7 @@ export class CaveiraExplosivaEnemy extends ServerEnemy {
         this.lookAt(target.position);
 
         if (this.position.distanceToXZ(target.position) < this.hitboxRadius + 0.5) {
-            target.takeDamage(this.damage);
+            target.takeDamage(this.damage, this);
             this.isDestroyed = true;
             this.pendingExplosion = true;
         }
@@ -135,7 +135,7 @@ export class EspectroSombrioEnemy extends ServerEnemy {
         this.lookAt(target.position);
 
         if (this.position.distanceToXZ(target.position) < this.hitboxRadius + 0.5) {
-            target.takeDamage(this.damage);
+            target.takeDamage(this.damage, this);
             this.isDestroyed = true;
         }
     }
@@ -181,7 +181,7 @@ export class BrotoCarnivoroEnemy extends ServerEnemy {
             const now = Date.now();
             if (now > this.lastAttackTime + this.attackCooldown) {
                 this.lastAttackTime = now;
-                target.takeDamage(this.damage);
+                target.takeDamage(this.damage, this);
             }
         }
         this.lookAt(target.position);

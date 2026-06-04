@@ -305,6 +305,7 @@ function get_template_menus() {
         MENU_CATEGORY_ACCOUNT => $account_menu,
         MENU_CATEGORY_COMMUNITY => [
             ['name' => 'Rankings', 'link' => 'highscores', 'link_full' => '?subtopic=highscores', 'target_blank' => '', 'style_color' => ''],
+            ['name' => 'Analise de Dano', 'link' => 'damage-analysis', 'link_full' => '?subtopic=damage-analysis', 'target_blank' => '', 'style_color' => 'style="color: #ff6666 !important; font-weight:bold;"'],
             ['name' => 'Melhores Builds', 'link' => 'builds', 'link_full' => '?subtopic=builds', 'target_blank' => '', 'style_color' => 'style="color: #ffd700 !important; font-weight:bold;"'],
             ['name' => 'Quem está Online?', 'link' => 'online', 'link_full' => '?subtopic=online', 'target_blank' => '', 'style_color' => ''],
         ],
@@ -787,6 +788,171 @@ if ($subtopic === 'player_builds') {
         }
     }
     $content .= $updatesHtml;
+} else if ($subtopic === 'damage-analysis') {
+    $title = "Telemetria Geral de Dano";
+    $apiBase = 'http://' . ($_SERVER['HTTP_HOST'] ?? '18.231.110.109');
+    $apiBase = preg_replace('/:\d+$/', '', $apiBase);
+    $content = '
+    <p style="font-size:11px;color:#000;margin-bottom:12px;">Esta aba mostra uma leitura geral das ultimas partidas com telemetria: tempo medio de sobrevivencia, dano medio recebido por tempo e pico de dano comparado com a media geral.</p>
+    <div id="damage-analysis-root" style="background:#F1E0C6;border:1px solid #5A2800;padding:10px;color:#000;">
+        <div id="damage-analysis-status">Carregando analise...</div>
+        <div id="damage-analysis-content" style="display:none;">
+            <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+                <button id="damage-refresh-btn" type="button">Atualizar</button>
+            </div>
+            <div id="damage-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:10px;"></div>
+            <canvas id="damage-chart" width="720" height="260" style="width:100%;height:260px;background:#fff;border:1px solid #8B6F47;"></canvas>
+            <div id="damage-peak-summary" style="margin-top:10px;background:#D4C0A1;border:1px solid #8B6F47;padding:8px;"></div>
+            <div id="damage-type-table" style="margin-top:10px;"></div>
+        </div>
+    </div>
+    <script>
+    (function(){
+        const apiUrl = "' . $apiBase . '/api/damage-analysis?limit=100";
+        let summary = null;
+        const statusEl = document.getElementById("damage-analysis-status");
+        const contentEl = document.getElementById("damage-analysis-content");
+        const cardsEl = document.getElementById("damage-cards");
+        const peakEl = document.getElementById("damage-peak-summary");
+        const tableEl = document.getElementById("damage-type-table");
+        const canvas = document.getElementById("damage-chart");
+        const ctx = canvas.getContext("2d");
+
+        function fmtTime(seconds) {
+            const m = Math.floor((seconds || 0) / 60);
+            const s = Math.floor((seconds || 0) % 60).toString().padStart(2, "0");
+            return m + ":" + s;
+        }
+
+        function fmtNum(value) {
+            return Math.round(value || 0).toLocaleString("pt-BR");
+        }
+
+        function sourceLabel(type) {
+            const labels = {
+                boss: "Bosses",
+                common: "Comuns",
+                elite: "Elites",
+                summon: "Invocados",
+                status: "Status",
+                trap: "Armadilhas",
+                environment: "Ambiente",
+                unknown: "Sem fonte antiga"
+            };
+            return labels[type] || type;
+        }
+
+        function drawChart(data) {
+            const buckets = data?.timeline || [];
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(0,0,canvas.width,canvas.height);
+            ctx.strokeStyle = "#8B6F47";
+            ctx.strokeRect(40,16,canvas.width-56,canvas.height-48);
+            if (!buckets.length) return;
+            const maxDamage = Math.max(1, ...buckets.map(b => b.avgDamage || 0), data.avgPeakDamage || 0, data.highestPeak?.totalDamage || 0);
+            const plotW = canvas.width - 72;
+            const plotH = canvas.height - 72;
+            const avgSurvival = data.avgSurvivalTime || 0;
+            const maxTime = Math.max(...buckets.map(b => b.endTime || 0), avgSurvival, 10);
+
+            ctx.beginPath();
+            buckets.forEach((b, i) => {
+                const x = 40 + ((b.startTime || 0) / maxTime) * plotW;
+                const y = 16 + plotH - ((b.avgDamage || 0) / maxDamage) * plotH;
+                if (i === 0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+            });
+            ctx.strokeStyle = "#b00020";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            if (data.avgPeakDamage) {
+                const yAvgPeak = 16 + plotH - (data.avgPeakDamage / maxDamage) * plotH;
+                ctx.setLineDash([5,4]);
+                ctx.beginPath();
+                ctx.moveTo(40, yAvgPeak);
+                ctx.lineTo(40 + plotW, yAvgPeak);
+                ctx.strokeStyle = "#7a4b00";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = "#7a4b00";
+                ctx.fillText("Pico medio", 46, yAvgPeak - 4);
+            }
+
+            if (avgSurvival > 0) {
+                const xSurvival = 40 + (avgSurvival / maxTime) * plotW;
+                ctx.setLineDash([3,3]);
+                ctx.beginPath();
+                ctx.moveTo(xSurvival, 16);
+                ctx.lineTo(xSurvival, 16 + plotH);
+                ctx.strokeStyle = "#1d4ed8";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = "#1d4ed8";
+                ctx.fillText("Tempo medio", Math.max(42, xSurvival - 36), canvas.height - 18);
+            }
+
+            buckets.forEach((b, i) => {
+                const x = 40 + ((b.startTime || 0) / maxTime) * plotW;
+                const y = 16 + plotH - ((b.avgDamage || 0) / maxDamage) * plotH;
+                ctx.fillStyle = b.spikeRate >= 0.5 ? "#ff0000" : "#5A2800";
+                ctx.beginPath();
+                ctx.arc(x, y, b.spikeRate >= 0.5 ? 5 : 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.fillStyle = "#000";
+            ctx.font = "11px serif";
+            ctx.fillText("Dano medio recebido por faixa de tempo", 44, 12);
+            ctx.fillText("0", 20, canvas.height - 33);
+            ctx.fillText(String(Math.round(maxDamage)), 8, 24);
+        }
+
+        function renderSummary() {
+            if (!summary) return;
+            const highest = summary.highestPeak || {};
+            const sampleSize = summary.sampleSize || 0;
+            cardsEl.innerHTML = [
+                ["Partidas analisadas", sampleSize],
+                ["Tempo medio", fmtTime(summary.avgSurvivalTime || 0)],
+                ["Dano medio total", fmtNum(summary.avgTotalDamage || 0)],
+                ["Pico medio", fmtNum(summary.avgPeakDamage || 0)],
+                ["Dano medio final 10s", fmtNum(summary.avgFinalWindowDamage || 0)],
+                ["Maior pico", highest.totalDamage ? fmtNum(highest.totalDamage) : "-"]
+            ].map(card => `<div style="background:#D4C0A1;border:1px solid #8B6F47;padding:8px;"><div style="font-size:10px;color:#5A2800;">${card[0]}</div><strong>${card[1]}</strong></div>`).join("");
+
+            peakEl.innerHTML = highest.totalDamage
+                ? `<strong>Maior pico observado:</strong> ${fmtNum(highest.totalDamage)} de dano entre ${fmtTime(highest.startTime)} e ${fmtTime(highest.endTime)}. Fonte dominante: <strong>${highest.mainSourceName || "-"}</strong> (${sourceLabel(highest.mainSourceType || "unknown")}). Sobrevivencia da partida: ${fmtTime(highest.survivalTime || 0)}.`
+                : "Ainda nao ha pico de dano suficiente para consolidar a leitura.";
+
+            const byType = summary.damageByType || [];
+            tableEl.innerHTML = "<h3 style=\"margin:8px 0;color:#5A2800;\">Media de dano por tipo de fonte</h3>" +
+                byType.map(row =>
+                    `<div style="display:grid;grid-template-columns:1fr 90px 70px;gap:8px;border-top:1px solid #8B6F47;padding:4px 0;"><span>${sourceLabel(row.type)}</span><strong>${fmtNum(row.avgDamage || 0)}</strong><span>${Math.round((row.percent || 0) * 100)}%</span></div>`
+                ).join("");
+            drawChart(summary);
+        }
+
+        async function load() {
+            statusEl.textContent = "Carregando analise...";
+            try {
+                const res = await fetch(apiUrl);
+                summary = await res.json();
+                const hasData = (summary.sampleSize || 0) > 0;
+                statusEl.style.display = hasData ? "none" : "block";
+                statusEl.textContent = hasData ? "" : "Nenhuma partida com telemetria registrada ainda.";
+                contentEl.style.display = hasData ? "block" : "none";
+                renderSummary();
+            } catch(e) {
+                statusEl.textContent = "Erro ao carregar analise de dano.";
+            }
+        }
+
+        document.getElementById("damage-refresh-btn").addEventListener("click", load);
+        load();
+    })();
+    </script>';
 } else if ($subtopic === 'highscores') {
     $title = "Rankings";
     $type = $_GET['type'] ?? 'general'; // general, weekly, farm, kpm, survival, records

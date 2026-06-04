@@ -252,7 +252,7 @@ export interface GameEvent {
 
 
 export interface GameOverData {
-    scores: { playerId: string; playerName: string; score: number; rank: number }[];
+    scores: { playerId: string; playerName: string; score: number; rank: number; deathReport?: any; damageAnalysis?: any }[];
     time: number;
     collapseLevel: number;
     winner: { playerId: string; playerName: string; score: number };

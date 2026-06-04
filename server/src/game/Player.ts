@@ -5,6 +5,7 @@ import { InputState, PlayerSnapshot, PlayerBuild } from '../network/Protocol';
 import { UPGRADE_LEVELS, getUpgradePromptForLevel } from './UpgradeSystem';
 import { getGameData } from '../data/GameDataLoader';
 import { StatusManager } from './status/StatusManager';
+import { DamageTracker, inferDamageSource, DamageSourceInfo } from './DamageTracker';
 
 /**
  * Server-side Player state — full authority
@@ -106,6 +107,7 @@ export class ServerPlayer {
 
     /** Centralised status manager (new system — runs in parallel with statusEffects above) */
     public statusManager: StatusManager;
+    public damageTracker: DamageTracker = new DamageTracker();
 
     public jumpTimer: number = 0;
     public isOnSlipperyGround: boolean = false;
@@ -648,9 +650,17 @@ export class ServerPlayer {
             const e = (this.statusEffects as any)[key];
             if (e.isActive && e.timer !== undefined) { e.timer -= ms; if (e.timer <= 0) { e.isActive = false; if (key === 'slowed') this.speed = this.originalSpeed; if (key === 'attackSpeedSlow') e.amount = 0; if (key === 'freezingConeHits') e.count = 0; if (key === 'burning') e.stacks = 0; } }
         }
-        if (this.statusEffects.bleeding.isActive && now > this.statusEffects.bleeding.lastTick + 1000) { this.statusEffects.bleeding.lastTick = now; this.takeDamage(this.statusEffects.bleeding.damage, false); }
-        if (this.statusEffects.burning.isActive && now > this.statusEffects.burning.lastTick + 1000) { this.statusEffects.burning.lastTick = now; this.takeDamage(this.statusEffects.burning.damagePerTick * this.statusEffects.burning.stacks, false); }
-        if (this.statusEffects.lichKingLifeDrain.isActive) this.takeDamage(this.statusEffects.lichKingLifeDrain.damagePerSecond * dt, false);
+        if (this.statusEffects.bleeding.isActive && now > this.statusEffects.bleeding.lastTick + 1000) {
+            this.statusEffects.bleeding.lastTick = now;
+            this.takeDamage(this.statusEffects.bleeding.damage, false, false, null, { directSourceName: 'bleeding', primarySourceName: 'bleeding', sourceType: 'status', abilityName: 'bleeding', isContinuous: true, isStatus: true });
+        }
+        if (this.statusEffects.burning.isActive && now > this.statusEffects.burning.lastTick + 1000) {
+            this.statusEffects.burning.lastTick = now;
+            this.takeDamage(this.statusEffects.burning.damagePerTick * this.statusEffects.burning.stacks, false, false, null, { directSourceName: 'burning', primarySourceName: 'burning', sourceType: 'status', abilityName: 'burning', isContinuous: true, isStatus: true });
+        }
+        if (this.statusEffects.lichKingLifeDrain.isActive) {
+            this.takeDamage(this.statusEffects.lichKingLifeDrain.damagePerSecond * dt, false, false, null, { directSourceName: 'lichKingLifeDrain', primarySourceName: 'lichKingLifeDrain', sourceType: 'status', abilityName: 'lichKingLifeDrain', isContinuous: true, isStatus: true });
+        }
         // Sync new StatusManager
         this.statusManager.update(dt);
     }
@@ -703,7 +713,7 @@ export class ServerPlayer {
         if (febre && now > this.lastFebreTick + 1000) {
             this.lastFebreTick = now;
             const damage = this.hp * 0.02 * febre.stacks;
-            this.takeDamage(damage, false);
+            this.takeDamage(damage, false, false, null, { directSourceName: 'febre_critica', primarySourceName: 'febre_critica', sourceType: 'status', abilityName: 'febre_critica', isContinuous: true, isStatus: true });
         }
 
         const hemorragia = this.pathogens['hemorragia_quadrada'];
@@ -713,7 +723,7 @@ export class ServerPlayer {
                 this.hemorragiaDistanceAccumulator += dist;
                 while (this.hemorragiaDistanceAccumulator >= 5) {
                     this.hemorragiaDistanceAccumulator -= 5;
-                    this.takeDamage(50 * hemorragia.stacks, false);
+                    this.takeDamage(50 * hemorragia.stacks, false, false, null, { directSourceName: 'hemorragia_quadrada', primarySourceName: 'hemorragia_quadrada', sourceType: 'status', abilityName: 'hemorragia_quadrada', isContinuous: true, isStatus: true });
                 }
             }
         }
@@ -770,8 +780,13 @@ export class ServerPlayer {
         }
     }
 
-    takeDamage(amount: number, fromProjectile = true, isTrueDamage = false, instigator: any = null): void {
+    takeDamage(amount: number, fromProjectile: boolean | any = true, isTrueDamage = false, instigator: any = null, damageInfo?: Partial<DamageSourceInfo>): void {
         if (this.isDead) return;
+
+        if (typeof fromProjectile !== 'boolean') {
+            instigator = fromProjectile;
+            fromProjectile = true;
+        }
 
         // Invulnerability check
         if (this.tempBuff.type === 'invulnerable' && this.tempBuff.timer > 0) return;
@@ -841,6 +856,7 @@ export class ServerPlayer {
             }
         }
 
+        const hpBeforeDamage = this.hp;
         const finalDamage = Math.round(fd);
         this.lastDamageTaken = finalDamage;
 
@@ -975,6 +991,24 @@ export class ServerPlayer {
             this.hp -= finalDamage;
         }
 
+        const engine = (global as any).__gameEngine;
+        const inferred = inferDamageSource(instigator, damageInfo?.abilityName || (fromProjectile ? 'Ataque ou projetil' : 'Dano direto'));
+        const source = { ...inferred, ...damageInfo };
+        this.damageTracker.record({
+            gameTime: engine?.gameTime || 0,
+            playerLevel: this.level,
+            hpBefore: Math.max(0, hpBeforeDamage),
+            hpAfter: Math.max(0, this.hp),
+            damage: finalDamage,
+            directSourceName: source.directSourceName || inferred.directSourceName,
+            primarySourceName: source.primarySourceName || inferred.primarySourceName,
+            sourceType: source.sourceType || inferred.sourceType,
+            abilityName: source.abilityName || inferred.abilityName,
+            isContinuous: Boolean(source.isContinuous),
+            isStatus: Boolean(source.isStatus),
+            isSummoned: Boolean(source.isSummoned),
+        });
+
         // E upgrade: Fortaleza Inabalável — imunidade a CC enquanto shield ativo
         if (this.upgradeFlags.e_fortress && e.isActive && e.shieldHp > 0) {
             this.statusEffects.stunned.isActive = false;
@@ -1069,7 +1103,11 @@ export class ServerPlayer {
                 }
             } else {
                 this.hp = 0;
-                if (!this.isDead) { this.die(); this.justDied = true; }
+                if (!this.isDead) {
+                    this.damageTracker.buildDeathReport(engine?.gameTime || 0, this.level);
+                    this.die();
+                    this.justDied = true;
+                }
             }
         }
     }

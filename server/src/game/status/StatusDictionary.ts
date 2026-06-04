@@ -62,6 +62,23 @@ function calcDoTDmg(state: ActiveStatus, isBleed = false): number {
     return Math.round(dmg);
 }
 
+function applyStatusDamage(target: StatusTarget, state: ActiveStatus, amount: number, statusId: string): void {
+    const anyTarget = target as any;
+    if (anyTarget.damageTracker) {
+        anyTarget.takeDamage(amount, state.instigator, false, false, {
+            directSourceName: statusId,
+            primarySourceName: state.instigator?.name || statusId,
+            sourceType: 'status',
+            abilityName: statusId,
+            isContinuous: true,
+            isStatus: true,
+            isSummoned: false,
+        });
+        return;
+    }
+    target.takeDamage(amount, state.instigator, false);
+}
+
 function healTarget(target: StatusTarget, amount: number): void {
     const anyTarget = target as any;
     if (typeof anyTarget.heal === 'function') {
@@ -103,7 +120,7 @@ export const StatusDictionary: Record<string, StatusDef> = {
         tickRateMs: 1000,
         onTick(target, state) {
             const dmg = calcPoisonDmg(state);
-            target.takeDamage(dmg, state.instigator, false);
+            applyStatusDamage(target, state, dmg, 'poison');
         },
         visual: { color: '#22c55e', shape: 'sphere', behavior: 'pulse' },
     },
@@ -114,7 +131,7 @@ export const StatusDictionary: Record<string, StatusDef> = {
         defaultDuration: 4000,
         tickRateMs: 1000,
         onTick(target, state) {
-            target.takeDamage(calcDoTDmg(state, true), state.instigator, false);
+            applyStatusDamage(target, state, calcDoTDmg(state, true), 'bleeding');
         },
         visual: { color: '#dc2626', shape: 'sphere', behavior: 'pulse' },
     },
@@ -125,7 +142,7 @@ export const StatusDictionary: Record<string, StatusDef> = {
         defaultDuration: 4000,
         tickRateMs: 1000,
         onTick(target, state) {
-            target.takeDamage(calcDoTDmg(state), state.instigator, false);
+            applyStatusDamage(target, state, calcDoTDmg(state), 'burning');
         },
         visual: { color: '#f97316', shape: 'pyramid', behavior: 'spin' },
     },
@@ -283,7 +300,7 @@ export const StatusDictionary: Record<string, StatusDef> = {
         defaultDuration: 4000,
         tickRateMs: 1000,
         onTick(target, state) {
-            target.takeDamage(calcDoTDmg(state), state.instigator, false);
+            applyStatusDamage(target, state, calcDoTDmg(state), 'acid');
         },
         visual: { color: '#84cc16', shape: 'cube', behavior: 'pulse' },
     },
@@ -294,7 +311,7 @@ export const StatusDictionary: Record<string, StatusDef> = {
         defaultDuration: 6000,
         tickRateMs: 1000,
         onTick(target, state) {
-            target.takeDamage(calcDoTDmg(state), state.instigator, false);
+            applyStatusDamage(target, state, calcDoTDmg(state), 'plague');
         },
         visual: { color: '#d946ef', shape: 'sphere', behavior: 'spin' },
     },
@@ -305,7 +322,7 @@ export const StatusDictionary: Record<string, StatusDef> = {
         defaultDuration: 3000,
         tickRateMs: 1000,
         onTick(target, state) {
-            target.takeDamage(calcDoTDmg(state), state.instigator, false);
+            applyStatusDamage(target, state, calcDoTDmg(state), 'ignite');
         },
         visual: { color: '#f97316', shape: 'pyramid', behavior: 'spin' },
     },
@@ -316,7 +333,7 @@ export const StatusDictionary: Record<string, StatusDef> = {
         defaultDuration: 5000,
         tickRateMs: 1000,
         onTick(target, state) {
-            target.takeDamage(calcDoTDmg(state, true), state.instigator, false);
+            applyStatusDamage(target, state, calcDoTDmg(state, true), 'bleed');
         },
         visual: { color: '#dc2626', shape: 'sphere', behavior: 'pulse' },
     },

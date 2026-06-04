@@ -24,7 +24,9 @@ export class RankingService {
         playersInRoom: number,
         deaths: number = 0,
         assists: number = 0,
-        build?: PlayerBuild
+        build?: PlayerBuild,
+        deathReport?: any,
+        damageAnalysis?: any
     ): Promise<void> {
         if (!this.isDbAvailable()) {
             console.warn('[Ranking] Skipping score post - no database available');
@@ -39,14 +41,143 @@ export class RankingService {
             const f4 = build?.floor4 ?? 0;
             const f5 = build?.floor5 ?? 0;
             await pool.query(
-                `INSERT INTO ranking (player_name, score, survival_time_seconds, collapse_level, kills, deaths, assists, room_id, players_in_room, build_color, build_floor1, build_floor2, build_floor3, build_floor4, build_floor5)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
-                [playerName, score, Math.floor(survivalTime), collapseLevel, kills, deaths, assists, roomId, playersInRoom, color, f1, f2, f3, f4, f5]
+                `INSERT INTO ranking (player_name, score, survival_time_seconds, collapse_level, kills, deaths, assists, room_id, players_in_room, build_color, build_floor1, build_floor2, build_floor3, build_floor4, build_floor5, death_report, damage_analysis)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17::jsonb)`,
+                [playerName, score, Math.floor(survivalTime), collapseLevel, kills, deaths, assists, roomId, playersInRoom, color, f1, f2, f3, f4, f5, JSON.stringify(deathReport || null), JSON.stringify(damageAnalysis || null)]
             );
             console.log(`[Ranking] Score posted: ${playerName} = ${score} with build color: ${color}`);
         } catch (err) {
             console.warn('[Ranking] Failed to post score:', (err as Error).message);
         }
+    }
+
+    async getDamageAnalysis(limit = 25): Promise<any[]> {
+        if (!this.isDbAvailable()) return [];
+        try {
+            const pool = getPool();
+            const result = await pool.query(
+                `SELECT id, player_name, score, survival_time_seconds, collapse_level, created_at, death_report, damage_analysis
+                 FROM ranking
+                 WHERE damage_analysis IS NOT NULL
+                 ORDER BY created_at DESC
+                 LIMIT $1`,
+                [limit]
+            );
+            return result.rows;
+        } catch (err) {
+            console.warn('[Ranking] getDamageAnalysis failed:', (err as Error).message);
+            return [];
+        }
+    }
+
+    async getDamageTelemetrySummary(limit = 100): Promise<any> {
+        const rows = await this.getDamageAnalysis(limit);
+        const validRows = rows
+            .map(row => ({
+                ...row,
+                damage_analysis: typeof row.damage_analysis === 'string' ? JSON.parse(row.damage_analysis) : row.damage_analysis,
+                death_report: typeof row.death_report === 'string' ? JSON.parse(row.death_report) : row.death_report,
+            }))
+            .filter(row => row.damage_analysis && Array.isArray(row.damage_analysis.buckets));
+
+        const bucketMap = new Map<number, {
+            startTime: number;
+            endTime: number;
+            totalDamage: number;
+            hits: number;
+            samples: number;
+            spikeCount: number;
+            biggestHit: number;
+        }>();
+        const damageByTypeTotal: Record<string, number> = {};
+        let totalSurvivalTime = 0;
+        let totalDamage = 0;
+        let totalPeakDamage = 0;
+        let totalFinalWindowDamage = 0;
+        let highestPeak: any = null;
+
+        for (const row of validRows) {
+            const analysis = row.damage_analysis || {};
+            const report = row.death_report || {};
+            const survival = Number(row.survival_time_seconds || 0);
+            const rowTotalDamage = Number(analysis.totalDamage || 0);
+            const peak = analysis.peak || null;
+
+            totalSurvivalTime += survival;
+            totalDamage += rowTotalDamage;
+            totalPeakDamage += Number(peak?.totalDamage || 0);
+            totalFinalWindowDamage += Number(report.totalDamageLast10s || 0);
+
+            if (peak && (!highestPeak || Number(peak.totalDamage || 0) > Number(highestPeak.totalDamage || 0))) {
+                highestPeak = {
+                    totalDamage: Number(peak.totalDamage || 0),
+                    startTime: Number(peak.startTime || 0),
+                    endTime: Number(peak.endTime || 0),
+                    playerName: row.player_name,
+                    survivalTime: survival,
+                    mainSourceName: peak.mainSourceName || 'Desconhecido',
+                    mainSourceType: peak.mainSourceType || 'unknown',
+                };
+            }
+
+            for (const [type, value] of Object.entries(analysis.damageByType || {})) {
+                damageByTypeTotal[type] = (damageByTypeTotal[type] || 0) + Number(value || 0);
+            }
+
+            for (const bucket of analysis.buckets || []) {
+                const startTime = Number(bucket.startTime || 0);
+                const current = bucketMap.get(startTime) || {
+                    startTime,
+                    endTime: Number(bucket.endTime || startTime + 10),
+                    totalDamage: 0,
+                    hits: 0,
+                    samples: 0,
+                    spikeCount: 0,
+                    biggestHit: 0,
+                };
+                current.totalDamage += Number(bucket.totalDamage || 0);
+                current.hits += Number(bucket.hits || 0);
+                current.samples += 1;
+                current.spikeCount += bucket.isSpike ? 1 : 0;
+                current.biggestHit = Math.max(current.biggestHit, Number(bucket.biggestHit || 0));
+                bucketMap.set(startTime, current);
+            }
+        }
+
+        const matchCount = validRows.length;
+        const timeline = [...bucketMap.values()]
+            .sort((a, b) => a.startTime - b.startTime)
+            .map(bucket => ({
+                startTime: bucket.startTime,
+                endTime: bucket.endTime,
+                avgDamage: matchCount ? bucket.totalDamage / bucket.samples : 0,
+                avgHits: matchCount ? bucket.hits / bucket.samples : 0,
+                sampleCount: bucket.samples,
+                spikeRate: bucket.samples ? bucket.spikeCount / bucket.samples : 0,
+                biggestHit: bucket.biggestHit,
+            }));
+
+        const damageByType = Object.entries(damageByTypeTotal)
+            .map(([type, damage]) => ({
+                type,
+                totalDamage: damage,
+                avgDamage: matchCount ? damage / matchCount : 0,
+                percent: totalDamage > 0 ? damage / totalDamage : 0,
+            }))
+            .sort((a, b) => b.totalDamage - a.totalDamage);
+
+        return {
+            sampleSize: matchCount,
+            requestedLimit: limit,
+            avgSurvivalTime: matchCount ? totalSurvivalTime / matchCount : 0,
+            avgTotalDamage: matchCount ? totalDamage / matchCount : 0,
+            avgPeakDamage: matchCount ? totalPeakDamage / matchCount : 0,
+            avgFinalWindowDamage: matchCount ? totalFinalWindowDamage / matchCount : 0,
+            highestPeak,
+            timeline,
+            damageByType,
+            generatedAt: new Date().toISOString(),
+        };
     }
 
     /**

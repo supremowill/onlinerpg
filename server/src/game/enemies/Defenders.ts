@@ -679,7 +679,7 @@ export class MestraDaIlusaoEnemy extends ServerEnemy {
             } else {
                 h2.linkTimer += dt * 1000;
                 if (h2.linkTimer >= 2000) {
-                    h2.target.takeDamage(15 + h2.target.maxHp * 0.015, false);
+                    h2.target.takeDamage(15 + h2.target.maxHp * 0.015, false, false, this);
                     h2.target.applyRoot(2000);
                     h2.state = 'idle';
                     h2.target = null;

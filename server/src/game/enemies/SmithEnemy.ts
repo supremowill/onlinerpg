@@ -105,7 +105,7 @@ export class SmithEnemy extends ServerEnemy {
                         });
                     }
                 }
-                target.takeDamage(dmg, false);
+                target.takeDamage(dmg, false, false, this);
             }
         }
     }

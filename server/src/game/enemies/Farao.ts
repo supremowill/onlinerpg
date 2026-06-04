@@ -55,7 +55,7 @@ export class EscaravelhoFaraoEnemy extends ServerEnemy {
         const dist = this.position.distanceToXZ(target.position);
         // Explode on contact
         if (dist < this.explosionRadius + target.hitboxRadius) {
-            target.takeDamage(this.damage, false);
+            target.takeDamage(this.damage, false, false, this);
             this.hp = 0;
             this.isDestroyed = true;
             return;
@@ -184,7 +184,7 @@ export class FaraoEnemy extends ServerEnemy {
         // Reflect 10% of damage back to attacker (based on final damage)
         if (instigator) {
             const reflectDmg = finalDamage * CONFIG.FARAO.MALDIÇÃO_REFLECT_PCT;
-            instigator.takeDamage(reflectDmg, false);
+            instigator.takeDamage(reflectDmg, false, false, this);
         }
 
         this.hp -= finalDamage;

@@ -137,7 +137,14 @@ export class Room {
         this.stop();
         const scores = [...this.engine.players.values()]
             .sort((a, b) => b.score - a.score)
-            .map((p, i) => ({ playerId: p.id, playerName: p.name, score: p.score, rank: i + 1 }));
+            .map((p, i) => ({
+                playerId: p.id,
+                playerName: p.name,
+                score: p.score,
+                rank: i + 1,
+                deathReport: p.damageTracker.getDeathReport(),
+                damageAnalysis: p.damageTracker.getAnalysis(),
+            }));
         const time = (Date.now() - this.startTime) / 1000;
         const timeMinutes = time / 60;
         
@@ -188,7 +195,7 @@ export class Room {
                     }
                 }
                 p.build.floor5 = floor5;
-                await rankingService.postScore(p.name, p.score, time, this.engine.spawnManager.collapseLevel, p.kills, this.id, this.players.size, deaths, assists, p.build);
+                await rankingService.postScore(p.name, p.score, time, this.engine.spawnManager.collapseLevel, p.kills, this.id, this.players.size, deaths, assists, p.build, p.damageTracker.getDeathReport(), p.damageTracker.getAnalysis());
             }
             await rankingService.saveMatchHistory(this.id, scores.length, time, this.engine.spawnManager.collapseLevel);
         } catch (e) { console.error('[Room] Failed to save scores/drops:', e); }

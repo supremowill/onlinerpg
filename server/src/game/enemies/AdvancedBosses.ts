@@ -194,7 +194,7 @@ export class LichKingEnemy extends ServerEnemy {
                     if (p.isDead) continue;
                     const d = this.position.distanceToXZ(p.position);
                     if (d < 5.0) {
-                        p.takeDamage(this.damage * 0.40, false);
+                        p.takeDamage(this.damage * 0.40, false, false, this);
                         const kbDir = p.position.clone().sub(this.position);
                         kbDir.y = 0;
                         if (kbDir.lengthSq() > 0.01) {
@@ -232,7 +232,7 @@ export class LichKingEnemy extends ServerEnemy {
             for (const p of players) {
                 if (p.isDead) continue;
                 if (this.position.distanceToXZ(p.position) < currentAuraRadius) {
-                    p.takeDamage(this.damage * 0.05 * scalingMult, false, true);
+                    p.takeDamage(this.damage * 0.05 * scalingMult, false, true, this);
                     p.applySlow(600, 0.20);
                     // Ceifador de Almas: cura 1.5% do HP máximo
                     this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.015);
@@ -259,7 +259,7 @@ export class LichKingEnemy extends ServerEnemy {
             if (now > this.lastAttackTime + currentCooldown && this.canUseAbility()) {
                 this.lastAttackTime = now;
                 
-                target.takeDamage(this.damage * scalingMult, false);
+                target.takeDamage(this.damage * scalingMult, false, false, this);
                 this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.015);
 
                 // Mecânica de Stacks (Gelo Cadavérico)
@@ -268,7 +268,7 @@ export class LichKingEnemy extends ServerEnemy {
                 if (stacks >= 4) {
                     stacks = 0;
                     target.applyRoot(1500);
-                    target.takeDamage(this.damage * 0.5 * scalingMult, false);
+                    target.takeDamage(this.damage * 0.5 * scalingMult, false, false, this);
                     
                     this.pendingAbilities.push({
                         type: 'estilhacar_explosion',
@@ -385,7 +385,7 @@ export class GhoulEnemy extends ServerEnemy {
         
         const dist = this.position.distanceToXZ(target.position);
         if (dist <= 1.2) {
-            target.takeDamage(this.damage, false);
+            target.takeDamage(this.damage, false, false, this);
             this.isDestroyed = true;
         } else {
             this.moveTowards(target.position, dt);
@@ -446,7 +446,7 @@ export class ValkyrEnemy extends ServerEnemy {
                 const pToDamage = this.grabbedPlayer;
                 setTimeout(() => {
                     if (!pToDamage.isDead) {
-                        pToDamage.takeDamage(pToDamage.maxHp * 0.25, false);
+                        pToDamage.takeDamage(pToDamage.maxHp * 0.25, false, false, this);
                     }
                 }, 800);
                 this.grabbedPlayer = null;
@@ -550,7 +550,7 @@ export class PlantaCarnivoraEnemy extends ServerEnemy {
                 // Bite: 40% maxHp damage to nearby players
                 for (const p of players) {
                     if (!p.isDead && this.position.distanceToXZ(p.position) < 3) {
-                        p.takeDamage(p.maxHp * 0.40, false);
+                        p.takeDamage(p.maxHp * 0.40, false, false, this);
                     }
                 }
             }
@@ -682,7 +682,7 @@ export class CaoDosInfernosEnemy extends ServerEnemy {
             }
             if (hitPlayer) {
                 const dmg = c.SKILL_W_DAMAGE + (this.playerLevel * 5);
-                hitPlayer.takeDamage(dmg, false);
+                hitPlayer.takeDamage(dmg, false, false, this);
                 hitPlayer.applyStun(c.SKILL_W_STUN_DURATION);
                 h.w.isDashing = false; h.w.lastUsed = now;
                 this.pendingAbilities.push({ type: 'investidaImpact', x: this.position.x, z: this.position.z });
@@ -700,7 +700,7 @@ export class CaoDosInfernosEnemy extends ServerEnemy {
                 h.e.isSlamming = false; h.e.lastUsed = now;
                 const targets = players.filter(p => !p.isDead && this.position.distanceToXZ(p.position) < c.SKILL_E_RADIUS);
                 const dmg = c.SKILL_E_DAMAGE + (this.playerLevel * 5);
-                for (const p of targets) p.takeDamage(dmg, false);
+                for (const p of targets) p.takeDamage(dmg, false, false, this);
                 this.pendingAbilities.push({ type: 'eviscerarSlam', x: this.position.x, z: this.position.z, radius: c.SKILL_E_RADIUS, bossId: this.id });
                 if (c.SKILL_E_REPAIR_MATILHA) this.pendingAbilities.push({ type: 'repairMatilha', bossId: this.id });
             }
@@ -782,7 +782,7 @@ export class CaoDosInfernosEnemy extends ServerEnemy {
             if (now > this.lastAttackTime + this.attackCooldown) {
                 this.lastAttackTime = now;
                 const dmg = this.damage + (target.maxHp * c.DAMAGE_TARGET_HP_PERCENT);
-                target.takeDamage(dmg, false);
+                target.takeDamage(dmg, false, false, this);
                 this.pendingAbilities.push({ type: 'meleeAttack', targetId: target.id, damage: dmg });
             }
         }
@@ -928,7 +928,7 @@ export class MatilhaGeometraEnemy extends ServerEnemy {
         if (dist < 2.0) {
             if (now > this.lastAttackTime + this.attackCooldown) {
                 this.lastAttackTime = now;
-                target.takeDamage(this.damage, false);
+                target.takeDamage(this.damage, false, false, this);
             }
         }
 

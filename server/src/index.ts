@@ -180,6 +180,12 @@ app.get('/api/ranking/weekly', async (_, res) => {
     catch (e) { res.status(500).json({ error: 'Failed to fetch weekly ranking' }); }
 });
 
+app.get('/api/damage-analysis', async (req, res) => {
+    const limit = Math.max(1, Math.min(100, parseInt(String(req.query.limit || '25'), 10) || 25));
+    try { res.json(await rankingService.getDamageTelemetrySummary(limit)); }
+    catch (e) { res.status(500).json({ error: 'Failed to fetch damage analysis' }); }
+});
+
 app.get('/api/admin/weekly-awards', async (req, res) => {
     try {
         if (!(await requireAdmin(req, res))) return;

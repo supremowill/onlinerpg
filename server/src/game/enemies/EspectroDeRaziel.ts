@@ -107,7 +107,7 @@ export class EspectroDeRazielEnemy extends ServerEnemy {
             } else if (distToPlayer < 5) {
                 // Melee attack
                 this.lookAt(closestPlayer.position);
-                closestPlayer.takeDamage(this.damage * this.damageMultiplier, undefined);
+                closestPlayer.takeDamage(this.damage * this.damageMultiplier, this);
             } else if (!this.isTeleporting) {
                 // Move towards player
                 this.lookAt(closestPlayer.position);
