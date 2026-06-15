@@ -90,6 +90,9 @@ $status = [
 $logged = isset($_SESSION['player_id']);
 $subtopic = $_GET['subtopic'] ?? 'news';
 $hostOnly = explode(':', $_SERVER['HTTP_HOST'] ?? 'localhost')[0];
+$isSurvivalDomain = in_array($hostOnly, ['sobrevivencia.online', 'www.sobrevivencia.online', 'play.sobrevivencia.online'], true);
+$siteBaseUrl = $isSurvivalDomain ? 'https://sobrevivencia.online' : 'http://' . $hostOnly . ':8080';
+$playBaseUrl = $isSurvivalDomain ? 'https://play.sobrevivencia.online' : 'http://' . $hostOnly . ':80';
 
 function generateJWT($id, $username, $isAdmin) {
     $secret = getenv('JWT_SECRET') ?: 'sua_chave_jwt_super_secreta_123456';
@@ -221,6 +224,12 @@ function escapeHtml($str) {
     return htmlspecialchars($str, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 }
 
+function survival_week_start_utc() {
+    $now = new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
+    $weekStart = $now->modify('monday this week')->setTime(0, 1, 0);
+    return $weekStart->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+}
+
 function template_place_holder($name) {
     if ($name === 'head_start') {
         return '<meta charset="UTF-8"><title>Survival 3D - Painel de Controle Oficial</title>';
@@ -275,7 +284,7 @@ function getTopPlayers($limit = 5) {
 }
 
 function get_template_menus() {
-    global $hostOnly;
+    global $playBaseUrl;
     $isAdmin = isset($_SESSION['is_admin']) && $_SESSION['is_admin'];
     
     $news_menu = [
@@ -285,7 +294,7 @@ function get_template_menus() {
     if ($isAdmin) {
         $news_menu[] = ['name' => 'Postar Atualização', 'link' => 'updates/post', 'link_full' => '?subtopic=updates/post', 'target_blank' => '', 'style_color' => 'style="color: #999 !important;"'];
     }
-    $news_menu[] = ['name' => 'Jogar Agora (Porta 80)', 'link' => 'play', 'link_full' => 'http://' . $hostOnly . ':80/?v=' . time(), 'target_blank' => ' target="_blank"', 'style_color' => 'style="color: #ff9900 !important; font-weight:bold;"'];
+    $news_menu[] = ['name' => 'Jogar Agora', 'link' => 'play', 'link_full' => $playBaseUrl . '/?v=' . time(), 'target_blank' => ' target="_blank"', 'style_color' => 'style="color: #ff9900 !important; font-weight:bold;"'];
 
     $account_menu = [
         ['name' => 'Criar Conta', 'link' => 'account/create', 'link_full' => '?subtopic=account/create', 'target_blank' => '', 'style_color' => ''],
@@ -347,6 +356,18 @@ $GLOBAL_PASSIVES = [
         ['Passos Leves (+20% MS)', 'Presas Gêmeas (Heal)', 'Dardo Cegante (Cegueira)'],
         ['Miasma Menor (Poça morte)', 'Toxina Paralisante (Slow)', 'Foco Infeccioso (+20% dmg)'],
         ['Contaminação (Detonação)', 'Armadilha Cúbica (Shroom)', 'Espalhar a Peste']
+    ],
+    'coin' => [
+        ['Cara Agressiva (+18% Dmg/-10% HP)', 'Coroa Vital (+22% HP/-10% Dmg)', 'Moeda Rápida (+15% MS/-12% Def)'],
+        ['Crítico Endividado (+18% Crit/-15% CritDmg)', 'Pancada Pesada (+25% CritDmg/-10% AS)', 'Ataque Instável (+20% AS/-12% Dano)'],
+        ['Sanguessuga Frágil (6% Lifesteal)', 'Armadura Cobrada (+18% Def/-15% MS)', 'Fôlego de Risco (+12% XP/-8% HP)'],
+        ['Poder no Desespero', 'Segurança Cara', 'Tudo ou Nada']
+    ],
+    'predator_hive' => [
+        ['Reflexo Felino [PREDADOR]', 'Pele Cinetica [GUARDIAO]', 'Garras da Colmeia [ERG]'],
+        ['Braco de Bastiao [GUARDIAO]', 'Aparar Geometrico [GUARDIAO]', 'Chamado dos Ergs [ERG]'],
+        ['Enxame de Fragmentos [ERG]', 'Regeneracao Mutante [ERG]', 'Carapaca Viva [ERG]'],
+        ['Contra-Ataque Cinetico [PREDADOR]', 'Muralha Predadora [GUARDIAO]', 'Evolucao da Ninhada [ERG]']
     ]
 ];
 
@@ -354,8 +375,22 @@ $GLOBAL_ULTIMATES = [
     'red' => ['Sobrecarga Cósmica', 'Chuva de Tetraedros', 'Raio do Oblívio', 'Corte Dimensional'],
     'green' => ['Sobrecarga Cósmica', 'Bastião de Titânio', 'Terremoto Geométrico', 'Armadura Reativa'],
     'purple' => ['Sobrecarga Cósmica', 'Singularidade', 'Distorção Temporal', 'Reset Dimensional'],
-    'poison' => ['Frasco de Peçonha', 'Campo de Fungos', 'Olhar da Górgona', 'Raio da Peste']
+    'poison' => ['Frasco de Peçonha', 'Campo de Fungos', 'Olhar da Górgona', 'Raio da Peste'],
+    'coin' => ['Giro da Moeda', 'Cara Viciada', 'Coroa Quebrada', 'Coringa Absoluto'],
+    'predator_hive' => ['Dominio do Bastiao Predador', 'Pantera Cinetica', 'Guardiao da Muralha Viva', 'Ascensao da Colmeia Erg']
 ];
+
+function tower_meta($color) {
+    $map = [
+        'red' => ['name' => 'Vermelha', 'hex' => '#ff3333', 'emoji' => '🔺'],
+        'green' => ['name' => 'Verde', 'hex' => '#22c55e', 'emoji' => '🟩'],
+        'purple' => ['name' => 'Roxa', 'hex' => '#a855f7', 'emoji' => '🟣'],
+        'poison' => ['name' => 'Veneno', 'hex' => '#10b981', 'emoji' => '☠️'],
+        'coin' => ['name' => 'Coringa', 'hex' => '#f59e0b', 'emoji' => '🃏'],
+        'predator_hive' => ['name' => 'Bastiao Predador da Colmeia', 'hex' => '#38bdf8', 'emoji' => '⬢'],
+    ];
+    return $map[$color] ?? $map['red'];
+}
 
 // Modal HTML block for all pages (Rankings, My Account, Melhores Builds)
 $modalHtml = '
@@ -443,6 +478,8 @@ $modalHtml = '
 .build-badge-green { background: linear-gradient(to bottom, #16a34a, #14532d); }
 .build-badge-purple { background: linear-gradient(to bottom, #7c3aed, #581c87); }
 .build-badge-poison { background: linear-gradient(to bottom, #10b981, #065f46); }
+.build-badge-coin { background: linear-gradient(to bottom, #f59e0b, #b45309); }
+.build-badge-predator_hive { background: linear-gradient(to bottom, #38bdf8, #7c3aed); }
 
 .build-card-grid {
     display: grid;
@@ -522,11 +559,15 @@ function showPlayerBuilds(name) {
                 if (build.color === \'green\') badgeClass = \'build-badge-green\';
                 if (build.color === \'purple\') badgeClass = \'build-badge-purple\';
                 if (build.color === \'poison\') badgeClass = \'build-badge-poison\';
+                if (build.color === \'coin\') badgeClass = \'build-badge-coin\';
+                if (build.color === \'predator_hive\') badgeClass = \'build-badge-predator_hive\';
                 
                 let borderHex = \'#ff3333\';
                 if (build.color === \'green\') borderHex = \'#22c55e\';
                 if (build.color === \'purple\') borderHex = \'#a855f7\';
                 if (build.color === \'poison\') borderHex = \'#10b981\';
+                if (build.color === \'coin\') borderHex = \'#f59e0b\';
+                if (build.color === \'predator_hive\') borderHex = \'#38bdf8\';
                 
                 html += \'<div class="build-card" style="border-left: 5px solid \' + borderHex + \';">\';
                 html += \'  <div class="build-card-header">\';
@@ -634,7 +675,7 @@ if ($subtopic === 'player_builds') {
                 'deaths' => $row['deaths'],
                 'duration' => $duration,
                 'color' => $color,
-                'colorName' => ($color === 'red' ? 'Vermelha' : ($color === 'green' ? 'Verde' : ($color === 'poison' ? 'Veneno' : 'Roxa'))),
+                'colorName' => tower_meta($color)['name'],
                 'passives' => $passives,
                 'ultimate' => $ultimate,
                 'date' => date('d/m/Y H:i', strtotime($row['created_at']))
@@ -653,6 +694,7 @@ if ($subtopic === 'player_builds') {
     $weeklyLeaderHtml = '';
     if ($pdo) {
         try {
+            $weekStartUtc = survival_week_start_utc();
             $sql = "
                 WITH weekly_ranked AS (
                     SELECT id, player_name, LOWER(player_name) AS player_key, score, created_at,
@@ -661,7 +703,7 @@ if ($subtopic === 'player_builds') {
                                ORDER BY score DESC, created_at ASC, id ASC
                            ) as rn
                     FROM ranking
-                    WHERE created_at >= date_trunc('week', NOW() - INTERVAL '1 minute') + INTERVAL '1 minute'
+                    WHERE created_at >= :week_start
                 ),
                 top10 AS (
                     SELECT * FROM weekly_ranked WHERE rn <= 10
@@ -681,7 +723,7 @@ if ($subtopic === 'player_builds') {
                 player_totals AS (
                     SELECT LOWER(player_name) AS player_key, COUNT(*) AS total_valid_matches
                     FROM ranking
-                    WHERE created_at >= date_trunc('week', NOW() - INTERVAL '1 minute') + INTERVAL '1 minute'
+                    WHERE created_at >= :week_start
                     GROUP BY LOWER(player_name)
                 )
                 SELECT MIN(t.player_name) AS player_name,
@@ -702,7 +744,8 @@ if ($subtopic === 'player_builds') {
                          best_score_at ASC,
                          MIN(t.player_name) ASC
                 LIMIT 1";
-            $stmt = $pdo->query($sql);
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([':week_start' => $weekStartUtc]);
             $leader = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($leader) {
                 $weeklyLeaderHtml = '
@@ -739,7 +782,7 @@ if ($subtopic === 'player_builds') {
             <a href="?subtopic=account/create" style="text-decoration:none; margin-right:20px;">
                 <img src="templates/tibiacom/images/global/buttons/_sbutton_createaccount.gif" alt="Criar Conta" style="border:0; cursor:pointer;" />
             </a>
-            <a href="http://' . $hostOnly . ':80/?v=' . time() . '" target="_blank" style="text-decoration:none;">
+            <a href="' . $playBaseUrl . '/?v=' . time() . '" target="_blank" style="text-decoration:none;">
                 <img src="templates/tibiacom/images/global/buttons/_sbutton_login.gif" alt="Jogar" style="border:0; cursor:pointer;" />
             </a>
         </center>
@@ -790,8 +833,7 @@ if ($subtopic === 'player_builds') {
     $content .= $updatesHtml;
 } else if ($subtopic === 'damage-analysis') {
     $title = "Telemetria Geral de Dano";
-    $apiBase = 'http://' . ($_SERVER['HTTP_HOST'] ?? '18.231.110.109');
-    $apiBase = preg_replace('/:\d+$/', '', $apiBase);
+    $apiBase = $isSurvivalDomain ? 'https://sobrevivencia.online' : 'http://' . preg_replace('/:\d+$/', '', ($_SERVER['HTTP_HOST'] ?? '18.231.110.109'));
     $content = '
     <p style="font-size:11px;color:#000;margin-bottom:12px;">Esta aba mostra uma leitura geral das ultimas partidas com telemetria: tempo medio de sobrevivencia, dano medio recebido por tempo e pico de dano comparado com a media geral.</p>
     <div id="damage-analysis-root" style="background:#F1E0C6;border:1px solid #5A2800;padding:10px;color:#000;">
@@ -804,17 +846,21 @@ if ($subtopic === 'player_builds') {
             <canvas id="damage-chart" width="720" height="260" style="width:100%;height:260px;background:#fff;border:1px solid #8B6F47;"></canvas>
             <div id="damage-peak-summary" style="margin-top:10px;background:#D4C0A1;border:1px solid #8B6F47;padding:8px;"></div>
             <div id="damage-type-table" style="margin-top:10px;"></div>
+            <div id="damage-dealt-panel" style="margin-top:14px;background:#D4C0A1;border:1px solid #8B6F47;padding:8px;"></div>
         </div>
     </div>
     <script>
     (function(){
         const apiUrl = "' . $apiBase . '/api/damage-analysis?limit=100";
+        const dealtApiUrl = "' . $apiBase . '/api/damage-dealt-analysis?limit=100";
         let summary = null;
+        let dealtSummary = null;
         const statusEl = document.getElementById("damage-analysis-status");
         const contentEl = document.getElementById("damage-analysis-content");
         const cardsEl = document.getElementById("damage-cards");
         const peakEl = document.getElementById("damage-peak-summary");
         const tableEl = document.getElementById("damage-type-table");
+        const dealtEl = document.getElementById("damage-dealt-panel");
         const canvas = document.getElementById("damage-chart");
         const ctx = canvas.getContext("2d");
 
@@ -932,14 +978,49 @@ if ($subtopic === 'player_builds') {
                     `<div style="display:grid;grid-template-columns:1fr 90px 70px;gap:8px;border-top:1px solid #8B6F47;padding:4px 0;"><span>${sourceLabel(row.type)}</span><strong>${fmtNum(row.avgDamage || 0)}</strong><span>${Math.round((row.percent || 0) * 100)}%</span></div>`
                 ).join("");
             drawChart(summary);
+            renderDealtSummary();
+        }
+
+        function renderRank(title, rows, labelKey) {
+            if (!rows || !rows.length) return `<div style="font-size:11px;margin-top:6px;"><strong>${title}:</strong> sem dados ainda.</div>`;
+            return `<div style="margin-top:8px;"><strong>${title}</strong>` + rows.slice(0, 5).map((row, idx) => {
+                const label = row[labelKey] || row.sourceName || row.abilityName || row.itemName || row.buildSignature || row.statusId || "Desconhecido";
+                return `<div style="display:grid;grid-template-columns:22px 1fr 90px 90px;gap:6px;border-top:1px solid #8B6F47;padding:4px 0;font-size:11px;"><span>${idx + 1}.</span><span>${label}</span><strong>${fmtNum(row.avgDamage || row.totalDamage || 0)}</strong><span>Boss: ${fmtNum(row.avgBossDamage || row.bossDamage || 0)}</span></div>`;
+            }).join("") + `</div>`;
+        }
+
+        function renderDealtSummary() {
+            if (!dealtSummary || !dealtEl) return;
+            const hasData = (dealtSummary.sampleSize || 0) > 0;
+            if (!hasData) {
+                dealtEl.innerHTML = "<strong>Dano causado pelo jogador</strong><br/>Nenhuma partida com telemetria ofensiva registrada ainda.";
+                return;
+            }
+            const highest = dealtSummary.highestPeak || {};
+            dealtEl.innerHTML = `
+                <h3 style="margin:0 0 8px;color:#5A2800;">Dano causado pelo jogador</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:8px;">
+                    <div style="background:#F1E0C6;border:1px solid #8B6F47;padding:6px;"><div style="font-size:10px;color:#5A2800;">Dano medio causado</div><strong>${fmtNum(dealtSummary.avgTotalDamageDealt || 0)}</strong></div>
+                    <div style="background:#F1E0C6;border:1px solid #8B6F47;padding:6px;"><div style="font-size:10px;color:#5A2800;">Dano medio em boss</div><strong>${fmtNum(dealtSummary.avgBossDamage || 0)}</strong></div>
+                    <div style="background:#F1E0C6;border:1px solid #8B6F47;padding:6px;"><div style="font-size:10px;color:#5A2800;">Pico medio DPS</div><strong>${fmtNum(dealtSummary.avgPeakDps || 0)}</strong></div>
+                    <div style="background:#F1E0C6;border:1px solid #8B6F47;padding:6px;"><div style="font-size:10px;color:#5A2800;">Maior pico 10s</div><strong>${highest.totalDamage ? fmtNum(highest.totalDamage) : "-"}</strong></div>
+                </div>
+                ${highest.totalDamage ? `<div style="font-size:11px;margin-bottom:8px;">Maior pico ofensivo: <strong>${fmtNum(highest.totalDamage)}</strong> entre ${fmtTime(highest.startTime)} e ${fmtTime(highest.endTime)} por <strong>${highest.mainSourceName || "-"}</strong>, jogador ${highest.playerName || "-"}.</div>` : ""}
+                ${renderRank("Melhores fontes", dealtSummary.topSources, "sourceName")}
+                ${renderRank("Melhores itens", dealtSummary.topItems, "itemName")}
+                ${renderRank("Melhores builds", dealtSummary.topBuilds, "buildSignature")}
+                ${renderRank("Melhores habilidades", dealtSummary.topAbilities, "abilityName")}
+                ${renderRank("Melhores status", dealtSummary.topStatuses, "sourceName")}
+            `;
         }
 
         async function load() {
             statusEl.textContent = "Carregando analise...";
             try {
-                const res = await fetch(apiUrl);
+                const [res, dealtRes] = await Promise.all([fetch(apiUrl), fetch(dealtApiUrl)]);
                 summary = await res.json();
-                const hasData = (summary.sampleSize || 0) > 0;
+                dealtSummary = dealtRes.ok ? await dealtRes.json() : null;
+                const hasData = (summary.sampleSize || 0) > 0 || (dealtSummary?.sampleSize || 0) > 0;
                 statusEl.style.display = hasData ? "none" : "block";
                 statusEl.textContent = hasData ? "" : "Nenhuma partida com telemetria registrada ainda.";
                 contentEl.style.display = hasData ? "block" : "none";
@@ -1041,6 +1122,7 @@ if ($subtopic === 'player_builds') {
             </tr>';
         if ($pdo) {
             try {
+                $weekStartUtc = survival_week_start_utc();
                 $sql = "
                     WITH weekly_ranked AS (
                         SELECT id, player_name, LOWER(player_name) AS player_key, score, collapse_level, kills, deaths, created_at,
@@ -1049,7 +1131,7 @@ if ($subtopic === 'player_builds') {
                                     ORDER BY score DESC, created_at ASC, id ASC
                                 ) as rn
                         FROM ranking
-                        WHERE created_at >= date_trunc('week', NOW() - INTERVAL '1 minute') + INTERVAL '1 minute'
+                        WHERE created_at >= :week_start
                     ),
                     top10 AS (
                         SELECT * FROM weekly_ranked WHERE rn <= 10
@@ -1069,7 +1151,7 @@ if ($subtopic === 'player_builds') {
                     player_totals AS (
                         SELECT LOWER(player_name) AS player_key, COUNT(*) AS total_valid_matches
                         FROM ranking
-                        WHERE created_at >= date_trunc('week', NOW() - INTERVAL '1 minute') + INTERVAL '1 minute'
+                        WHERE created_at >= :week_start
                         GROUP BY LOWER(player_name)
                     )
                     SELECT MIN(t.player_name) as player_name,
@@ -1092,8 +1174,9 @@ if ($subtopic === 'player_builds') {
                              matches_played DESC,
                              best_score_at ASC,
                              MIN(t.player_name) ASC
-                    LIMIT 50";
-                $stmt = $pdo->query($sql);
+                    LIMIT 10";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([':week_start' => $weekStartUtc]);
                 $rank = 1;
                 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                     $bgColor = ($rank % 2 == 0) ? '#D4C0A1' : '#F1E0C6';
@@ -1346,7 +1429,7 @@ if ($subtopic === 'player_builds') {
     $title = "Melhores Builds";
     
     // Tower Stats query
-    $tower_stats = ['red' => 0, 'green' => 0, 'purple' => 0, 'poison' => 0];
+    $tower_stats = ['red' => 0, 'green' => 0, 'purple' => 0, 'poison' => 0, 'coin' => 0, 'predator_hive' => 0];
     $total_runs = 0;
     if ($pdo) {
         try {
@@ -1365,6 +1448,8 @@ if ($subtopic === 'player_builds') {
     $pct_green = $total_runs > 0 ? round(($tower_stats['green'] / $total_runs) * 100, 1) : 0;
     $pct_purple = $total_runs > 0 ? round(($tower_stats['purple'] / $total_runs) * 100, 1) : 0;
     $pct_poison = $total_runs > 0 ? round(($tower_stats['poison'] / $total_runs) * 100, 1) : 0;
+    $pct_coin = $total_runs > 0 ? round(($tower_stats['coin'] / $total_runs) * 100, 1) : 0;
+    $pct_predator_hive = $total_runs > 0 ? round(($tower_stats['predator_hive'] / $total_runs) * 100, 1) : 0;
     
     // Top 10 builds query
     $top_builds_html = '';
@@ -1397,9 +1482,10 @@ if ($subtopic === 'player_builds') {
                 ];
                 $ultimate = $GLOBAL_ULTIMATES[$color][$f5] ?? 'Sobrecarga Cósmica';
                 
-                $colorName = ($color === 'red' ? 'Vermelha' : ($color === 'green' ? 'Verde' : ($color === 'poison' ? 'Veneno' : 'Roxa')));
-                $colorHex = ($color === 'red' ? '#ff3333' : ($color === 'green' ? '#22c55e' : ($color === 'poison' ? '#10b981' : '#a855f7')));
-                $colorEmoji = ($color === 'red' ? '🔺' : ($color === 'green' ? '🟩' : ($color === 'poison' ? '☠️' : '🟣')));
+                $meta = tower_meta($color);
+                $colorName = $meta['name'];
+                $colorHex = $meta['hex'];
+                $colorEmoji = $meta['emoji'];
                 
                 $top_builds_html .= '
                 <tr bgcolor="' . $bgColor . '" style="color:#000; font-size:11px;">
@@ -1429,9 +1515,9 @@ if ($subtopic === 'player_builds') {
     }
     
     // Top 10 scores per essence tower queries
-    $tower_rankings_html = ['red' => '', 'green' => '', 'purple' => '', 'poison' => ''];
+    $tower_rankings_html = ['red' => '', 'green' => '', 'purple' => '', 'poison' => '', 'coin' => '', 'predator_hive' => ''];
     if ($pdo) {
-        foreach (['red', 'green', 'purple', 'poison'] as $color) {
+        foreach (['red', 'green', 'purple', 'poison', 'coin', 'predator_hive'] as $color) {
             try {
                 $stmt = $pdo->prepare("
                     SELECT player_name, score, collapse_level, kills, deaths, survival_time_seconds,
@@ -1486,7 +1572,7 @@ if ($subtopic === 'player_builds') {
             }
         }
     } else {
-        foreach (['red', 'green', 'purple', 'poison'] as $color) {
+        foreach (['red', 'green', 'purple', 'poison', 'coin', 'predator_hive'] as $color) {
             $tower_rankings_html[$color] = '<tr bgcolor="#F1E0C6"><td colspan="5" align="center" style="color:red; padding:10px;">Banco de dados offline.</td></tr>';
         }
     }
@@ -1541,6 +1627,28 @@ if ($subtopic === 'player_builds') {
                 <div style="background:linear-gradient(to right, #10b981, #059669); width:' . $pct_poison . '%; height:100%; box-shadow:inset 0 1px 3px rgba(255,255,255,0.3);"></div>
             </div>
         </div>
+
+        <!-- Coin Tower -->
+        <div style="margin-bottom:8px;">
+            <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:bold; margin-bottom:3px;">
+                <span style="color:#b45309;">🃏 Torre Coringa (Risco/Recompensa/Moedas)</span>
+                <span>' . $pct_coin . '% (' . $tower_stats['coin'] . ' partidas)</span>
+            </div>
+            <div style="background:#bba88e; border:1px solid #776655; height:12px; border-radius:3px; overflow:hidden;">
+                <div style="background:linear-gradient(to right, #f59e0b, #d97706); width:' . $pct_coin . '%; height:100%; box-shadow:inset 0 1px 3px rgba(255,255,255,0.3);"></div>
+            </div>
+        </div>
+
+        <!-- Predator Hive Tower -->
+        <div style="margin-bottom:8px;">
+            <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:bold; margin-bottom:3px;">
+                <span style="color:#0369a1;">⬢ Bastiao Predador da Colmeia (Predador/Guardiao/Ergs)</span>
+                <span>' . $pct_predator_hive . '% (' . $tower_stats['predator_hive'] . ' partidas)</span>
+            </div>
+            <div style="background:#bba88e; border:1px solid #776655; height:12px; border-radius:3px; overflow:hidden;">
+                <div style="background:linear-gradient(to right, #38bdf8, #7c3aed); width:' . $pct_predator_hive . '%; height:100%; box-shadow:inset 0 1px 3px rgba(255,255,255,0.3);"></div>
+            </div>
+        </div>
     </div>
     
     <div style="background:#D4C0A1; border:1px solid #505050; padding:12px; border-radius:4px; font-family:Verdana; color:#000;">
@@ -1569,6 +1677,8 @@ if ($subtopic === 'player_builds') {
             <button class="build-tab-btn" onclick="openBuildTab(event, \'build-green\')" style="padding: 8px 12px; font-weight: bold; background: #c5b297; border: 1px solid #776655; border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer; color: #1b703a;">🟩 Verde</button>
             <button class="build-tab-btn" onclick="openBuildTab(event, \'build-purple\')" style="padding: 8px 12px; font-weight: bold; background: #c5b297; border: 1px solid #776655; border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer; color: #5b21b6;">🟣 Roxa</button>
             <button class="build-tab-btn" onclick="openBuildTab(event, \'build-poison\')" style="padding: 8px 12px; font-weight: bold; background: #c5b297; border: 1px solid #776655; border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer; color: #059669;">☠️ Veneno</button>
+            <button class="build-tab-btn" onclick="openBuildTab(event, \'build-coin\')" style="padding: 8px 12px; font-weight: bold; background: #c5b297; border: 1px solid #776655; border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer; color: #b45309;">🃏 Coringa</button>
+            <button class="build-tab-btn" onclick="openBuildTab(event, \'build-predator-hive\')" style="padding: 8px 12px; font-weight: bold; background: #c5b297; border: 1px solid #776655; border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer; color: #0369a1;">⬢ Colmeia</button>
         </div>
         
         <!-- Red content -->
@@ -1624,6 +1734,34 @@ if ($subtopic === 'player_builds') {
                     <td width="15%" style="color:white; font-weight:bold; font-size:10px;">Ultimate Mutada</td>
                 </tr>
                 ' . $tower_rankings_html['poison'] . '
+            </table>
+        </div>
+        
+        <!-- Coin content -->
+        <div id="build-coin" class="build-tab-content" style="display: none;">
+            <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050">
+                <tr bgcolor="#505050">
+                    <td width="5%" style="color:white; font-weight:bold; font-size:10px; text-align:center;">Rank</td>
+                    <td width="25%" style="color:white; font-weight:bold; font-size:10px;">Jogador</td>
+                    <td width="20%" style="color:white; font-weight:bold; font-size:10px;">Score (Andar)</td>
+                    <td width="35%" style="color:white; font-weight:bold; font-size:10px;">Passivas Escolhidas</td>
+                    <td width="15%" style="color:white; font-weight:bold; font-size:10px;">Ultimate Mutada</td>
+                </tr>
+                ' . $tower_rankings_html['coin'] . '
+            </table>
+        </div>
+
+        <!-- Predator Hive content -->
+        <div id="build-predator-hive" class="build-tab-content" style="display: none;">
+            <table border="0" cellpadding="4" cellspacing="1" width="100%" bgcolor="#505050">
+                <tr bgcolor="#505050">
+                    <td width="5%" style="color:white; font-weight:bold; font-size:10px; text-align:center;">Rank</td>
+                    <td width="25%" style="color:white; font-weight:bold; font-size:10px;">Jogador</td>
+                    <td width="20%" style="color:white; font-weight:bold; font-size:10px;">Score (Andar)</td>
+                    <td width="35%" style="color:white; font-weight:bold; font-size:10px;">Passivas Escolhidas</td>
+                    <td width="15%" style="color:white; font-weight:bold; font-size:10px;">Ultimate Mutada</td>
+                </tr>
+                ' . $tower_rankings_html['predator_hive'] . '
             </table>
         </div>
     </div>
@@ -1896,9 +2034,10 @@ if ($subtopic === 'player_builds') {
                     ];
                     $ultimate = $GLOBAL_ULTIMATES[$color][$f5] ?? 'Sobrecarga Cósmica';
                     
-                    $colorEmoji = ($color === 'red' ? '🔺' : ($color === 'green' ? '🟩' : ($color === 'poison' ? '☠️' : '🟣')));
-                    $colorName = ($color === 'red' ? 'Vermelha' : ($color === 'green' ? 'Verde' : ($color === 'poison' ? 'Veneno' : 'Roxa')));
-                    $colorHex = ($color === 'red' ? '#ff3333' : ($color === 'green' ? '#22c55e' : ($color === 'poison' ? '#10b981' : '#a855f7')));
+                    $meta = tower_meta($color);
+                    $colorEmoji = $meta['emoji'];
+                    $colorName = $meta['name'];
+                    $colorHex = $meta['hex'];
                     
                     $buildTitle = "Passivas:\n• Andar 1: " . $passives[0] . "\n• Andar 2: " . $passives[1] . "\n• Andar 3: " . $passives[2] . "\n• Andar 4: " . $passives[3] . "\nUltimate:\n" . $ultimate;
                     
@@ -1959,9 +2098,10 @@ if ($subtopic === 'player_builds') {
                     ];
                     $ultimate = $GLOBAL_ULTIMATES[$color][$f5] ?? 'Sobrecarga Cósmica';
                     
-                    $colorEmoji = ($color === 'red' ? '🔺' : ($color === 'green' ? '🟩' : ($color === 'poison' ? '☠️' : '🟣')));
-                    $colorName = ($color === 'red' ? 'Vermelha' : ($color === 'green' ? 'Verde' : ($color === 'poison' ? 'Veneno' : 'Roxa')));
-                    $colorHex = ($color === 'red' ? '#ff3333' : ($color === 'green' ? '#22c55e' : ($color === 'poison' ? '#10b981' : '#a855f7')));
+                    $meta = tower_meta($color);
+                    $colorEmoji = $meta['emoji'];
+                    $colorName = $meta['name'];
+                    $colorHex = $meta['hex'];
                     
                     $buildTitle = "Passivas:\n• Andar 1: " . $passives[0] . "\n• Andar 2: " . $passives[1] . "\n• Andar 3: " . $passives[2] . "\n• Andar 4: " . $passives[3] . "\nUltimate:\n" . $ultimate;
                     
@@ -2182,13 +2322,19 @@ if ($subtopic === 'player_builds') {
     exit;
 } else if ($subtopic === 'downloads') {
     $title = "Como Jogar";
+    $launcherFile = 'downloads/Survival3DLauncher.zip';
+    $launcherUrl = $siteBaseUrl . '/' . $launcherFile;
+    $launcherSize = file_exists($launcherFile) ? round(filesize($launcherFile) / 1024 / 1024, 1) . ' MB' : 'arquivo indisponivel';
+    $installerFile = 'downloads/Sobrevivencia3D_Setup.exe';
+    $installerUrl = $siteBaseUrl . '/' . $installerFile;
+    $installerSize = file_exists($installerFile) ? round(filesize($installerFile) / 1024 / 1024, 1) . ' MB' : 'arquivo indisponivel';
     $content = '
     <div class="Headline" style="font-weight:bold; font-size:14px; color:#5A2800; border-bottom:1px solid #5A2800; padding-bottom:5px; margin-bottom:10px;">Como Jogar Survival 3D</div>
     <div class="Text" style="font-size:11px; line-height:140%; color:#000;">
         <center style="margin: 15px 0; padding: 15px; border: 1px solid #5A2800; background: rgba(90, 40, 0, 0.1);">
             <strong style="font-size:14px;">NOVO: Aplicativo Desktop</strong><br/><br/>
             Baixe o nosso aplicativo oficial para ter uma experiência melhor, com janela dedicada e atualizações automáticas!<br/><br/>
-            <a href="http://' . $hostOnly . '/downloads/Online_RPG_Setup_1.0.0.exe" download style="display:inline-block; padding:10px 20px; background:#1b4f72; color:#fff; text-decoration:none; border-radius:5px; font-weight:bold; border: 1px solid #154360;">
+            <a href="' . $siteBaseUrl . '/downloads/Online_RPG_Setup_1.0.0.exe" download style="display:inline-block; padding:10px 20px; background:#1b4f72; color:#fff; text-decoration:none; border-radius:5px; font-weight:bold; border: 1px solid #154360;">
                 ⬇️ Download do Instalador (.exe)
             </a>
         </center>
@@ -2212,9 +2358,54 @@ if ($subtopic === 'player_builds') {
         </ol>
         <br/><br/>
         <center>
-            <a href="http://' . $hostOnly . ':80/?v=' . time() . '" target="_blank" style="text-decoration:none;">
+            <a href="' . $playBaseUrl . '/?v=' . time() . '" target="_blank" style="text-decoration:none;">
                 <img src="templates/tibiacom/images/global/buttons/_sbutton_buynow.gif" alt="Jogar Agora" style="border:0; cursor:pointer;" /><br/>
                 <span style="font-weight:bold; font-size:12px; color:#ff9900;">[ CLIQUE AQUI PARA ABRIR O JOGO ]</span>
+            </a>
+        </center>
+    </div>';
+    $content = '
+    <div class="Headline" style="font-weight:bold; font-size:14px; color:#5A2800; border-bottom:1px solid #5A2800; padding-bottom:5px; margin-bottom:10px;">Como Jogar Survival 3D</div>
+    <div class="Text" style="font-size:11px; line-height:140%; color:#000;">
+        <center style="margin: 15px 0; padding: 15px; border: 1px solid #5A2800; background: rgba(90, 40, 0, 0.1);">
+            <strong style="font-size:14px;">NOVO: Instalador Desktop Oficial</strong><br/><br/>
+            Baixe o instalador oficial. Ele permite escolher a pasta de instalacao, criar atalho na Area de Trabalho e instala o Launcher com atualizacoes automaticas.<br/>
+            Tamanho do instalador: <strong>' . $installerSize . '</strong><br/><br/>
+            <a href="' . $installerUrl . '" download="Sobrevivencia3D_Setup.exe" style="display:inline-block; padding:10px 20px; background:#1b4f72; color:#fff; text-decoration:none; border-radius:5px; font-weight:bold; border: 1px solid #154360;">
+                Download do Instalador
+            </a>
+            <br/><br/>
+            <span style="font-size:10px; color:#5A2800;">Depois de instalar, abra o Launcher, clique em Atualizar e depois em Jogar.</span>
+            <br/>
+            <span style="font-size:10px; color:#5A2800;">Opcional: <a href="' . $launcherUrl . '" download="Survival3DLauncher.zip" style="color:#5A2800;">baixar ZIP do launcher</a> (' . $launcherSize . ').</span>
+        </center>
+        <br/>
+        O Survival 3D tambem roda inteiramente no seu navegador web de forma direta. Nao ha necessidade de baixar o desktop para jogar pelo navegador.
+        <br/><br/>
+        <strong>Requisitos de Sistema:</strong>
+        <ul>
+            <li>Launcher desktop: Windows 64 bits.</li>
+            <li>Navegador moderno para jogar pela web.</li>
+            <li>Conexao estavel com a internet para sincronizacao multiplayer e atualizacoes.</li>
+        </ul>
+        <br/>
+        <strong>Passo a Passo para Comecar pelo Launcher:</strong>
+        <ol>
+            <li><a href="?subtopic=account/create" style="color:#ff9900; font-weight:bold;">Crie uma conta gratuita</a> neste website.</li>
+            <li>Baixe o instalador oficial pelo botao acima.</li>
+            <li>Escolha a pasta de instalacao.</li>
+            <li>Marque a opcao de criar atalho na Area de Trabalho, se quiser.</li>
+            <li>Abra o Sobrevivencia 3D Launcher.</li>
+            <li>O launcher baixara o jogo automaticamente e liberara o botao Jogar.</li>
+            <li>Realize o login com a conta cadastrada.</li>
+            <li>Escolha a cor da sua Torre de Essencia favorita e configure as passivas.</li>
+            <li>Escolha a fila de matchmaking e inicie a partida.</li>
+        </ol>
+        <br/><br/>
+        <center>
+            <a href="' . $playBaseUrl . '/?v=' . time() . '" target="_blank" style="text-decoration:none;">
+                <img src="templates/tibiacom/images/global/buttons/_sbutton_buynow.gif" alt="Jogar Agora" style="border:0; cursor:pointer;" /><br/>
+                <span style="font-weight:bold; font-size:12px; color:#ff9900;">[ CLIQUE AQUI PARA ABRIR O JOGO WEB ]</span>
             </a>
         </center>
     </div>';

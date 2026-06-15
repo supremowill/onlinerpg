@@ -10,6 +10,7 @@ client/downloads/*.exe
 client/downloads/*.blockmap
 server/dist
 server/node_modules
+persistent-data
 __pycache__
 *.pyc
 .DS_Store

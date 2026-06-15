@@ -1,0 +1,13 @@
+[gd_scene format=3 uid="uid://f5ddni2amxar"]
+
+[ext_resource type="PackedScene" path="res://scenes/entities/EnemyAvatar.tscn" id="1"]
+[ext_resource type="PackedScene" uid="uid://e00ut7uspm0w" path="res://assets/models/enemies/Smith.glb" id="2"]
+
+[node name="smith" unique_id=346494446 instance=ExtResource("1")]
+default_scale = Vector3(1, 1.5, 1)
+
+[node name="Body" parent="ModelRoot" index="0"]
+visible = false
+
+[node name="SmithModel" parent="ModelRoot" index="1" unique_id=1111639664 instance=ExtResource("2")]
+transform = Transform3D(1.35, 0, 0, 0, 1.35, 0, 0, 0, 1.35, 0, 0, 0)

@@ -1,5 +1,6 @@
 import { StatusDictionary, ActiveStatus, StatusTarget } from './StatusDictionary';
 import { ServerPlayer } from '../Player';
+import { PlayerDamageMeta } from '../PlayerDamageTracker';
 
 /**
  * StatusManager — manages all active status effects for a single entity.
@@ -25,7 +26,7 @@ export class StatusManager {
      * @param intensity  Damage per tick, slow amount, etc. Meaning is status-specific.
      * @param instigator Player who applied the status (for damage attribution)
      */
-    applyStatus(id: string, durationMs = 0, intensity = 0, instigator: ServerPlayer | null = null): boolean {
+    applyStatus(id: string, durationMs = 0, intensity = 0, instigator: ServerPlayer | null = null, damageMeta?: PlayerDamageMeta): boolean {
         const def = StatusDictionary[id];
         if (!def) return false;
 
@@ -62,6 +63,7 @@ export class StatusManager {
             }
             if (intensity > existing.intensity) existing.intensity = intensity;
             if (instigator) existing.instigator = instigator;
+            if (damageMeta) existing.damageMeta = damageMeta;
         } else {
             const state: ActiveStatus = {
                 stacks: 1,
@@ -70,6 +72,7 @@ export class StatusManager {
                 intensity,
                 instigator,
                 immune: false,
+                damageMeta,
             };
             this.active.set(id, state);
             def.onApply?.(this.target, state);

@@ -15,8 +15,8 @@ services:
 
   app:
     build: .
-    ports:
-      - "80:3000"
+    expose:
+      - "3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -24,8 +24,12 @@ services:
       - JWT_SECRET=sua_chave_jwt_super_secreta_123456
       - WEEKLY_AWARD_SECRET=sua_chave_jwt_super_secreta_123456
     volumes:
-      - ./server/game_data.json:/app/game_data.json
       - ./client:/app/public
+      - ./persistent-data/game_data.json:/app/game_data.json
+      - ./persistent-data/item_images.json:/app/public/item_images.json
+      - ./persistent-data/item_names.json:/app/public/item_names.json
+      - ./persistent-data/item_drop_rates.json:/app/public/item_drop_rates.json
+      - ./persistent-data/items:/app/public/items
     depends_on:
       db:
         condition: service_healthy
@@ -39,12 +43,13 @@ services:
       - "8080:80"
     volumes:
       - ./myaac-main:/var/www/html
-      - ./client/updates.json:/var/www/html/updates.json
-      - ./server/game_data.json:/var/www/html/game_data.json
-      - ./client/item_images.json:/var/www/html/item_images.json
-      - ./client/item_names.json:/var/www/html/item_names.json
-      - ./client/item_drop_rates.json:/var/www/html/item_drop_rates.json
-      - ./client/items:/var/www/html/items
+      - ./persistent-data/updates.json:/var/www/html/updates.json
+      - ./persistent-data/game_data.json:/var/www/html/game_data.json
+      - ./persistent-data/item_images.json:/var/www/html/item_images.json
+      - ./persistent-data/item_names.json:/var/www/html/item_names.json
+      - ./persistent-data/item_drop_rates.json:/var/www/html/item_drop_rates.json
+      - ./persistent-data/items:/var/www/html/items
+      - ./persistent-data/backups:/var/www/persistent-backups
 
     environment:
       - DATABASE_URL=postgresql://survival:survival_secret@db:5432/survival_game?sslmode=disable
@@ -53,6 +58,19 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    restart: unless-stopped
+
+  proxy:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./deploy/nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - app
+      - website
     restart: unless-stopped
 
 volumes:

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sobrevivência 3D — Online</title>
+    <title>Sobrevivencia 3D - Online</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -66,6 +66,90 @@
         .stats-simple { display:flex; justify-content:space-between; margin-top:8px; font-size:1.1rem; font-weight:bold; }
         .stat-item { color:#0ff; text-shadow:1px 1px 2px #000; }
         #buff-display { display:none; flex-direction:column; gap:8px; align-items:flex-end; pointer-events:auto; width:100%; }
+        #coin-state-hud {
+            display: none;
+            width: 100%;
+            box-sizing: border-box;
+            pointer-events: none;
+            background: rgba(10, 8, 4, 0.88);
+            border: 1px solid rgba(245, 158, 11, 0.7);
+            border-radius: 6px;
+            padding: 8px 10px;
+            box-shadow: 0 0 14px rgba(245, 158, 11, 0.25), inset 0 0 12px rgba(245, 158, 11, 0.08);
+            position: relative;
+            overflow: hidden;
+        }
+        #coin-state-hud::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(110deg, transparent 0%, rgba(255,255,255,0.16) 45%, transparent 70%);
+            transform: translateX(-120%);
+            opacity: 0;
+        }
+        #coin-state-hud.coin-flip::before {
+            animation: coin-sheen 0.45s ease-out;
+        }
+        #coin-state-hud.coin-face {
+            border-color: rgba(251, 191, 36, 0.95);
+            box-shadow: 0 0 18px rgba(245, 158, 11, 0.4), 0 0 8px rgba(239, 68, 68, 0.22), inset 0 0 14px rgba(245, 158, 11, 0.12);
+        }
+        #coin-state-hud.coin-crown {
+            border-color: rgba(96, 165, 250, 0.95);
+            box-shadow: 0 0 18px rgba(96, 165, 250, 0.32), 0 0 8px rgba(245, 158, 11, 0.22), inset 0 0 14px rgba(96, 165, 250, 0.10);
+        }
+        .coin-state-row { display: flex; align-items: center; gap: 9px; position: relative; z-index: 1; }
+        .coin-state-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            font-weight: 900;
+            color: #111;
+            background: radial-gradient(circle at 35% 30%, #fff7b0, #f59e0b 58%, #92400e 100%);
+            box-shadow: 0 0 12px rgba(245, 158, 11, 0.55);
+            animation: coin-pulse 1.25s ease-in-out infinite;
+        }
+        #coin-state-hud.coin-crown .coin-state-icon {
+            background: radial-gradient(circle at 35% 30%, #e0f2fe, #60a5fa 58%, #92400e 100%);
+            box-shadow: 0 0 12px rgba(96, 165, 250, 0.55);
+        }
+        .coin-state-main { flex: 1; min-width: 0; }
+        .coin-state-title { font-family: 'Orbitron', sans-serif; font-size: 0.95rem; font-weight: 800; letter-spacing: 1.2px; color: #fbbf24; line-height: 1; }
+        #coin-state-hud.coin-crown .coin-state-title { color: #93c5fd; }
+        .coin-state-subtitle { font-size: 0.66rem; color: #fef3c7; opacity: 0.9; margin-top: 3px; }
+        .coin-state-timer {
+            margin-top: 7px;
+            height: 4px;
+            width: 100%;
+            background: rgba(255,255,255,0.12);
+            border-radius: 999px;
+            overflow: hidden;
+            position: relative;
+            z-index: 1;
+        }
+        .coin-state-timer-fill {
+            height: 100%;
+            width: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #f59e0b, #fef08a);
+            transition: width 0.18s linear;
+        }
+        #coin-state-hud.coin-crown .coin-state-timer-fill { background: linear-gradient(90deg, #3b82f6, #fde68a); }
+        .coin-state-flip-text {
+            display: none;
+            margin-top: 5px;
+            font-size: 0.64rem;
+            color: #fff7b0;
+            position: relative;
+            z-index: 1;
+        }
+        #coin-state-hud.coin-flip .coin-state-flip-text { display: block; }
+        @keyframes coin-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+        @keyframes coin-sheen { 0% { opacity: 0; transform: translateX(-120%) rotate(0deg); } 35% { opacity: 1; } 100% { opacity: 0; transform: translateX(120%) rotate(0deg); } }
         .boss-hud-container { position:absolute; top:30px; left:50%; transform:translateX(-50%); width:60%; max-width:700px; display:none; flex-direction:column; align-items:center; gap:10px; z-index:10; }
         .boss-hud-item { width:100%; background:rgba(0,0,0,.7); padding:10px; border-radius:8px; border:1px solid #555; text-align:center; }
         #boss-hp-bar { background:linear-gradient(90deg,#c62828,#e53935); }
@@ -188,15 +272,26 @@
             transform: scale(1.02);
         }
         .upgrade-option-icon {
-            font-size: 1.8rem;
-            min-width: 44px;
-            height: 44px;
-            background: rgba(0, 0, 0, 0.3);
+            font-size: 0;
+            min-width: 52px;
+            width: 52px;
+            height: 52px;
+            background:
+                radial-gradient(circle at 35% 25%, rgba(255,255,255,0.18), transparent 34%),
+                linear-gradient(145deg, rgba(2, 8, 23, 0.95), rgba(15, 23, 42, 0.82));
             border: 1px solid rgba(0, 229, 255, 0.3);
             border-radius: 6px;
             display: flex;
             justify-content: center;
             align-items: center;
+            box-shadow: inset 0 0 16px rgba(0, 229, 255, 0.08), 0 0 8px rgba(0,0,0,0.45);
+            overflow: hidden;
+        }
+        .upgrade-option-icon svg {
+            width: 42px;
+            height: 42px;
+            display: block;
+            filter: drop-shadow(0 0 5px rgba(0, 229, 255, 0.35));
         }
         .upgrade-option-card:hover .upgrade-option-icon {
             border-color: #00e5ff;
@@ -247,7 +342,12 @@
             .upgrade-option-icon {
                 font-size: 1.5rem;
                 min-width: 36px;
+                width: 36px;
                 height: 36px;
+            }
+            .upgrade-option-icon svg {
+                width: 30px;
+                height: 30px;
             }
             .upgrade-option-title {
                 font-size: 0.85rem;
@@ -615,6 +715,18 @@
             color: #a7f3d0 !important;
             box-shadow: 0 0 15px rgba(16,185,129,0.4);
         }
+        .tower-select-btn.active-coin {
+            background: rgba(245, 158, 11, 0.16) !important;
+            border-color: #f59e0b !important;
+            color: #fde68a !important;
+            box-shadow: 0 0 15px rgba(245,158,11,0.45);
+        }
+        .tower-select-btn.active-predator_hive {
+            background: rgba(14, 165, 233, 0.16) !important;
+            border-color: #38bdf8 !important;
+            color: #cffafe !important;
+            box-shadow: 0 0 15px rgba(168,85,247,0.45), 0 0 8px rgba(56,189,248,0.35);
+        }
 
         .floor-row {
             display: flex;
@@ -685,6 +797,20 @@
             border-color: #a7f3d0 !important;
             color: #fff !important;
             box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+            font-weight: bold;
+        }
+        .floor-option-btn.selected-coin {
+            background: #f59e0b !important;
+            border-color: #fde68a !important;
+            color: #111 !important;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.55);
+            font-weight: bold;
+        }
+        .floor-option-btn.selected-predator_hive {
+            background: linear-gradient(135deg, #0ea5e9, #7c3aed) !important;
+            border-color: #cffafe !important;
+            color: #fff !important;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.45), 0 0 14px rgba(168, 85, 247, 0.35);
             font-weight: bold;
         }
 
@@ -1177,14 +1303,14 @@
 
         <!-- TOWER BUILD SUMMARY BUTTON -->
         <button id="open-towers-btn" type="button" style="display:none; background: rgba(20,20,20,0.85); border: 2px solid #555; border-radius: 8px; width: 90%; max-width: 440px; margin: 15px 0 10px 0; padding: 12px 15px; cursor: pointer; text-align: center; transition: all 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 4px; align-items: center;">
-            <div style="font-size: 0.85rem; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #fff;">⚙️ Matriz de Essência (Torre)</div>
-            <div id="tower-summary-text" style="font-size: 0.72rem; color: #00e5ff; text-align: center; line-height: 1.3; font-family: 'Inter', sans-serif; font-weight: 500;">🔺 Carregando Escolhas...</div>
+            <div style="font-size: 0.85rem; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #fff;">Matriz de Essencia (Torre)</div>
+            <div id="tower-summary-text" style="font-size: 0.72rem; color: #00e5ff; text-align: center; line-height: 1.3; font-family: 'Inter', sans-serif; font-weight: 500;">Carregando Escolhas...</div>
             <div style="font-size: 0.6rem; color: #777; margin-top: 2px; font-style: italic;">Clique para alterar passivas da torre</div>
         </button>
 
         <!-- LOADOUT BUTTON -->
         <button id="open-loadout-btn" type="button" style="display:none; background: rgba(20,20,20,0.85); border: 2px solid #555; border-radius: 8px; width: 90%; max-width: 440px; margin: 5px 0 10px 0; padding: 12px 15px; cursor: pointer; text-align: center; transition: all 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 4px; align-items: center;">
-            <div style="font-size: 0.85rem; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #fff;">📦 Loadout de Itens</div>
+            <div style="font-size: 0.85rem; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #fff;">Loadout de Itens</div>
             <div id="loadout-summary-text" style="font-size: 0.72rem; color: #ffeb3b; text-align: center; line-height: 1.3; font-family: 'Inter', sans-serif; font-weight: 500;">0/3 Itens Equipados</div>
             <div id="loadout-warning" style="font-size: 0.65rem; color: #ff4444; font-weight: bold; display:none;">Limite Excedido!</div>
             <div style="font-size: 0.6rem; color: #777; margin-top: 2px; font-style: italic;">Clique para alterar seus itens equipados</div>
@@ -1197,7 +1323,7 @@
         </div>
         <div id="queue-status"><span class="spinner"></span><span id="queue-text">Procurando partida...</span></div>
         <div class="leaderboard-container">
-            <h2>🏆 Ranking — Top 10 🏆</h2>
+            <h2>Ranking - Top 10</h2>
             <ol id="leaderboard-list-start"><li>Carregando ranking...</li></ol>
         </div>
     </div>
@@ -1205,14 +1331,16 @@
     <!-- ESSENCE TOWERS SELECTION MODAL -->
     <div id="essence-towers-modal" class="overlay-screen" style="display:none; z-index:150;">
         <div id="essence-towers-modal-content">
-            <h3 style="margin-top: 0; color: #fff; text-align: center; font-size: 1.25em; letter-spacing: 1.2px; font-family: 'Inter', sans-serif; border-bottom: 1px solid #333; padding-bottom: 10px;">⚙️ MATRIZ DE ESSÊNCIA (TORRE)</h3>
+            <h3 style="margin-top: 0; color: #fff; text-align: center; font-size: 1.25em; letter-spacing: 1.2px; font-family: 'Inter', sans-serif; border-bottom: 1px solid #333; padding-bottom: 10px;">MATRIZ DE ESSENCIA (TORRE)</h3>
             
             <!-- Seletor de Torres -->
             <div id="tower-selector" style="display: flex; gap: 8px; justify-content: center; margin-bottom: 5px;">
-                <button id="tower-btn-red" class="tower-select-btn" style="flex: 1; padding: 10px 5px; cursor: pointer; transition: all 0.2s;">🔺 VERMELHA</button>
-                <button id="tower-btn-green" class="tower-select-btn" style="flex: 1; padding: 10px 5px; cursor: pointer; transition: all 0.2s;">🟩 VERDE</button>
-                <button id="tower-btn-purple" class="tower-select-btn" style="flex: 1; padding: 10px 5px; cursor: pointer; transition: all 0.2s;">🟣 ROXA</button>
-                <button id="tower-btn-poison" class="tower-select-btn" style="flex: 1; padding: 10px 5px; cursor: pointer; transition: all 0.2s;">☠️ VENENO</button>
+                <button id="tower-btn-red" class="tower-select-btn" style="flex: 1; padding: 10px 5px; cursor: pointer; transition: all 0.2s;">VERMELHA</button>
+                <button id="tower-btn-green" class="tower-select-btn" style="flex: 1; padding: 10px 5px; cursor: pointer; transition: all 0.2s;">VERDE</button>
+                <button id="tower-btn-purple" class="tower-select-btn" style="flex: 1; padding: 10px 5px; cursor: pointer; transition: all 0.2s;">ROXA</button>
+                <button id="tower-btn-poison" class="tower-select-btn" style="flex: 1; padding: 10px 5px; cursor: pointer; transition: all 0.2s;">VENENO</button>
+                <button id="tower-btn-coin" class="tower-select-btn" style="flex: 1; padding: 10px 5px; cursor: pointer; transition: all 0.2s;">CORINGA</button>
+                <button id="tower-btn-predator_hive" class="tower-select-btn" style="flex: 1; padding: 10px 5px; cursor: pointer; transition: all 0.2s;">COLMEIA</button>
             </div>
 
             <!-- Detalhes da Torre e Andares -->
@@ -1220,7 +1348,7 @@
                 <!-- floors will be dynamically populated -->
             </div>
 
-            <!-- Botão Confirmar/Fechar -->
+            <!-- Botao Confirmar/Fechar -->
             <button id="close-towers-btn" class="overlay-button" style="margin-top: 10px; width: 100%; padding: 12px; font-weight: bold; background: #27ae60; border-color: #2ecc71; margin-left: 0; margin-right: 0;">CONFIRMAR BUILD</button>
         </div>
     </div>
@@ -1260,7 +1388,7 @@
         <button id="restart-button" class="overlay-button">JOGAR NOVAMENTE</button>
         <button id="gameover-dashboard-button" class="overlay-button" style="background:#003540;border-color:#00e5ff;color:#00e5ff">📊 MINHAS ESTATÍSTICAS</button>
         <div class="leaderboard-container">
-            <h2>🏆 Ranking — Top 10 🏆</h2>
+            <h2>Ranking - Top 10</h2>
             <ol id="leaderboard-list-gameover"><li>Atualizando...</li></ol>
         </div>
     </div>
@@ -1314,6 +1442,7 @@
     <div id="player-hud">
         <div class="hud-item"><div class="progress-bar-container"><div id="hp-bar" class="progress-bar"></div></div></div>
         <div id="shield-hud-item" class="hud-item" style="display:none"><div class="progress-bar-container"><div id="shield-bar" class="progress-bar"></div></div></div>
+        <div class="hud-item"><div class="progress-bar-container" style="height:18px;"><div id="xp-bar" class="progress-bar"><div class="progress-bar-text" style="line-height:18px; font-size:.72rem;">XP: 0 / 0</div></div></div></div>
         <div class="stats-simple">
             <div class="stat-item">Nv. <span id="level-value">1</span></div>
             <div class="stat-item">Pts: <span id="score-value">0</span></div>
@@ -1361,6 +1490,7 @@
     <!-- RIGHT HUD AREA (Scoreboard + Buffs/Debuffs) -->
     <div class="right-hud-container">
         <div id="multiplayer-scoreboard"></div>
+        <div id="coin-state-hud"></div>
         <div id="buff-display"></div>
     </div>
     <div id="latency-display">Ping: <span id="latency-value">--</span></div>
@@ -1368,9 +1498,9 @@
     <script type="module">
         import * as THREE from 'three';
         import { NetworkClient } from './js/NetworkClient.js';
-        import { SnapshotRenderer } from './js/SnapshotRenderer.js?v=1.0.7';
+        import { SnapshotRenderer } from './js/SnapshotRenderer.js?v=1.0.9';
         import { InputManager } from './js/InputManager.js';
-        import { HUDManager } from './js/HUDManager.js?v=1.0.4';
+        import { HUDManager } from './js/HUDManager.js?v=1.0.8';
         import { AuthManager } from './js/auth.js';
         import { DashboardManager } from './js/DashboardManager.js';
         import { ChangelogManager } from './js/ChangelogManager.js';
@@ -1454,7 +1584,7 @@
             id: 'red',
             name: 'Torre Vermelha',
             focus: 'Dano / Burst',
-            icon: '🔺',
+            icon: 'RED',
             floors: [
               { level: 1, title: 'Status', options: ['+15% Dano', '+10% Speed', '+20% Crítico'] },
               { level: 2, title: 'Ataque', options: ['10% Lifesteal', '+20% Dano (<30% HP)', 'Ignora 25% Armor'] },
@@ -1467,7 +1597,7 @@
             id: 'green',
             name: 'Torre Verde',
             focus: 'Tank / Defesa',
-            icon: '🟩',
+            icon: 'GREEN',
             floors: [
               { level: 1, title: 'Status', options: ['+25% HP Max', 'Redução Dano Flat', 'Imune a Knockback'] },
               { level: 2, title: 'Defesa', options: ['Regen 1% HP/s', '+30% Defesa (>80% HP)', 'Reflete 15% Dano'] },
@@ -1480,7 +1610,7 @@
             id: 'purple',
             name: 'Torre Roxa',
             focus: 'Magia / Utilidade',
-            icon: '🟣',
+            icon: 'PURPLE',
             floors: [
               { level: 1, title: 'Status', options: ['+25% Escudo Max', '+15% Move Speed', '+CDR'] },
               { level: 2, title: 'Magia', options: ['Dano extra após skill', 'Escudo Defletor', 'Vampirismo Mágico'] },
@@ -1493,7 +1623,7 @@
             id: 'poison',
             name: 'Torre do Veneno',
             focus: 'DoT / Kiting / Evasão',
-            icon: '☠️',
+            icon: 'POISON',
             floors: [
               { level: 1, title: 'Status', options: ['+20% Attack Speed', '+15% Move Speed permanent', 'Tiro Tóxico'] },
               { level: 2, title: 'Kiting', options: ['Passos Leves (+20% MS)', 'Presas Gêmeas (Heal)', 'Dardo Cegante (Cegueira)'] },
@@ -1501,6 +1631,32 @@
               { level: 4, title: 'Condicional', options: ['Contaminação (Detonação)', 'Armadilha Cúbica (Shroom)', 'Espalhar a Peste (Transfer Stacks)'] },
             ],
             basicUlt: 'Frasco de Peçonha'
+          },
+          coin: {
+            id: 'coin',
+            name: 'Torre Coringa',
+            focus: 'Perde / Ganha',
+            icon: 'COIN',
+            floors: [
+              { level: 1, title: 'A Primeira Aposta', options: ['Cara Agressiva', 'Coroa Vital', 'Moeda Rapida'] },
+              { level: 2, title: 'Troca de Combate', options: ['Critico Endividado', 'Pancada Pesada', 'Ataque Instavel'] },
+              { level: 3, title: 'Preco da Sobrevivencia', options: ['Sanguessuga Fragil', 'Armadura Cobrada', 'Folego de Risco'] },
+              { level: 4, title: 'Divida Alta', options: ['Poder no Desespero', 'Seguranca Cara', 'Tudo ou Nada'] },
+            ],
+            basicUlt: 'Giro da Moeda'
+          },
+          predator_hive: {
+            id: 'predator_hive',
+            name: 'Bastião Predador da Colmeia',
+            focus: 'Mobilidade / Defesa / Ergs',
+            icon: 'ERG',
+            floors: [
+              { level: 1, title: 'Corpo Predador', options: ['Reflexo Felino [PREDADOR]', 'Pele Cinética [GUARDIÃO]', 'Garras da Colmeia [ERG]'] },
+              { level: 2, title: 'Guarda e Impacto', options: ['Braço de Bastião [GUARDIÃO]', 'Aparar Geométrico [GUARDIÃO]', 'Chamado dos Ergs [ERG]'] },
+              { level: 3, title: 'Colmeia Adaptativa', options: ['Enxame de Fragmentos [ERG]', 'Regeneração Mutante [ERG]', 'Carapaça Viva [ERG]'] },
+              { level: 4, title: 'Sinergia Avançada', options: ['Contra-Ataque Cinético [PREDADOR]', 'Muralha Predadora [GUARDIÃO]', 'Evolução da Ninhada [ERG]'] },
+            ],
+            basicUlt: 'Domínio do Bastião Predador'
           }
         };
 
@@ -1512,19 +1668,18 @@
             const btn = document.getElementById('open-towers-btn');
             if (!summaryText) return;
             const tower = towersData[selectedTowerColor];
-            if (tower) {
-                const p1 = tower.floors[0].options[selectedPassives[1]] || '';
-                const p2 = tower.floors[1].options[selectedPassives[2]] || '';
-                const p3 = tower.floors[2].options[selectedPassives[3]] || '';
-                const p4 = tower.floors[3].options[selectedPassives[4]] || '';
-                
-                const colorHex = selectedTowerColor === 'red' ? '#ff4d4d' : selectedTowerColor === 'green' ? '#4dff4d' : selectedTowerColor === 'purple' ? '#d44dff' : '#10b981';
-                summaryText.innerHTML = `<span style="color: ${colorHex}; font-weight: bold; font-size: 0.78rem;">${tower.icon} ${tower.name}</span><br><span style="color: #bbb; font-size: 0.65rem; font-weight: normal; font-family: monospace;">[${p1} • ${p2} • ${p3} • ${p4}]</span>`;
-                
-                if (btn) {
-                    btn.style.borderColor = colorHex;
-                    btn.style.boxShadow = `0 4px 15px rgba(0,0,0,0.4), 0 0 10px ${selectedTowerColor === 'red' ? 'rgba(239,68,68,0.35)' : selectedTowerColor === 'green' ? 'rgba(16,185,129,0.35)' : 'rgba(168,85,247,0.35)'}`;
-                }
+            if (!tower) return;
+            const p1 = tower.floors[0].options[selectedPassives[1]] || '';
+            const p2 = tower.floors[1].options[selectedPassives[2]] || '';
+            const p3 = tower.floors[2].options[selectedPassives[3]] || '';
+            const p4 = tower.floors[3].options[selectedPassives[4]] || '';
+            const colorMap = { red: '#ff4d4d', green: '#4dff4d', purple: '#d44dff', poison: '#10b981', coin: '#f59e0b', predator_hive: '#38bdf8' };
+            const glowMap = { red: 'rgba(239,68,68,0.35)', green: 'rgba(16,185,129,0.35)', purple: 'rgba(168,85,247,0.35)', poison: 'rgba(16,185,129,0.35)', coin: 'rgba(245,158,11,0.35)', predator_hive: 'rgba(56,189,248,0.38)' };
+            const colorHex = colorMap[selectedTowerColor] || '#10b981';
+            summaryText.innerHTML = `<span style="color: ${colorHex}; font-weight: bold; font-size: 0.78rem;">${tower.icon} ${tower.name}</span><br><span style="color: #bbb; font-size: 0.65rem; font-weight: normal; font-family: monospace;">[${p1} - ${p2} - ${p3} - ${p4}]</span>`;
+            if (btn) {
+                btn.style.borderColor = colorHex;
+                btn.style.boxShadow = `0 4px 15px rgba(0,0,0,0.4), 0 0 10px ${glowMap[selectedTowerColor] || 'rgba(168,85,247,0.35)'}`;
             }
         }
 
@@ -1549,7 +1704,7 @@
         }
 
         function renderTowerSelector() {
-            ['red', 'green', 'purple', 'poison'].forEach(c => {
+            ['red', 'green', 'purple', 'poison', 'coin', 'predator_hive'].forEach(c => {
                 const btn = document.getElementById(`tower-btn-${c}`);
                 if (btn) {
                     btn.className = 'tower-select-btn';
@@ -1626,6 +1781,8 @@
         document.getElementById('tower-btn-green').onclick = (e) => { e.preventDefault(); selectedTowerColor = 'green'; selectedPassives = {1:0,2:0,3:0,4:0}; saveBuild(); renderTowerSelector(); };
         document.getElementById('tower-btn-purple').onclick = (e) => { e.preventDefault(); selectedTowerColor = 'purple'; selectedPassives = {1:0,2:0,3:0,4:0}; saveBuild(); renderTowerSelector(); };
         document.getElementById('tower-btn-poison').onclick = (e) => { e.preventDefault(); selectedTowerColor = 'poison'; selectedPassives = {1:0,2:0,3:0,4:0}; saveBuild(); renderTowerSelector(); };
+        document.getElementById('tower-btn-coin').onclick = (e) => { e.preventDefault(); selectedTowerColor = 'coin'; selectedPassives = {1:0,2:0,3:0,4:0}; saveBuild(); renderTowerSelector(); };
+        document.getElementById('tower-btn-predator_hive').onclick = (e) => { e.preventDefault(); selectedTowerColor = 'predator_hive'; selectedPassives = {1:0,2:0,3:0,4:0}; saveBuild(); renderTowerSelector(); };
 
         // Modal triggers
         document.getElementById('open-towers-btn').onclick = (e) => {
@@ -2264,6 +2421,19 @@
         function setupTooltips() {
             const tooltip = document.getElementById('rpg-item-tooltip');
             if (!tooltip) return;
+            const tooltipSurfaceSelector = '#loadout-modal, #essence-towers-modal, #game-over-screen, #start-screen';
+            const hideTooltip = () => {
+                tooltip.classList.remove('show');
+                tooltip.style.display = 'none';
+                tooltip.style.borderColor = '';
+                tooltip.style.boxShadow = '';
+            };
+            const canShowTooltipFrom = (target) => {
+                const surface = target.closest(tooltipSurfaceSelector);
+                if (!surface) return false;
+                if (surface.id === 'start-screen' && window.getComputedStyle(surface).display === 'none') return false;
+                return true;
+            };
 
             const rarityLabels = {
                 basic: 'Item Básico',
@@ -2394,10 +2564,59 @@
                         'Gera cogumelos explosivos no chão (estilo Teemo) que causam envenenamento.',
                         'Ao abater um inimigo, espalha todos os stacks de veneno dele para alvos próximos.'
                     ]
+                },
+                coin: {
+                    1: [
+                        'Cara Agressiva: +18% dano geral, mas -10% HP maximo.',
+                        'Coroa Vital: +22% HP maximo, mas -10% dano geral.',
+                        'Moeda Rapida: +15% movimento, mas -12% defesa.'
+                    ],
+                    2: [
+                        'Critico Endividado: +18% chance critica, mas -15% multiplicador critico.',
+                        'Pancada Pesada: +25% multiplicador critico, mas ataque basico 10% mais lento.',
+                        'Ataque Instavel: ataque basico 20% mais rapido, mas -12% dano geral.'
+                    ],
+                    3: [
+                        'Sanguessuga Fragil: 6% roubo de vida sobre dano real, limitado a 8% HP maximo por segundo.',
+                        'Armadura Cobrada: +18% defesa, mas -15% movimento.',
+                        'Folego de Risco: +12% XP recebido, mas -8% HP maximo.'
+                    ],
+                    4: [
+                        'Poder no Desespero: abaixo de 35% HP, +30% dano causado e +12% dano recebido.',
+                        'Seguranca Cara: acima de 70% HP, -18% dano recebido e -12% dano causado.',
+                        'Tudo ou Nada: a cada 5 ataques basicos, +80% dano extra e perde 3% HP atual sem morrer.'
+                    ]
+                },
+                predator_hive: {
+                    1: [
+                        'Reflexo Felino [PREDADOR]: +12% movimento, +8% ataque e dash concede +20% movimento por 2s.',
+                        'Pele Cinetica [GUARDIAO]: +18% HP maximo e armazena parte do dano recebido como Energia Cinetica.',
+                        'Garras da Colmeia [ERG]: +10% dano fisico e ataques podem aplicar Ferida de Colmeia.'
+                    ],
+                    2: [
+                        'Braco de Bastiao [GUARDIAO]: Shield concede reducao de dano e cria aura que causa slow.',
+                        'Aparar Geometrico [GUARDIAO]: reduz e reflete o proximo dano recebido a cada 8s.',
+                        'Chamado dos Ergs [ERG]: 5 ataques em janela curta liberam pulso e podem aplicar Ferida de Colmeia.'
+                    ],
+                    3: [
+                        'Enxame de Fragmentos [ERG]: inimigos marcados podem explodir fragmentos ao morrer.',
+                        'Regeneracao Mutante [ERG]: abates com Ferida de Colmeia curam HP ou viram escudo.',
+                        'Carapaca Viva [ERG]: quanto mais inimigos marcados, maior a reducao de dano e velocidade.'
+                    ],
+                    4: [
+                        'Contra-Ataque Cinetico [PREDADOR]: Energia Cinetica cheia faz o proximo ataque explodir.',
+                        'Muralha Predadora [GUARDIAO]: Repel cria barreira frontal que reduz projeteis e controla inimigos.',
+                        'Evolucao da Ninhada [ERG]: stacks aumentam dano fisico recebido e espalham aura contaminante.'
+                    ]
                 }
             };
 
             document.addEventListener('mouseover', (e) => {
+                if (!canShowTooltipFrom(e.target)) {
+                    hideTooltip();
+                    return;
+                }
+
                 // 1. Check for item slots
                 const itemTarget = e.target.closest('[data-item-id]');
                 if (itemTarget) {
@@ -2431,7 +2650,9 @@
                         red: { name: 'Torre Vermelha', color: '#ff4d4d' },
                         green: { name: 'Torre Verde', color: '#4dff4d' },
                         purple: { name: 'Torre Roxa', color: '#d44dff' },
-                        poison: { name: 'Torre do Veneno', color: '#10b981' }
+                        poison: { name: 'Torre do Veneno', color: '#10b981' },
+                        coin: { name: 'Torre Coringa', color: '#f59e0b' },
+                        predator_hive: { name: 'Bastiao Predador da Colmeia', color: '#38bdf8' }
                     };
 
                     const tower = towerNames[towerId] || { name: 'Torre', color: '#fff' };
@@ -2487,8 +2708,8 @@
             });
 
             document.addEventListener('mousemove', (e) => {
-                if (tooltip.classList.contains('show')) {
-                    updateTooltipPosition(e);
+                if (tooltip.classList.contains('show') && !canShowTooltipFrom(e.target)) {
+                    hideTooltip();
                 }
             });
 
@@ -2500,9 +2721,7 @@
                     tooltip.classList.remove('show');
                     setTimeout(() => {
                         if (!tooltip.classList.contains('show')) {
-                            tooltip.style.display = 'none';
-                            tooltip.style.borderColor = ''; // reset border override
-                            tooltip.style.boxShadow = ''; // reset shadow override
+                            hideTooltip();
                         }
                     }, 100);
                 }
@@ -2513,16 +2732,20 @@
                 
                 const tooltipWidth = tooltip.offsetWidth;
                 const tooltipHeight = tooltip.offsetHeight;
-                
-                let left = e.clientX + 15;
-                let top = e.clientY + 15;
+
+                const anchor = e.target.closest('[data-item-id], [data-tower], [data-upgrade-id]');
+                const rect = anchor ? anchor.getBoundingClientRect() : null;
+                let left = rect ? rect.right + 12 : e.clientX + 15;
+                let top = rect ? rect.top : e.clientY + 15;
                 
                 if (left + tooltipWidth > window.innerWidth) {
-                    left = e.clientX - tooltipWidth - 15;
+                    left = rect ? rect.left - tooltipWidth - 12 : e.clientX - tooltipWidth - 15;
                 }
                 if (top + tooltipHeight > window.innerHeight) {
                     top = window.innerHeight - tooltipHeight - 15;
                 }
+                if (top < 10) top = 10;
+                if (left < 10) left = 10;
                 
                 tooltip.style.left = `${left}px`;
                 tooltip.style.top = `${top}px`;

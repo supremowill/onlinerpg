@@ -117,8 +117,8 @@
         "attackRange": 30,
         "attackCooldown": 1500,
         "hitboxRadius": 1.2,
-        "xp": 100,
-        "score": 150
+        "xp": 25,
+        "score": 25
       },
       "passives": [],
       "ai": {

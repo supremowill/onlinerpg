@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/entities/EnemyAvatar.tscn" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/enemies/Smith.glb" id="2"]
+
+[node name="clone_smith" instance=ExtResource("1")]
+
+[node name="Body" parent="ModelRoot" index="0"]
+visible = false
+
+[node name="SmithModel" parent="ModelRoot" index="1" instance=ExtResource("2")]
+transform = Transform3D(1.35, 0, 0, 0, 1.35, 0, 0, 0, 1.35, 0, 0, 0)

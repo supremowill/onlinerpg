@@ -195,7 +195,7 @@ export class SmithEnemy extends ServerEnemy {
         this.destroyedCloneTimestamps.push(Date.now());
     }
 
-    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive: boolean = true): void {
+    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive: boolean = true, hpPercent = 0, isTrueDamage = false, damageMeta?: any): void {
         if (this.isDestroyed || this.isInvulnerable) return;
 
         const c = CONFIG.SMITH;
@@ -209,13 +209,13 @@ export class SmithEnemy extends ServerEnemy {
             if (clones.length > 0) {
                 const dmgPerClone = sharedDamage / clones.length;
                 for (const clone of clones) {
-                    clone.takeDamage(dmgPerClone, instigator, false);
+                    clone.takeDamage(dmgPerClone, instigator, false, hpPercent, isTrueDamage, damageMeta);
                 }
             }
         }
 
         const bossDamage = amount * 0.90;
-        super.takeDamage(bossDamage, instigator, countsForPassive);
+        super.takeDamage(bossDamage, instigator, countsForPassive, hpPercent, isTrueDamage, damageMeta);
     }
 
     absorb(otherSmith: SmithEnemy): void {

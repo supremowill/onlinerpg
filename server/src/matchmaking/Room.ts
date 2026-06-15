@@ -144,6 +144,7 @@ export class Room {
                 rank: i + 1,
                 deathReport: p.damageTracker.getDeathReport(),
                 damageAnalysis: p.damageTracker.getAnalysis(),
+                damageDealtAnalysis: p.playerDamageTracker.getAnalysis(),
             }));
         const time = (Date.now() - this.startTime) / 1000;
         const timeMinutes = time / 60;
@@ -188,14 +189,17 @@ export class Room {
                 if (rUpgrade) {
                     const options = ['r_chuva_tetraedros', 'r_raio_oblivio', 'r_corte_dimensional', 
                                      'r_bastiao_titanio', 'r_terremoto_geometrico', 'r_armadura_reativa', 
-                                     'r_singularidade', 'r_distorcao_temporal_mut', 'r_reset_dimensional'];
+                                     'r_singularidade', 'r_distorcao_temporal_mut', 'r_reset_dimensional',
+                                     'r_campo_fungos', 'r_olhar_gorgona', 'r_raio_peste',
+                                     'r_cara_viciada', 'r_coroa_quebrada', 'r_coringa_absoluto',
+                                     'r_pantera_cinetica', 'r_guardiao_muralha_viva', 'r_ascensao_colmeia_erg'];
                     const idx = options.indexOf(rUpgrade);
                     if (idx !== -1) {
                         floor5 = (idx % 3) + 1;
                     }
                 }
                 p.build.floor5 = floor5;
-                await rankingService.postScore(p.name, p.score, time, this.engine.spawnManager.collapseLevel, p.kills, this.id, this.players.size, deaths, assists, p.build, p.damageTracker.getDeathReport(), p.damageTracker.getAnalysis());
+                await rankingService.postScore(p.name, p.score, time, this.engine.spawnManager.collapseLevel, p.kills, this.id, this.players.size, deaths, assists, p.build, p.damageTracker.getDeathReport(), p.damageTracker.getAnalysis(), p.playerDamageTracker.getAnalysis());
             }
             await rankingService.saveMatchHistory(this.id, scores.length, time, this.engine.spawnManager.collapseLevel);
         } catch (e) { console.error('[Room] Failed to save scores/drops:', e); }

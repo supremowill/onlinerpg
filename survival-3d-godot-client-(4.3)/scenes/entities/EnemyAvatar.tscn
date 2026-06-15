@@ -1,0 +1,50 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/visuals/EnemyVisualController.gd" id="1"]
+
+[sub_resource type="StandardMaterial3D" id="1"]
+albedo_color = Color(0.75, 0.18, 0.18, 1)
+
+[sub_resource type="CapsuleMesh" id="2"]
+radius = 0.42
+height = 1.8
+
+[sub_resource type="StandardMaterial3D" id="3"]
+albedo_color = Color(0.1, 0.85, 0.25, 1)
+
+[sub_resource type="BoxMesh" id="4"]
+size = Vector3(1, 0.08, 0.08)
+
+[sub_resource type="AnimationLibrary" id="5"]
+
+[node name="EnemyAvatar" type="Node3D"]
+script = ExtResource("1")
+hp_bar_path = NodePath("HpBar")
+model_root_path = NodePath("ModelRoot")
+animation_player_path = NodePath("AnimationPlayer")
+animation_tree_path = NodePath("AnimationTree")
+status_anchor_path = NodePath("StatusAnchor")
+
+[node name="ModelRoot" type="Node3D" parent="."]
+
+[node name="Body" type="MeshInstance3D" parent="ModelRoot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+mesh = SubResource("2")
+surface_material_override/0 = SubResource("1")
+
+[node name="HpBar" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.1, 0)
+
+[node name="Fill" type="MeshInstance3D" parent="HpBar"]
+mesh = SubResource("4")
+surface_material_override/0 = SubResource("3")
+
+[node name="StatusAnchor" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.45, 2.35, 0)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+"": SubResource("5")
+}
+
+[node name="AnimationTree" type="AnimationTree" parent="."]

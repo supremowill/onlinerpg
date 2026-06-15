@@ -3,6 +3,8 @@ import { ServerPlayer } from '../Player';
 import { Vec3 } from '../../utils/Vector3';
 import { CONFIG } from '../../config';
 import { EnemyRegistry } from '../../data/EnemyRegistry';
+import { ItemDatabase } from '../../data/ItemDatabase';
+import { buildSignature, getDamageTargetCategory } from '../PlayerDamageTracker';
 
 /**
  * EscaravelhoFarao — Guided scarab minion spawned by O Faraó
@@ -153,8 +155,9 @@ export class FaraoEnemy extends ServerEnemy {
     applySilence(_duration: number): void { /* Immune */ }
     applyDisorientation(_duration: number): void { /* Immune */ }
 
-    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true, hpPercent = 0, isTrueDamage = false): void {
+    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true, hpPercent = 0, isTrueDamage = false, damageMeta?: any): void {
         if (this.isDestroyed || this.isInvulnerable) return;
+        const hpBefore = this.hp;
 
         // Step 1 - Dano Base
         const danoBase = amount + (this.maxHp * hpPercent);
@@ -191,6 +194,64 @@ export class FaraoEnemy extends ServerEnemy {
         if (this.hp <= 0) {
             this.hp = 0;
             this.isDestroyed = true;
+        }
+
+        const appliedDamage = Math.max(0, Math.min(hpBefore, finalDamage));
+        if (instigator && appliedDamage > 0) {
+            const build = instigator.build;
+            const sourceType = damageMeta?.sourceType
+                || (damageMeta?.isStatus ? 'status'
+                    : damageMeta?.isItem ? 'item'
+                    : damageMeta?.isEssenceTower ? 'essence_tower'
+                    : damageMeta?.isSkill ? 'skill'
+                    : damageMeta?.isBasicAttack ? 'basic_attack'
+                    : 'unknown');
+            const sourceName = damageMeta?.sourceName
+                || damageMeta?.itemName
+                || damageMeta?.abilityName
+                || damageMeta?.statusId
+                || (sourceType === 'basic_attack' ? 'Ataque basico' : 'Dano nao classificado');
+            const skillKey = damageMeta?.skillKey;
+            instigator.playerDamageTracker.record({
+                gameTime: Number((global as any).__gameEngine?.gameTime || 0),
+                playerId: instigator.id,
+                playerName: instigator.name,
+                playerLevel: instigator.level,
+                targetId: this.id,
+                targetName: this.name || this.type,
+                targetType: this.type,
+                targetCategory: getDamageTargetCategory(this.type),
+                targetHpBefore: hpBefore,
+                targetHpAfter: this.hp,
+                rawDamage: amount + (this.maxHp * hpPercent),
+                finalDamage: appliedDamage,
+                overkillDamage: Math.max(0, finalDamage - hpBefore),
+                isKill: this.isDestroyed,
+                isCritical: Boolean(damageMeta?.isCritical || instigator.lastHitWasCrit),
+                isDoT: Boolean(damageMeta?.isDoT),
+                isStatus: Boolean(damageMeta?.isStatus || sourceType === 'status'),
+                isItem: Boolean(damageMeta?.isItem || sourceType === 'item'),
+                isEssenceTower: Boolean(damageMeta?.isEssenceTower || sourceType === 'essence_tower'),
+                isSkill: Boolean(damageMeta?.isSkill || sourceType === 'skill'),
+                isBasicAttack: Boolean(damageMeta?.isBasicAttack || sourceType === 'basic_attack'),
+                sourceType,
+                sourceId: damageMeta?.sourceId || damageMeta?.itemId || damageMeta?.statusId || skillKey || sourceName,
+                sourceName,
+                abilityName: damageMeta?.abilityName || sourceName,
+                skillKey,
+                upgradeId: damageMeta?.upgradeId || (skillKey ? instigator.selectedUpgrades?.[skillKey] : undefined),
+                itemId: damageMeta?.itemId,
+                itemName: damageMeta?.itemName || (damageMeta?.itemId ? ItemDatabase[damageMeta.itemId]?.name : undefined),
+                statusId: damageMeta?.statusId,
+                essenceColor: damageMeta?.essenceColor || build?.buildingColor,
+                essenceFloor1: build?.floor1 ?? 0,
+                essenceFloor2: build?.floor2 ?? 0,
+                essenceFloor3: build?.floor3 ?? 0,
+                essenceFloor4: build?.floor4 ?? 0,
+                essenceFloor5: build?.floor5 ?? 0,
+                buildSignature: buildSignature(build),
+                equippedItems: [...(instigator.loadoutItems || [])],
+            });
         }
 
         // Check eclipse thresholds

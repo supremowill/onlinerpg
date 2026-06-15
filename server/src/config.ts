@@ -94,8 +94,8 @@ export const CONFIG = {
         BASE_DAMAGE: 20,
         ATTACK_RANGE: 30,
         ATTACK_COOLDOWN: 1500,
-        XP: 100,
-        SCORE: 150,
+        XP: 25,
+        SCORE: 25,
         HITBOX_RADIUS: 1.2,
         RESPAWN_DELAY: 60,
     },
@@ -330,10 +330,10 @@ export const CONFIG = {
 
     // Tower positions
     TOWER_POSITIONS: [
-        { x: 35, z: 35 },
-        { x: -35, z: 35 },
-        { x: 35, z: -35 },
-        { x: -35, z: -35 },
+        { x: 35, z: 35, kind: 'ballistic' },
+        { x: -35, z: 35, kind: 'inferno' },
+        { x: 35, z: -35, kind: 'shock' },
+        { x: -35, z: -35, kind: 'gravity' },
     ],
 
     // Database

@@ -1,0 +1,17 @@
+config_version=5
+
+[application]
+
+config/name="Survival 3D Godot Client (4.3)"
+run/main_scene="res://scenes/main/GameWorld.tscn"
+config/features=PackedStringArray("4.3")
+config/icon="res://icon.svg"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+
+[rendering]
+
+renderer/rendering_method="forward_plus"

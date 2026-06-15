@@ -1,0 +1,8 @@
+{
+  "manifestUrl": "https://sobrevivencia.online/downloads/launcher/manifest.json",
+  "platform": "windows-x64",
+  "gameExecutable": "Game/Survival3D.exe",
+  "launcherVersion": "1.0.0",
+  "launchTicketFileName": "launch-ticket.json",
+  "launchTicketTtlSeconds": 90
+}

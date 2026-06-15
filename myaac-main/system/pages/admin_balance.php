@@ -44,8 +44,32 @@ function admin_balance_save_game_data($path, $gameData)
 		return 'Erro ao converter dados para JSON: ' . json_last_error_msg();
 	}
 
+	$backupError = admin_balance_backup_file($path);
+	if ($backupError !== '') {
+		return $backupError;
+	}
+
 	if (file_put_contents($path, $encoded . PHP_EOL, LOCK_EX) === false) {
 		return 'Falha ao gravar game_data.json.';
+	}
+
+	return '';
+}
+
+function admin_balance_backup_file($path)
+{
+	if (!file_exists($path) || filesize($path) <= 0) {
+		return '';
+	}
+
+	$backupRoot = '/var/www/persistent-backups/balance';
+	if (!is_dir($backupRoot) && !mkdir($backupRoot, 0775, true)) {
+		return 'Falha ao criar pasta de backup do balanceamento.';
+	}
+
+	$backupName = date('Ymd-His') . '-' . basename($path);
+	if (!copy($path, $backupRoot . '/' . $backupName)) {
+		return 'Falha ao criar backup antes de salvar balanceamento.';
 	}
 
 	return '';

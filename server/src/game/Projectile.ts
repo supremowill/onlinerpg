@@ -16,12 +16,14 @@ export class ServerProjectile {
     public isPlayerOwned: boolean = false;
     public ownerId: string = '';
     public specialEffect: string | null = null;
+    public visualEffect: string | null = null;
     public isBuffed: string | null = null;
     public explosionRadius: number = 0;
     public bleedDamage: number = 0;
     public bounces: number = 0;
     public isDestroyed: boolean = false;
     public color: number = 0xffffff;
+    public params: any = undefined;
     public skillUpgrades: { q?: string; w?: string; e?: string; r?: string } | null = null;
     public trackHits: boolean = false;
     public hitTargets: Set<string> = new Set();
@@ -59,9 +61,12 @@ export class ServerProjectile {
             x: this.position.x,
             y: this.position.y,
             z: this.position.z,
+            rotY: Math.atan2(this.direction.x, this.direction.z),
+            hitboxRadius: this.hitboxRadius,
             isPlayerOwned: this.isPlayerOwned,
             color: this.color,
             specialEffect: this.specialEffect || undefined,
+            visualEffect: this.visualEffect || undefined,
             skillUpgrades: this.skillUpgrades || undefined,
         };
     }

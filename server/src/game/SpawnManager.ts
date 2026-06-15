@@ -6,6 +6,7 @@ export interface SpawnEvent {
     position: Vec3;
     count?: number;
     isElite?: boolean;
+    appearance?: number;
 }
 
 /** Mirrors the client GameManager spawn logic */
@@ -43,6 +44,7 @@ export class SpawnManager {
     public isDoutorDoencaSpawned = false;
     public isDoutorDoencaAlive = false;
     public doutorDoencaNextSpawn = 360; // 6 minutes initially
+    public doutorDoencaAppearanceCount = 0;
 
     // O Faraó — Entidade Deus (acima de boss)
     public isFaraoAlive = false;
@@ -326,7 +328,8 @@ export class SpawnManager {
         if (!this.isDoutorDoencaAlive && this.gameTime >= this.doutorDoencaNextSpawn) {
             this.isDoutorDoencaAlive = true;
             this.doutorDoencaNextSpawn = Infinity; // Block spawning until onDoutorDoencaDefeated is called
-            events.push({ type: 'DoutorDoenca', position: this.getSpawnPosition() });
+            this.doutorDoencaAppearanceCount++;
+            events.push({ type: 'DoutorDoenca', position: this.getSpawnPosition(), appearance: this.doutorDoencaAppearanceCount });
         }
 
         // === O FARAÓ — Entidade Deus (12 min, respawns, independent of activeBoss) ===

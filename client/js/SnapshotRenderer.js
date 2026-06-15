@@ -35,6 +35,12 @@ export class SnapshotRenderer {
             projectile: new THREE.SphereGeometry(0.15, 8, 8),
             orb: new THREE.SphereGeometry(0.25, 16, 16),
         };
+        this.towerVisuals = {
+            ballistic: { color: 0xff5a1f, emissive: 0xff2400, emissiveIntensity: 0.45 },
+            inferno: { color: 0x160606, emissive: 0xff1a00, emissiveIntensity: 0.85 },
+            shock: { color: 0x0b3d91, emissive: 0x00c8ff, emissiveIntensity: 0.8 },
+            gravity: { color: 0x32105f, emissive: 0xa855f7, emissiveIntensity: 0.75 },
+        };
         // Enemy visual registry
         this.enemyVisuals = {
             PurpleCube: { geo: new THREE.BoxGeometry(1.2, 1.2, 1.2), color: 0x6a1b9a },
@@ -122,6 +128,88 @@ export class SnapshotRenderer {
                 isFaraoGeometric: true,
             },
         };
+    }
+
+    getTowerVisual(kind) {
+        return this.towerVisuals[kind] || this.towerVisuals.ballistic;
+    }
+
+    addTowerVisualDetails(entry, snap) {
+        const visual = this.getTowerVisual(snap.towerKind);
+        entry.towerAccentMeshes = [];
+        entry.towerKind = snap.towerKind;
+
+        const ringMat = new THREE.MeshBasicMaterial({ color: visual.emissive || visual.color, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+        const ringGeo = new THREE.TorusGeometry(1.45, 0.055, 8, 36);
+        const baseRing = new THREE.Mesh(ringGeo, ringMat);
+        baseRing.rotation.x = Math.PI / 2;
+        baseRing.position.y = -1.85;
+        entry.mesh.add(baseRing);
+        entry.towerAccentMeshes.push(baseRing);
+
+        const coreGeo = snap.towerKind === 'gravity'
+            ? new THREE.OctahedronGeometry(0.48, 0)
+            : new THREE.SphereGeometry(0.42, 16, 12);
+        const coreMat = new THREE.MeshStandardMaterial({
+            color: visual.emissive || visual.color,
+            emissive: visual.emissive || visual.color,
+            emissiveIntensity: visual.emissiveIntensity || 0.7,
+            metalness: 0.55,
+            roughness: 0.25,
+        });
+        const core = new THREE.Mesh(coreGeo, coreMat);
+        core.position.y = 1.1;
+        entry.mesh.add(core);
+        entry.towerCoreMesh = core;
+        entry.towerAccentMeshes.push(core);
+
+        if (snap.towerKind === 'shock') {
+            for (let i = 0; i < 2; i++) {
+                const shockRing = new THREE.Mesh(new THREE.TorusGeometry(1.0 + i * 0.28, 0.035, 8, 28), ringMat.clone());
+                shockRing.rotation.x = Math.PI / 2;
+                shockRing.position.y = -0.55 + i * 0.9;
+                entry.mesh.add(shockRing);
+                entry.towerAccentMeshes.push(shockRing);
+            }
+        }
+
+        if (snap.towerKind === 'inferno') {
+            const beamCore = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.16, 0.16, 3.3, 12),
+                new THREE.MeshBasicMaterial({ color: 0xff2200, transparent: true, opacity: 0.45 })
+            );
+            beamCore.position.y = 0;
+            entry.mesh.add(beamCore);
+            entry.towerAccentMeshes.push(beamCore);
+        }
+
+        if (snap.towerKind === 'gravity') {
+            const orbit = new THREE.Mesh(new THREE.TorusGeometry(1.25, 0.04, 8, 32), ringMat.clone());
+            orbit.rotation.x = Math.PI / 2.6;
+            orbit.rotation.z = Math.PI / 5;
+            orbit.position.y = 0.55;
+            entry.mesh.add(orbit);
+            entry.towerAccentMeshes.push(orbit);
+        }
+    }
+
+    updateTowerVisual(entry, snap, dt) {
+        if (!entry || snap.type !== 'EnemyTower') return;
+        const stage = snap.towerStage || 1;
+        const time = Date.now() * 0.004;
+        const pulse = 1 + Math.sin(time * 2) * 0.025 * stage;
+        if (entry.towerCoreMesh) {
+            entry.towerCoreMesh.scale.setScalar(pulse + Math.min(0.35, (snap.towerHeat || 0) * 0.05));
+            entry.towerCoreMesh.rotation.y += dt * (snap.towerKind === 'gravity' ? 2.8 : 1.2);
+            if (entry.towerCoreMesh.material?.emissiveIntensity !== undefined) {
+                entry.towerCoreMesh.material.emissiveIntensity = (this.getTowerVisual(snap.towerKind).emissiveIntensity || 0.7) + Math.min(1.2, (snap.towerHeat || 0) * 0.18);
+            }
+        }
+        if (entry.towerAccentMeshes) {
+            entry.towerAccentMeshes.forEach((mesh, index) => {
+                mesh.rotation.z += dt * (0.7 + index * 0.22 + stage * 0.12);
+            });
+        }
     }
 
     createStatusGeometry(shape) {
@@ -455,7 +543,10 @@ export class SnapshotRenderer {
                 if (!entry) {
                     let mesh;
                     let mixer = null;
-                    const visual = this.enemyVisuals[es.type] || { geo: new THREE.BoxGeometry(1, 1, 1), color: 0xffffff };
+                    let visual = this.enemyVisuals[es.type] || { geo: new THREE.BoxGeometry(1, 1, 1), color: 0xffffff };
+                    if (es.type === 'EnemyTower') {
+                        visual = { ...visual, ...this.getTowerVisual(es.towerKind) };
+                    }
                     if (es.type === 'MatilhaGeometra') {
                         mesh = new THREE.Group();
                         const pupGeo = new THREE.CylinderGeometry(0, 0.5, 1.5, 4, 1);
@@ -747,6 +838,9 @@ export class SnapshotRenderer {
                     if (es.type === 'Farao') hpGroup.position.y += 3; // taller boss
                     mesh.add(hpGroup);
                     entry = { mesh, type: 'enemy', hpBar: hpGroup, lastUpdate: Date.now(), mixer, orbitingSoulMeshes: [], cylinderMesh: null, auraMesh: null, headMesh: null, visorMesh: null, bsodMesh: null, isFarao: es.type === 'Farao' };
+                    if (es.type === 'EnemyTower') {
+                        this.addTowerVisualDetails(entry, es);
+                    }
                     // Add head and visor for Smith / CloneSmith
                     if ((es.type === 'Smith' || es.type === 'CloneSmith') && visual.headGeo) {
                         const headMat = new THREE.MeshStandardMaterial({ color: visual.headColor, metalness: 0.6, roughness: 0.4 });
@@ -795,6 +889,7 @@ export class SnapshotRenderer {
                     entry.hpBar.children[1].scale.x = Math.max(0.001, hpPct);
                     entry.hpBar.children[1].position.x = -(1 - hpPct) * 0.5;
                 }
+                this.updateTowerVisual(entry, es, dt);
                 // Update size multiplier for EspectroDeRaziel, Smith, CaoDosInfernos and LichKing
                 if ((es.type === 'EspectroDeRaziel' || es.type === 'Smith' || es.type === 'CaoDosInfernos' || es.type === 'LichKing') && es.sizeMultiplier) {
                     entry.mesh.scale.set(es.sizeMultiplier, es.sizeMultiplier, es.sizeMultiplier);
@@ -1112,8 +1207,11 @@ export class SnapshotRenderer {
                     else if (ps.specialEffect === 'reactive_saronite_shard') projColor = 0x00d2d3; // metallic ice blue
                     else if (ps.specialEffect === 'raio_peste_proj') projColor = 0x39ff14;
                     else if (ps.specialEffect === 'frasco_peconha') projColor = 0x10b981;
+                    else if (ps.specialEffect === 'erg_base_slime') projColor = 0xa855f7;
                     else if (ps.specialEffect === 'bomba_saltitante') projColor = 0xff4500;
                     else if (ps.specialEffect === 'ice_q_shard') projColor = 0x81D4FA; // light blue
+                    else if (ps.specialEffect === 'tower_ballistic') projColor = 0xff6b1a;
+                    else if (ps.specialEffect === 'tower_ballistic_heavy') projColor = 0xffd166;
                     const mat = new THREE.MeshStandardMaterial({
                         color: projColor, emissive: projColor, emissiveIntensity: 2,
                         wireframe: ps.skillUpgrades?.q === 'q_impacto_estilhacante'
@@ -1136,8 +1234,15 @@ export class SnapshotRenderer {
                         geo.rotateX(Math.PI / 2);
                     } else if (ps.specialEffect === 'frasco_peconha') {
                         geo = new THREE.SphereGeometry(0.35, 8, 8);
+                    } else if (ps.specialEffect === 'erg_base_slime') {
+                        geo = new THREE.IcosahedronGeometry(0.28, 0);
                     } else if (ps.specialEffect === 'bomba_saltitante') {
                         geo = new THREE.IcosahedronGeometry(0.5, 0);
+                    } else if (ps.specialEffect === 'tower_ballistic') {
+                        geo = new THREE.CylinderGeometry(0.10, 0.16, 1.15, 8);
+                        geo.rotateX(Math.PI / 2);
+                    } else if (ps.specialEffect === 'tower_ballistic_heavy') {
+                        geo = new THREE.IcosahedronGeometry(0.42, 0);
                     }
                     const mesh = new THREE.Mesh(geo, mat);
                     this.scene.add(mesh);
@@ -1213,6 +1318,34 @@ export class SnapshotRenderer {
                     else if (de.type === 'cubic_trap') { color = 0x00ff00; geo = new THREE.BoxGeometry(1.0, 1.0, 0.25); }
                     else if (de.type === 'teemo_shroom') { color = 0x39ff14; geo = new THREE.TetrahedronGeometry(1.0); }
                     else if (de.type === 'gorgon_flash') { color = 0x39ff14; geo = new THREE.RingGeometry(0, 1.0, 32, 1, -Math.PI / 4, Math.PI / 2); }
+                    else if (de.type === 'coin_spin') { color = 0xf59e0b; geo = new THREE.CylinderGeometry(0.45, 0.45, 0.12, 24); }
+                    else if (de.type === 'coin_burst') { color = 0xfacc15; geo = new THREE.IcosahedronGeometry(de.radius || 5, 1); }
+                    else if (de.type === 'tower_inferno_beam') {
+                        color = 0xff2200;
+                        const sx = de.extras?.sourceX ?? de.x;
+                        const sz = de.extras?.sourceZ ?? de.z;
+                        const tx = de.extras?.targetX ?? de.x;
+                        const tz = de.extras?.targetZ ?? de.z;
+                        const points = [
+                            new THREE.Vector3(sx - de.x, 0.25, sz - de.z),
+                            new THREE.Vector3(tx - de.x, 0.25, tz - de.z)
+                        ];
+                        geo = new THREE.BufferGeometry().setFromPoints(points);
+                        isLine = true;
+                    }
+                    else if (de.type === 'tower_inferno_overheat') { color = 0xff3300; geo = new THREE.IcosahedronGeometry(de.radius || 4.5, 1); }
+                    else if (de.type === 'tower_shock_pulse') { color = 0x00c8ff; geo = new THREE.RingGeometry((de.radius || 4.5) - 0.18, de.radius || 4.5, 32); }
+                    else if (de.type === 'tower_shock_overload') { color = 0x2dd4ff; geo = new THREE.SphereGeometry(de.radius || 5.5, 16, 12); }
+                    else if (de.type === 'tower_gravity_pulse') { color = 0xa855f7; geo = new THREE.RingGeometry((de.radius || 5) - 0.22, de.radius || 5, 32); }
+                    else if (de.type === 'tower_gravity_rupture') { color = 0xd946ef; geo = new THREE.IcosahedronGeometry(de.radius || 5, 1); }
+                    else if (de.type === 'tower_gravity_residue') { color = 0x7c3aed; geo = new THREE.CircleGeometry(de.radius || 5, 32); }
+                    else if (de.type === 'erg_central_base' || de.type === 'erg_central_base_max') { color = de.type === 'erg_central_base_max' ? 0xfacc15 : 0x7c3aed; geo = new THREE.TorusGeometry(de.radius || 3.2, 0.18, 8, 36); }
+                    else if (de.type === 'erg_worker' || de.type === 'erg_worker_carrying' || de.type === 'erg_worker_damaged' || de.type === 'erg_worker_critical' || de.type === 'erg_worker_dead') {
+                        color = de.type === 'erg_worker_dead' ? 0x4c1d95 : (de.type === 'erg_worker_critical' ? 0xef4444 : (de.type === 'erg_worker_damaged' ? 0xf59e0b : (de.type === 'erg_worker_carrying' ? 0xc084fc : 0x38bdf8)));
+                        geo = new THREE.TetrahedronGeometry(de.radius || 0.45, 0);
+                    }
+                    else if (de.type?.includes?.('erg') || de.type?.includes?.('hive')) { color = 0xa855f7; geo = new THREE.IcosahedronGeometry(de.radius || 3, 0); }
+                    else if (de.type?.includes?.('predator')) { color = 0x38bdf8; geo = new THREE.RingGeometry((de.radius || 3) - 0.18, de.radius || 3, 32); }
                     else if (de.type === 'tormentFlames') color = 0x5a189a;
                     else if (de.type === 'cannonSalvo') color = 0xff6600;
                     else if (de.type === 'powderKeg') color = 0x8B4513;
@@ -1367,6 +1500,38 @@ export class SnapshotRenderer {
                 } else if (de.type === 'gorgon_flash') {
                     entry.mesh.scale.set(de.radius || 8.0, de.radius || 8.0, 1);
                     entry.mesh.rotation.z = Math.PI / 2 - (de.rotY || 0);
+                } else if (de.type === 'coin_spin') {
+                    entry.mesh.position.set(de.x, 2.35, de.z);
+                    entry.mesh.scale.set(1, 1, 1);
+                    entry.mesh.rotation.x = Math.PI / 2;
+                    entry.mesh.rotation.z += 0.12;
+                } else if (de.type === 'coin_burst') {
+                    const progress = 1 - (de.timer || 0) / (de.duration || 1);
+                    const scale = 0.4 + progress * 1.1;
+                    entry.mesh.scale.set(scale, scale, scale);
+                    entry.mesh.rotation.z += 0.08;
+                } else if (de.type === 'tower_inferno_beam') {
+                    entry.mesh.position.set(de.x, 0.08, de.z);
+                } else if (de.type === 'tower_inferno_overheat' || de.type === 'tower_shock_overload' || de.type === 'tower_gravity_rupture') {
+                    const progress = 1 - (de.timer || 0) / (de.duration || 1);
+                    const scale = 0.25 + progress * 1.15;
+                    entry.mesh.scale.set(scale, scale, scale);
+                    entry.mesh.rotation.z += 0.08;
+                } else if (de.type === 'tower_shock_pulse' || de.type === 'tower_gravity_pulse' || de.type === 'tower_gravity_residue') {
+                    const pulse = 1 + Math.sin(performance.now() * 0.008) * 0.04;
+                    entry.mesh.scale.set(pulse, pulse, pulse);
+                    entry.mesh.rotation.z += de.type === 'tower_gravity_residue' ? 0.01 : 0.04;
+                } else if (de.type === 'erg_central_base' || de.type === 'erg_central_base_max') {
+                    entry.mesh.position.set(de.x, 0.28, de.z);
+                    entry.mesh.rotation.x = Math.PI / 2;
+                    entry.mesh.rotation.z += 0.025;
+                    const pulse = 1 + Math.sin(performance.now() * 0.004) * 0.08;
+                    entry.mesh.scale.set(pulse, pulse, pulse);
+                } else if (de.type === 'erg_worker' || de.type === 'erg_worker_carrying' || de.type === 'erg_worker_damaged' || de.type === 'erg_worker_critical' || de.type === 'erg_worker_dead') {
+                    entry.mesh.position.set(de.x, 0.45, de.z);
+                    entry.mesh.rotation.y += 0.08;
+                    const scale = de.type === 'erg_worker_dead' ? 0.65 : (de.type === 'erg_worker_carrying' ? 1.25 : 1.0);
+                    entry.mesh.scale.set(scale, scale, scale);
                 } else if (de.type === 'item_ice_cleave') {
                     const progress = 1 - (de.timer || 0) / (de.duration || 1);
                     const scale = 0.65 + progress * 0.35;
@@ -1483,6 +1648,15 @@ export class SnapshotRenderer {
                 if (entry.orbitingSoulMeshes) { while (entry.orbitingSoulMeshes.length > 0) { const sm = entry.orbitingSoulMeshes.pop(); entry.mesh.remove(sm); sm.geometry.dispose(); sm.material.dispose(); } }
                 if (entry.cylinderMesh) { entry.mesh.remove(entry.cylinderMesh); entry.cylinderMesh.geometry.dispose(); (entry.cylinderMesh.material).dispose(); }
                 if (entry.auraMesh) { entry.mesh.remove(entry.auraMesh); entry.auraMesh.geometry.dispose(); (entry.auraMesh.material).dispose(); }
+                if (entry.towerAccentMeshes) {
+                    while (entry.towerAccentMeshes.length > 0) {
+                        const sm = entry.towerAccentMeshes.pop();
+                        entry.mesh.remove(sm);
+                        sm.geometry.dispose();
+                        if (Array.isArray(sm.material)) sm.material.forEach(m => m.dispose());
+                        else sm.material.dispose();
+                    }
+                }
                 if (entry.familiarMesh) { this.scene.remove(entry.familiarMesh); entry.familiarMesh.geometry.dispose(); entry.familiarMesh.material.dispose(); }
                 if (entry.statusVfxMeshes) {
                     for (const group of entry.statusVfxMeshes.values()) {

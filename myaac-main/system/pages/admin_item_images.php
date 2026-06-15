@@ -6,6 +6,26 @@ $baseDir = dirname(__DIR__, 2); // /var/www/html
 $path = $baseDir . '/item_images.json';
 $itemsDir = $baseDir . '/items/';
 
+function admin_item_images_backup_file($path, $bucket = 'items')
+{
+    if (!file_exists($path) || filesize($path) <= 0) {
+        return '';
+    }
+
+    $safeBucket = preg_replace('/[^a-zA-Z0-9_\-]/', '', $bucket);
+    $backupRoot = '/var/www/persistent-backups/' . ($safeBucket ?: 'items');
+    if (!is_dir($backupRoot) && !mkdir($backupRoot, 0775, true)) {
+        return 'Failed to create backup directory.';
+    }
+
+    $backupName = date('Ymd-His') . '-' . basename($path);
+    if (!copy($path, $backupRoot . '/' . $backupName)) {
+        return 'Failed to create backup before saving.';
+    }
+
+    return '';
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_FILES['new_image'])) {
         $file = $_FILES['new_image'];
@@ -14,7 +34,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($ext === 'png') {
                 $filename = basename($file['name']);
                 $filename = preg_replace("/[^a-zA-Z0-9_\-\.]/", "", $filename);
-                if (move_uploaded_file($file['tmp_name'], $itemsDir . $filename)) {
+                $destination = $itemsDir . $filename;
+                $backupError = admin_item_images_backup_file($destination, 'item_uploads');
+                if ($backupError !== '') {
+                    header('HTTP/1.1 500 Internal Server Error');
+                    echo json_encode(['error' => $backupError]);
+                    exit;
+                }
+
+                if (move_uploaded_file($file['tmp_name'], $destination)) {
                     header('Content-Type: application/json');
                     echo json_encode(['success' => true, 'filename' => $filename]);
                     exit;
@@ -43,6 +71,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $legendary = (float)$data['drop_rates']['legendary'];
             if ($basic + $epic + $legendary <= 100 && $basic >= 0 && $epic >= 0 && $legendary >= 0) {
                 $dropRatesPath = $baseDir . '/item_drop_rates.json';
+                $backupError = admin_item_images_backup_file($dropRatesPath, 'item_json');
+                if ($backupError !== '') {
+                    header('HTTP/1.1 500 Internal Server Error');
+                    echo json_encode(['error' => $backupError]);
+                    exit;
+                }
+
                 $ratesSaved = file_put_contents($dropRatesPath, json_encode([
                     'basic' => $basic,
                     'epic' => $epic,
@@ -74,6 +109,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (isset($data['images']) && isset($data['names'])) {
+            $imagesBackupError = admin_item_images_backup_file($path, 'item_json');
+            $namesBackupError = admin_item_images_backup_file($baseDir . '/item_names.json', 'item_json');
+            if ($imagesBackupError !== '' || $namesBackupError !== '') {
+                header('HTTP/1.1 500 Internal Server Error');
+                echo json_encode(['error' => $imagesBackupError ?: $namesBackupError]);
+                exit;
+            }
+
             $imagesSaved = file_put_contents($path, json_encode($data['images'], JSON_PRETTY_PRINT)) !== false;
             $namesSaved = file_put_contents($baseDir . '/item_names.json', json_encode($data['names'], JSON_PRETTY_PRINT)) !== false;
             if ($imagesSaved && $namesSaved) {
@@ -87,6 +130,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } else {
             // Fallback for auto-save of single image mapping
+            $backupError = admin_item_images_backup_file($path, 'item_json');
+            if ($backupError !== '') {
+                header('HTTP/1.1 500 Internal Server Error');
+                echo json_encode(['error' => $backupError]);
+                exit;
+            }
+
             if (file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT)) !== false) {
                 header('Content-Type: application/json');
                 echo json_encode(['success' => true]);
@@ -661,4 +711,3 @@ $content = '
 ';
 
 echo $content;
-

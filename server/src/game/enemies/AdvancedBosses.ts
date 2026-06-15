@@ -31,7 +31,7 @@ export class FeiticeiroImortalEnemy extends ServerEnemy {
         this.position.y = 1.75;
     }
 
-    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true): void {
+    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true, hpPercent = 0, isTrueDamage = false, damageMeta?: any): void {
         if (this.isDestroyed) return;
         const b = this.habilidades.barreira;
         if (b.isActive && b.shieldHp > 0) {
@@ -47,7 +47,7 @@ export class FeiticeiroImortalEnemy extends ServerEnemy {
             amount = rem;
         }
         if (this.isImmortal) return;
-        super.takeDamage(amount, instigator, countsForPassive);
+        super.takeDamage(amount, instigator, countsForPassive, hpPercent, isTrueDamage, damageMeta);
     }
 
     onSoulDestroyed(): void {
@@ -148,11 +148,11 @@ export class LichKingEnemy extends ServerEnemy {
         // Armadura Reativa de Saronita: Imunidade total
     }
 
-    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true, hpPercent = 0, isTrueDamage = false): void {
+    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true, hpPercent = 0, isTrueDamage = false, damageMeta?: any): void {
         if (this.isInvulnerable || this.isDestroyed) return;
         
         const hpBefore = this.hp;
-        super.takeDamage(amount, instigator, countsForPassive, hpPercent, isTrueDamage);
+        super.takeDamage(amount, instigator, countsForPassive, hpPercent, isTrueDamage, damageMeta);
         const damageDealt = hpBefore - this.hp;
 
         // Armadura Reativa de Saronita: Refletir 5% de todo dano recebido como losangos perseguidores
@@ -789,7 +789,7 @@ export class CaoDosInfernosEnemy extends ServerEnemy {
         this.lookAt(target.position);
     }
 
-    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true): void {
+    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true, hpPercent = 0, isTrueDamage = false, damageMeta?: any): void {
         if (this.isDestroyed) return;
         if (this.shieldHp > 0) {
             const absorbed = Math.min(amount, this.shieldHp);
@@ -797,7 +797,7 @@ export class CaoDosInfernosEnemy extends ServerEnemy {
             amount -= absorbed;
             if (amount <= 0) return;
         }
-        super.takeDamage(amount, instigator, countsForPassive);
+        super.takeDamage(amount, instigator, countsForPassive, hpPercent, isTrueDamage, damageMeta);
     }
 
     removeMatilha(id: string): void {
@@ -840,11 +840,11 @@ export class TheMightyOneEnemy extends ServerEnemy {
         this.pendingAbilities.push({ type: 'mightyOneInit' });
     }
 
-    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true): void {
+    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true, hpPercent = 0, isTrueDamage = false, damageMeta?: any): void {
         if (Math.random() < 0.3) {
             amount *= 0.4; // 60% reduction
         }
-        super.takeDamage(amount, instigator, countsForPassive);
+        super.takeDamage(amount, instigator, countsForPassive, hpPercent, isTrueDamage, damageMeta);
     }
 
     update(dt: number, players: ServerPlayer[], gameTime: number): void {

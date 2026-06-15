@@ -157,6 +157,40 @@ export const TOWER_MUTATION_DEFINITIONS: Record<string, UpgradeOption[]> = {
             description: 'Ativa. Por 8s, ganha alcance extremo. Seus ataques básicos viram lasers penetrantes que atravessam a horda inteira, aplicando dano total e stacks a cada acerto.',
         },
     ],
+    coin: [
+        {
+            id: 'r_cara_viciada',
+            name: 'Cara Viciada',
+            description: 'Trava a ultimate no estado ofensivo por 10s: +45% dano, +20% critico, +30% dano critico, -25% defesa e -15% HP maximo temporario.',
+        },
+        {
+            id: 'r_coroa_quebrada',
+            name: 'Coroa Quebrada',
+            description: 'Trava a ultimate no estado defensivo por 10s: +35% defesa, +25% HP temporario, +15% velocidade, -25% dano e -15% velocidade de ataque.',
+        },
+        {
+            id: 'r_coringa_absoluto',
+            name: 'Coringa Absoluto',
+            description: 'Por 12s sorteia Cara ou Coroa a cada 2s. Cada troca emite explosao dourada com raio 5 e 80% do dano atual.',
+        },
+    ],
+    predator_hive: [
+        {
+            id: 'r_pantera_cinetica',
+            name: 'Pantera Cinetica',
+            description: 'Por 12s ganha mobilidade e ataque. Dashes deixam prismas explosivos e a Energia Cinetica explode no final.',
+        },
+        {
+            id: 'r_guardiao_muralha_viva',
+            name: 'Guardiao da Muralha Viva',
+            description: 'Por 9s cria uma muralha circular: muita reducao de dano, controle em inimigos, pulsos de dano e cura final.',
+        },
+        {
+            id: 'r_ascensao_colmeia_erg',
+            name: 'Ascensao da Colmeia Erg',
+            description: 'Por 11s aplica Ferida de Colmeia em area, ataques sempre marcam e operarios ficam mais rapidos se a base estiver ativa.',
+        },
+    ],
 };
 
 // ============================================================
@@ -303,6 +337,28 @@ export function applyUpgrade(player: ServerPlayer, skill: string, optionId: stri
             break;
         case 'r_raio_peste':
             player.upgradeFlags.r_raio_peste = true;
+            break;
+
+        // Coin Mutations
+        case 'r_cara_viciada':
+            player.upgradeFlags.r_cara_viciada = true;
+            break;
+        case 'r_coroa_quebrada':
+            player.upgradeFlags.r_coroa_quebrada = true;
+            break;
+        case 'r_coringa_absoluto':
+            player.upgradeFlags.r_coringa_absoluto = true;
+            break;
+
+        // Predator Hive Mutations
+        case 'r_pantera_cinetica':
+            player.upgradeFlags.r_pantera_cinetica = true;
+            break;
+        case 'r_guardiao_muralha_viva':
+            player.upgradeFlags.r_guardiao_muralha_viva = true;
+            break;
+        case 'r_ascensao_colmeia_erg':
+            player.upgradeFlags.r_ascensao_colmeia_erg = true;
             break;
     }
 

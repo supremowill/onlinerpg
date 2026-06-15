@@ -271,9 +271,9 @@ export class EspectroDeRazielEnemy extends ServerEnemy {
         this.skill4Cooldown = CONFIG.ESPECTRO_DE_RAZIEL.SKILL_4_COOLDOWN;
     }
 
-    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true): void {
+    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true, hpPercent = 0, isTrueDamage = false, damageMeta?: any): void {
         if (this.isDestroyed || this.isInvulnerable) return;
-        super.takeDamage(amount, instigator, countsForPassive);
+        super.takeDamage(amount, instigator, countsForPassive, hpPercent, isTrueDamage, damageMeta);
     }
 
     toSnapshot(): any {

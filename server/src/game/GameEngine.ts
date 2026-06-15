@@ -18,9 +18,26 @@ import { FaraoEnemy, EscaravelhoFaraoEnemy } from './enemies/Farao';
 import { DoutorDoencaEnemy } from './enemies/DoutorDoenca';
 import { ThreatScalingSystem, ThreatContext } from './ThreatScalingSystem';
 import type { DamageSourceInfo, DamageSourceType } from './DamageTracker';
+import type { PlayerDamageMeta } from './PlayerDamageTracker';
 
-export interface Orb { id: string; type: 'xp' | 'healing' | 'buff'; position: Vec3; hitboxRadius: number; buffType?: string; buffEffects?: any; buffDuration?: number; }
+export interface Orb { id: string; type: 'xp' | 'healing' | 'buff'; position: Vec3; hitboxRadius: number; buffType?: string; buffEffects?: any; buffDuration?: number; reservedBy?: string; }
 export interface DynamicZone { id: string; type: string; position: Vec3; radius: number; duration: number; timer: number; damagePerSec: number; lastTick: number; extras?: any; }
+interface ErgWorker {
+    id: string;
+    ownerId: string;
+    index: number;
+    position: Vec3;
+    targetOrbId?: string;
+    carrying: number;
+    returning: boolean;
+    stuckTimer: number;
+    lastDistance: number;
+    integrity: number;
+    maxIntegrity: number;
+    hitRecoveryTimers: number[];
+    respawnTimer: number;
+    hitCooldown: number;
+}
 
 export class GameEngine {
     public players: Map<string, ServerPlayer> = new Map();
@@ -43,6 +60,7 @@ export class GameEngine {
     private healingTowerLastHeal = 0;
     private orbIdCounter = 0;
     private zoneIdCounter = 0;
+    private ergWorkers: ErgWorker[] = [];
     public pendingEvents: { event: string; data: any }[] = [];
     // Throttle: only emit HIT_NUMBER events per entity every 150ms to avoid network spam
     private hitNumberThrottle: Map<string, number> = new Map();
@@ -91,7 +109,167 @@ export class GameEngine {
     }
 
     private damagePlayer(target: ServerPlayer, amount: number, source: ServerEnemy | null, abilityName: string, fromProjectile = false, isTrueDamage = false, sourceType?: DamageSourceType, isContinuous = false): void {
+        const sourceAny = source as any;
+        if (sourceAny?.__limboDamageBuffUntil && Date.now() < sourceAny.__limboDamageBuffUntil) {
+            amount *= 1 + (sourceAny.__limboDamageBuff || 0);
+        }
         target.takeDamage(amount, fromProjectile, isTrueDamage, source, this.buildDamageInfo(source, abilityName, sourceType, isContinuous));
+    }
+
+    private capTowerDamage(player: ServerPlayer, rawDamage: number, percent = 0.18): number {
+        return Math.min(rawDamage, player.maxHp * percent);
+    }
+
+    private distancePointToSegmentXZ(point: Vec3, start: Vec3, end: Vec3): number {
+        const sx = start.x;
+        const sz = start.z;
+        const ex = end.x;
+        const ez = end.z;
+        const dx = ex - sx;
+        const dz = ez - sz;
+        const lenSq = dx * dx + dz * dz;
+        if (lenSq <= 0.0001) return point.distanceToXZ(start);
+        const t = Math.max(0, Math.min(1, ((point.x - sx) * dx + (point.z - sz) * dz) / lenSq));
+        const px = sx + t * dx;
+        const pz = sz + t * dz;
+        const ox = point.x - px;
+        const oz = point.z - pz;
+        return Math.sqrt(ox * ox + oz * oz);
+    }
+
+    private applyLimboStatus(target: ServerPlayer, status?: string, duration = 0, intensity = 0): void {
+        if (!status) return;
+        switch (status) {
+            case 'slow':
+            case 'slowed':
+                target.applySlow(duration || 3000, intensity || 0.25);
+                break;
+            case 'root':
+            case 'rooted':
+                target.applyRoot(duration || 1000);
+                break;
+            case 'stun':
+            case 'stunned':
+                target.applyStun(duration || 750);
+                break;
+            case 'blind':
+                target.applyBlindness(duration || 2000);
+                break;
+            case 'bleed':
+            case 'bleeding':
+                target.applyBleed(duration || 4000, intensity || 5);
+                break;
+            case 'burn':
+            case 'burning':
+                target.applyBurn(duration || 4000, intensity || 8);
+                break;
+            case 'poison':
+                target.statusManager.applyStatus('poison', duration || 4000, intensity || 0, null);
+                break;
+            case 'disorient':
+            case 'disoriented':
+                target.applyDisorientation(duration || 1200);
+                break;
+            case 'mortalWounds':
+                target.statusManager.applyStatus('mortalWounds', duration || 4000, intensity || 0, null);
+                break;
+            case 'armorFracture':
+                target.applyArmorFracture(duration || 5000, intensity || 0.15);
+                break;
+            case 'freeze':
+            case 'frozen':
+                target.applyFreeze(duration || 1200);
+                break;
+            case 'silence':
+            case 'silenced':
+                target.applySilence(duration || 1500);
+                break;
+            default:
+                target.statusManager.applyStatus(status, duration || 3000, intensity || 0, null);
+                break;
+        }
+    }
+
+    private applyLimboForce(target: ServerPlayer, center: Vec3, force?: number, pull = false): void {
+        if (!force) return;
+        const dir = pull ? center.clone().sub(target.position) : target.position.clone().sub(center);
+        dir.y = 0;
+        if (dir.lengthSq() > 0.01) target.applyKnockback(dir.normalize(), force);
+    }
+
+    private pushLimboWarning(type: string, position: Vec3, radius: number, duration: number, extras: any = {}): void {
+        this.zones.push({
+            id: `zone_${this.zoneIdCounter++}`,
+            type,
+            position,
+            radius,
+            duration,
+            timer: duration,
+            damagePerSec: 0,
+            lastTick: 0,
+            extras,
+        });
+    }
+
+    private skillDamageMeta(player: ServerPlayer, skillKey: 'q' | 'w' | 'e' | 'r' | string, abilityName: string, extra: Partial<PlayerDamageMeta> = {}): PlayerDamageMeta {
+        return {
+            sourceType: 'skill',
+            sourceId: skillKey,
+            sourceName: abilityName,
+            abilityName,
+            skillKey,
+            upgradeId: player.selectedUpgrades?.[skillKey],
+            isSkill: true,
+            ...extra,
+        };
+    }
+
+    private itemDamageMeta(itemId: string, sourceName: string, extra: Partial<PlayerDamageMeta> = {}): PlayerDamageMeta {
+        return {
+            sourceType: 'item',
+            sourceId: itemId,
+            sourceName,
+            abilityName: sourceName,
+            itemId,
+            itemName: sourceName,
+            isItem: true,
+            ...extra,
+        };
+    }
+
+    private essenceDamageMeta(player: ServerPlayer, sourceId: string, sourceName: string, essenceFloor?: number, extra: Partial<PlayerDamageMeta> = {}): PlayerDamageMeta {
+        return {
+            sourceType: 'essence_tower',
+            sourceId,
+            sourceName,
+            abilityName: sourceName,
+            essenceColor: player.build?.buildingColor,
+            essenceFloor,
+            isEssenceTower: true,
+            ...extra,
+        };
+    }
+
+    private projectileDamageMeta(player: ServerPlayer, proj?: ServerProjectile | null): PlayerDamageMeta {
+        const special = proj?.specialEffect || '';
+        if (!special || special === 'raio_peste_proj') {
+            return {
+                sourceType: 'basic_attack',
+                sourceId: 'basic_attack',
+                sourceName: special === 'raio_peste_proj' ? 'Raio da Peste' : 'Ataque basico',
+                abilityName: special === 'raio_peste_proj' ? 'Raio da Peste' : 'Ataque basico',
+                isBasicAttack: !special,
+                isEssenceTower: special === 'raio_peste_proj',
+                essenceColor: special === 'raio_peste_proj' ? 'poison' : player.build?.buildingColor,
+                essenceFloor: special === 'raio_peste_proj' ? 5 : undefined,
+                isCritical: Boolean(proj?.isCritical),
+            };
+        }
+        if (special === 'frasco_peconha') {
+            return this.essenceDamageMeta(player, 'poison_frasco_peconha', 'Frasco de Peconha', 5, { isCritical: Boolean(proj?.isCritical) });
+        }
+        const skillKey = proj?.skillUpgrades?.q ? 'q' : proj?.skillUpgrades?.w ? 'w' : proj?.skillUpgrades?.e ? 'e' : proj?.skillUpgrades?.r ? 'r' : 'skill';
+        return this.skillDamageMeta(player, skillKey, special, { sourceId: special, sourceName: special, isCritical: Boolean(proj?.isCritical) });
     }
 
     private spawnInitialEntities(): void {
@@ -101,7 +279,7 @@ export class GameEngine {
         }
         // Enemy towers
         for (const tp of CONFIG.TOWER_POSITIONS) {
-            const tower = new EnemyTowerEnemy(new Vec3(tp.x, 0, tp.z), 1);
+            const tower = new EnemyTowerEnemy(new Vec3(tp.x, 0, tp.z), 1, (tp as any).kind || 'ballistic');
             this.addEnemy(tower, 'initial_tower');
         }
         
@@ -202,11 +380,13 @@ export class GameEngine {
         this.handleOrbitalSouls(dt);
         // Handle familiars from Núcleo da Matilha
         this.handlePlayerFamiliars(dt);
+        this.updatePredatorHiveSystems(dt);
         // Handle player attacks
         for (const p of this.players.values()) {
             if (!p.isDead && p.isAttacking && p.canAttack(now)) {
                 p.lastAttackTime = now;
                 const dir = p.getFacingDirection();
+                p.prepareBasicAttack();
 
                 if (p.activeBuff.type === 'mago') {
                     p.activeBuff.attackCounter++;
@@ -278,7 +458,7 @@ export class GameEngine {
                             const toEnemy = enemy.position.clone().sub(p.position).normalize();
                             const dot = toEnemy.x * dir.x + toEnemy.z * dir.z;
                             if (dot > 0.5) { // roughly 120 degree cone
-                                enemy.takeDamage(dmg, p);
+                                enemy.takeDamage(dmg, p, true, 0, false, this.itemDamageMeta('coroa_gelida', 'Coroa Gelida - Cleave'));
                                 enemy.statusManager.applyStatus('freeze', 1000, 0, p);
                             }
                         }
@@ -309,6 +489,7 @@ export class GameEngine {
                 } else {
                     e.update(dt, alivePlayers, this.gameTime);
                 }
+                e.updateHiveWounds(dt);
                 // Update orbital positions for AlmaAmaldicoada
                 if (e.type === 'AlmaAmaldicoada' && (e as any).ownerId) {
                     const owner = this.enemies.find(en => en.id === (e as any).ownerId);
@@ -343,7 +524,7 @@ export class GameEngine {
                     for (const otherEnemy of this.enemies) {
                         if (!otherEnemy.isDestroyed && otherEnemy.position.distanceToXZ(p.position) < explosionRadius) {
                             otherEnemy.addPoison(2, instigator);
-                            otherEnemy.takeDamage(explosionDmg, instigator);
+                            otherEnemy.takeDamage(explosionDmg, instigator, false, 0, false, this.essenceDamageMeta(instigator, 'poison_frasco_peconha', 'Frasco de Peconha', 5));
                         }
                     }
                     this.zones.push({
@@ -400,10 +581,17 @@ export class GameEngine {
                 });
 
                 const projectileOwner = this.getEnemyById(p.ownerId);
+                const params = (p as any).params || {};
+                const ownerLimits = (projectileOwner as any)?.getPathogenLimits?.();
+                const pathogenLimits = {
+                    maxStacks: params.maxStacks ?? ownerLimits?.maxStacks,
+                    maxTypes: params.maxTypes ?? ownerLimits?.maxTypes
+                };
+                const pathogenChance = params.pathogenChance ?? (projectileOwner as any)?.getPathogenChance?.() ?? 0.40;
                 for (const pl of alivePlayers) {
                     if (!pl.isDead && pl.position.distanceToXZ(p.position) < 3.5) {
                         this.damagePlayer(pl, p.damage, projectileOwner, p.specialEffect || 'esporo_explosion');
-                        if (Math.random() < 0.40) {
+                        if (Math.random() < pathogenChance) {
                             const PATHOGENS = [
                                 'febre_critica',
                                 'paralisia_parcial',
@@ -415,7 +603,7 @@ export class GameEngine {
                                 'hemorragia_quadrada'
                             ];
                             const randKey = PATHOGENS[Math.floor(Math.random() * PATHOGENS.length)];
-                            pl.applyPathogen(randKey);
+                            pl.applyPathogen(randKey, 10000, pathogenLimits);
                         }
                     }
                 }
@@ -445,6 +633,7 @@ export class GameEngine {
     public addEnemy(enemy: ServerEnemy, reason: string, players?: ServerPlayer[]): void {
         const context = this.getThreatContext(players);
         const multipliers = this.threatScaling.applyToEnemy(enemy, context, false);
+        this.applyEnemyPostThreatScaling(enemy, false);
         this.enemies.push(enemy);
 
         if (process.env.THREAT_DEBUG === '1') {
@@ -467,10 +656,18 @@ export class GameEngine {
         for (const enemy of this.enemies) {
             if (enemy.isDestroyed) continue;
             this.threatScaling.applyToEnemy(enemy, context, true);
+            this.applyEnemyPostThreatScaling(enemy, true);
             count++;
         }
 
         console.log(`[ThreatScaling] recalculated reason=${reason} minute=${Math.floor(context.gameTime / 60)} level=${context.playerLevel} collapse=${context.collapseLevel} enemies=${count}`);
+    }
+
+    private applyEnemyPostThreatScaling(enemy: ServerEnemy, preserveHpRatio: boolean): void {
+        const applyAppearanceScaling = (enemy as any).applyAppearanceScaling;
+        if (typeof applyAppearanceScaling === 'function') {
+            applyAppearanceScaling.call(enemy, preserveHpRatio);
+        }
     }
 
     private handleSpawnEvent(ev: SpawnEvent, players: ServerPlayer[]): void {
@@ -557,12 +754,14 @@ export class GameEngine {
                 break;
             }
             case 'DoutorDoenca': {
-                enemy = new DoutorDoencaEnemy(ev.position, 1, avgLevel);
+                const appearance = Math.max(1, ev.appearance || this.spawnManager.doutorDoencaAppearanceCount || 1);
+                enemy = new DoutorDoencaEnemy(ev.position, 1, avgLevel, appearance);
                 this.spawnManager.isDoutorDoencaSpawned = true;
                 this.spawnManager.isDoutorDoencaAlive = true;
                 this.spawnManager.activeBoss = enemy.id;
-                this.pendingEvents.push({ event: 'BOSS_SPAWN', data: { name: 'Doutor Doença', tier: 'Elite' } });
-                console.log(`[Doutor Doença] Spawned! HP=${enemy.hp}`);
+                const phaseName = appearance === 1 ? 'Surto Inicial' : appearance === 2 ? 'Epidemia Avancada' : 'Epidemia Terminal';
+                this.pendingEvents.push({ event: 'BOSS_SPAWN', data: { name: `Doutor Doenca - ${phaseName}`, tier: appearance === 1 ? 'Elite' : 'Ameaca' } });
+                console.log(`[Doutor Doenca] Spawned appearance=${appearance} phase=${phaseName} HP=${enemy.hp}`);
                 break;
             }
             default: return;
@@ -571,9 +770,21 @@ export class GameEngine {
     }
 
     private processEnemyActions(players: ServerPlayer[]): void {
+        const now = Date.now();
         for (const e of this.enemies) {
             if (e.isDestroyed) continue;
             const asAny = e as any;
+            if (asAny.__limboAuraUntil !== undefined && now > asAny.__limboAuraUntil) {
+                if (asAny.__limboAuraBaseSpeed !== undefined) e.speed = asAny.__limboAuraBaseSpeed;
+                if (asAny.__limboAuraBaseDamage !== undefined) e.damage = asAny.__limboAuraBaseDamage;
+                delete asAny.__limboAuraUntil;
+                delete asAny.__limboAuraBaseSpeed;
+                delete asAny.__limboAuraBaseDamage;
+            }
+            if (asAny.__limboDamageBuffUntil !== undefined && now > asAny.__limboDamageBuffUntil) {
+                delete asAny.__limboDamageBuffUntil;
+                delete asAny.__limboDamageBuff;
+            }
             // Pending projectiles
             if (asAny.pendingProjectiles?.length > 0) {
                 for (const pp of asAny.pendingProjectiles) {
@@ -583,6 +794,8 @@ export class GameEngine {
                     if (pp.bleedDamage) proj.bleedDamage = pp.bleedDamage;
                     if (pp.speed) proj.speed = pp.speed;
                     if (pp.lifetime !== undefined) proj.lifetime = pp.lifetime;
+                    if (pp.hitboxRadius !== undefined) proj.hitboxRadius = pp.hitboxRadius;
+                    if (pp.params !== undefined) (proj as any).params = pp.params;
                     this.enemyProjectiles.push(proj);
                 }
                 asAny.pendingProjectiles = [];
@@ -714,6 +927,315 @@ export class GameEngine {
         }
     }
 
+    private updatePredatorHiveSystems(dt: number): void {
+        const activeOwners = new Set<string>();
+        for (const p of this.players.values()) {
+            if (!p.isDead && p.ergCentralBaseActive) {
+                activeOwners.add(p.id);
+                const existing = this.ergWorkers.filter(w => w.ownerId === p.id);
+                for (let i = existing.length; i < 4; i++) {
+                    const angle = (i * Math.PI * 2) / 4;
+                    this.ergWorkers.push({
+                        id: `erg_worker_${p.id}_${i}`,
+                        ownerId: p.id,
+                        index: i,
+                        position: this.healingTowerPos.clone().add(new Vec3(Math.cos(angle) * 2.2, 0, Math.sin(angle) * 2.2)),
+                        carrying: 0,
+                        returning: false,
+                        stuckTimer: 0,
+                        lastDistance: Infinity,
+                        integrity: p.getErgWorkerMaxIntegrity(),
+                        maxIntegrity: p.getErgWorkerMaxIntegrity(),
+                        hitRecoveryTimers: [],
+                        respawnTimer: 0,
+                        hitCooldown: 0
+                    });
+                }
+            }
+        }
+        this.ergWorkers = this.ergWorkers.filter(w => activeOwners.has(w.ownerId));
+        const reservedByActive = new Set(this.ergWorkers.map(w => w.targetOrbId).filter(Boolean) as string[]);
+        for (const orb of this.orbs) {
+            if (orb.reservedBy && !this.ergWorkers.some(w => w.id === orb.reservedBy)) orb.reservedBy = undefined;
+            if (orb.reservedBy && !reservedByActive.has(orb.id)) orb.reservedBy = undefined;
+        }
+
+        for (const worker of this.ergWorkers) {
+            const owner = this.players.get(worker.ownerId);
+            if (!owner || owner.isDead || !owner.ergCentralBaseActive) continue;
+            worker.hitCooldown = Math.max(0, worker.hitCooldown - dt);
+            worker.maxIntegrity = owner.getErgWorkerMaxIntegrity();
+            if (worker.respawnTimer > 0) {
+                worker.respawnTimer -= dt;
+                worker.position = this.healingTowerPos.clone().add(new Vec3(Math.cos(worker.index * Math.PI * 0.5) * 2.2, 0.2, Math.sin(worker.index * Math.PI * 0.5) * 2.2));
+                if (worker.respawnTimer <= 0) {
+                    worker.integrity = worker.maxIntegrity;
+                    worker.hitRecoveryTimers = [];
+                    worker.carrying = 0;
+                    worker.returning = false;
+                    worker.targetOrbId = undefined;
+                }
+                continue;
+            }
+            worker.hitRecoveryTimers = worker.hitRecoveryTimers
+                .map(t => t - dt)
+                .filter(t => {
+                    if (t > 0) return true;
+                    worker.integrity = Math.min(worker.maxIntegrity, worker.integrity + 1);
+                    return false;
+                });
+            if (worker.integrity > worker.maxIntegrity) worker.integrity = worker.maxIntegrity;
+            const boosted = owner.ergWorkerBoostTimer > 0;
+            const levelSpeed = owner.ergBaseLevel >= 3 ? 1.10 : 1.0;
+            const speed = (boosted ? 10.5 : 6.5) * levelSpeed * dt;
+            const capacity = boosted ? 2 : 1;
+            const basePos = this.healingTowerPos;
+
+            if (worker.carrying >= capacity) worker.returning = true;
+            if (worker.returning || worker.carrying > 0 && !worker.targetOrbId) {
+                this.moveWorkerTowards(worker, basePos, speed);
+                if (worker.position.distanceToXZ(basePos) <= 1.2) {
+                    const delivered = worker.carrying;
+                    if (delivered > 0) owner.onErgXpDelivered(boosted ? delivered * 2 : delivered);
+                    worker.carrying = 0;
+                    worker.returning = false;
+                    worker.targetOrbId = undefined;
+                }
+                continue;
+            }
+
+            let target = worker.targetOrbId ? this.orbs.find(o => o.id === worker.targetOrbId && o.type === 'xp') : undefined;
+            if (!target) {
+                worker.targetOrbId = undefined;
+                worker.stuckTimer = 0;
+                worker.lastDistance = Infinity;
+                target = this.findNearestReservableXpOrb(worker.position);
+                if (target) {
+                    target.reservedBy = worker.id;
+                    worker.targetOrbId = target.id;
+                }
+            }
+            if (!target) {
+                this.moveWorkerTowards(worker, basePos, speed * 0.35);
+                continue;
+            }
+
+            const distBefore = worker.position.distanceToXZ(target.position);
+            this.moveWorkerTowards(worker, target.position, speed);
+            const distAfter = worker.position.distanceToXZ(target.position);
+            if (distAfter >= worker.lastDistance - 0.02) worker.stuckTimer += dt; else worker.stuckTimer = 0;
+            worker.lastDistance = distAfter;
+            if (worker.stuckTimer > 5) {
+                target.reservedBy = undefined;
+                worker.targetOrbId = undefined;
+                worker.stuckTimer = 0;
+                worker.lastDistance = Infinity;
+                continue;
+            }
+            if (distBefore <= 0.8 || distAfter <= 0.8) {
+                this.orbs = this.orbs.filter(o => o.id !== target!.id);
+                worker.carrying++;
+                worker.targetOrbId = undefined;
+                worker.stuckTimer = 0;
+                worker.lastDistance = Infinity;
+                this.spawnXpOrb();
+                if (worker.carrying >= capacity) worker.returning = true;
+            }
+        }
+        this.processErgWorkerThreats(dt);
+        this.updateErgBasePulse(dt);
+    }
+
+    private findNearestReservableXpOrb(from: Vec3): Orb | undefined {
+        let best: Orb | undefined;
+        let bestDist = Infinity;
+        for (const orb of this.orbs) {
+            if (orb.type !== 'xp' || orb.reservedBy) continue;
+            const dist = from.distanceToXZ(orb.position);
+            if (dist < bestDist) {
+                best = orb;
+                bestDist = dist;
+            }
+        }
+        return best;
+    }
+
+    private moveWorkerTowards(worker: ErgWorker, target: Vec3, maxStep: number): void {
+        const dir = target.clone().sub(worker.position);
+        dir.y = 0;
+        const len = dir.length();
+        if (len <= 0.001) return;
+        dir.multiplyScalar(Math.min(maxStep, len) / len);
+        worker.position.add(dir);
+        worker.position.y = 0.2;
+    }
+
+    private dropWorkerCargo(worker: ErgWorker): void {
+        const dropped = Math.max(0, worker.carrying);
+        for (let i = 0; i < dropped; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 0.3 + Math.random() * 1.1;
+            this.orbs.push({
+                id: `orb_${this.orbIdCounter++}`,
+                type: 'xp',
+                position: worker.position.clone().add(new Vec3(Math.cos(angle) * dist, 0.3, Math.sin(angle) * dist)),
+                hitboxRadius: CONFIG.XP_ORB.HITBOX_RADIUS
+            });
+        }
+    }
+
+    private releaseWorkerReservation(worker: ErgWorker): void {
+        if (!worker.targetOrbId) return;
+        const target = this.orbs.find(o => o.id === worker.targetOrbId);
+        if (target?.reservedBy === worker.id) target.reservedBy = undefined;
+        worker.targetOrbId = undefined;
+    }
+
+    private damageErgWorker(worker: ErgWorker, owner: ServerPlayer): void {
+        if (worker.respawnTimer > 0 || worker.hitCooldown > 0) return;
+        worker.hitCooldown = 0.85;
+        worker.integrity = Math.max(0, worker.integrity - 1);
+        worker.hitRecoveryTimers.push(20);
+        this.zones.push({
+            id: `zone_${this.zoneIdCounter++}`,
+            type: 'erg_worker_hit',
+            position: worker.position.clone(),
+            radius: 0.8,
+            duration: 350,
+            timer: 350,
+            damagePerSec: 0,
+            lastTick: 0,
+            extras: { sourceId: owner.id }
+        });
+        if (worker.integrity > 0) return;
+
+        this.dropWorkerCargo(worker);
+        this.releaseWorkerReservation(worker);
+        worker.carrying = 0;
+        worker.returning = false;
+        worker.stuckTimer = 0;
+        worker.lastDistance = Infinity;
+        worker.hitRecoveryTimers = [];
+        worker.respawnTimer = owner.getErgWorkerRespawnSeconds();
+        this.pendingEvents.push({
+            event: 'MESSAGE',
+            data: { message: `Um Erg foi abatido. Retornara em ${Math.round(worker.respawnTimer)}s.` }
+        });
+        this.zones.push({
+            id: `zone_${this.zoneIdCounter++}`,
+            type: 'erg_worker_break',
+            position: worker.position.clone(),
+            radius: 1.2,
+            duration: 600,
+            timer: 600,
+            damagePerSec: 0,
+            lastTick: 0,
+            extras: { sourceId: owner.id }
+        });
+    }
+
+    private isBossLike(enemy: ServerEnemy): boolean {
+        return enemy.maxHp >= 5000 || String(enemy.type || '').toLowerCase().includes('boss');
+    }
+
+    private processErgWorkerThreats(_dt: number): void {
+        for (const worker of this.ergWorkers) {
+            const owner = this.players.get(worker.ownerId);
+            if (!owner || owner.isDead || !owner.ergCentralBaseActive || worker.respawnTimer > 0) continue;
+            const ownerDist = owner.position.distanceToXZ(worker.position);
+            for (const enemy of this.enemies) {
+                if (enemy.isDestroyed) continue;
+                if (owner.position.distanceToXZ(enemy.position) <= 12) continue;
+                const dist = enemy.position.distanceToXZ(worker.position);
+                const reach = Math.max(1.0, enemy.hitboxRadius + 0.65);
+                if (dist <= reach || (ownerDist > 12 && dist <= 5 && Math.random() < 0.012)) {
+                    this.damageErgWorker(worker, owner);
+                    break;
+                }
+            }
+        }
+
+        for (const proj of this.enemyProjectiles) {
+            if (proj.isDestroyed) continue;
+            const effect = String(proj.specialEffect || proj.visualEffect || '').toLowerCase();
+            if (/(poison|toxic|slow|blind|debuff|aura|dot)/.test(effect)) continue;
+            for (const worker of this.ergWorkers) {
+                const owner = this.players.get(worker.ownerId);
+                if (!owner || worker.respawnTimer > 0) continue;
+                if (proj.position.distanceToXZ(worker.position) <= 0.45 + proj.hitboxRadius + 0.35) {
+                    this.damageErgWorker(worker, owner);
+                    proj.isDestroyed = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    private updateErgBasePulse(_dt: number): void {
+        for (const player of this.players.values()) {
+            if (player.isDead || !player.ergCentralBaseActive || player.ergBaseLevel < 10) continue;
+            if (player.ergBasePulseTimer > 0) continue;
+            player.ergBasePulseTimer = 12000;
+            this.zones.push({
+                id: `zone_${this.zoneIdCounter++}`,
+                type: 'erg_base_defense_pulse',
+                position: this.healingTowerPos.clone(),
+                radius: 5,
+                duration: 650,
+                timer: 650,
+                damagePerSec: 0,
+                lastTick: 0,
+                extras: { sourceId: player.id }
+            });
+            for (const enemy of this.enemies) {
+                if (enemy.isDestroyed || enemy.position.distanceToXZ(this.healingTowerPos) > 5) continue;
+                const away = enemy.position.clone().sub(this.healingTowerPos);
+                away.y = 0;
+                if (away.lengthSq() > 0.01) {
+                    const bossLike = this.isBossLike(enemy);
+                    if (!bossLike) enemy.position.add(away.normalize().multiplyScalar(enemy.maxHp > 1200 ? 0.8 : 1.8));
+                }
+                if (this.isBossLike(enemy)) enemy.applySlow(800, 0.10);
+                else if (enemy.maxHp > 1200) enemy.applySlow(1000, 0.20);
+            }
+        }
+    }
+
+    private tryFireErgBaseSlime(player: ServerPlayer, enemy: ServerEnemy): void {
+        if (player.build?.buildingColor !== 'predator_hive' || !player.ergCentralBaseActive || player.ergBaseLevel < 2) return;
+        if (player.ergBaseSlimeCooldown > 0) return;
+        if (player.position.distanceToXZ(this.healingTowerPos) > 14) return;
+        if (enemy.position.distanceToXZ(this.healingTowerPos) > 18) return;
+
+        const bossLike = this.isBossLike(enemy);
+        const ascension = player.predatorHiveUltAscensionActive;
+        let damagePct = ascension ? (bossLike ? 0.14 : 0.25) : (bossLike ? 0.10 : 0.18);
+        let woundChance = ascension ? (bossLike ? 0.20 : 0.45) : (bossLike ? 0.12 : 0.25);
+        if (player.ergBaseLevel >= 4) damagePct += 0.03;
+        if (player.ergBaseLevel >= 6) woundChance += 0.05;
+        player.ergBaseSlimeShotCounter++;
+        const heavy = player.ergBaseLevel >= 10 && player.ergBaseSlimeShotCounter % 5 === 0;
+        const damage = player.getDamage(false, true) * damagePct * (heavy ? 1.5 : 1.0);
+        const start = this.healingTowerPos.clone().set(this.healingTowerPos.x, 1.1, this.healingTowerPos.z);
+        const dir = enemy.position.clone().sub(start);
+        dir.y = 0;
+        if (dir.lengthSq() <= 0.001) return;
+        const proj = new ServerProjectile(start, dir.normalize(), player.id, true, damage, 0xa855f7);
+        proj.specialEffect = 'erg_base_slime';
+        proj.visualEffect = 'erg_base_slime';
+        proj.speed = 18;
+        proj.lifetime = 1.6;
+        proj.hitboxRadius = 0.35;
+        (proj as any).ergBaseSlime = {
+            woundChance,
+            splashRadius: player.ergBaseLevel >= 8 ? 2 : 0,
+            splashDamagePct: 0.35,
+            heavy
+        };
+        this.playerProjectiles.push(proj);
+        player.ergBaseSlimeCooldown = bossLike ? 0.75 : 0.45;
+    }
+
     private processPlayerActions(dt: number, players: ServerPlayer[]): void {
         for (const p of players) {
             // Pending projectiles (from Q dash finish)
@@ -721,6 +1243,7 @@ export class GameEngine {
                 for (const pp of p.pendingProjectiles) {
                     const proj = new ServerProjectile(p.position.clone(), pp.dir, p.id, true, pp.damage, p.color);
                     if (pp.specialEffect) proj.specialEffect = pp.specialEffect;
+                    if (pp.visualEffect) proj.visualEffect = pp.visualEffect;
                     if (pp.skillUpgrades) proj.skillUpgrades = pp.skillUpgrades;
                     if (pp.trackHits) proj.trackHits = pp.trackHits;
                     if (pp.isCritical) proj.isCritical = pp.isCritical;
@@ -759,7 +1282,7 @@ export class GameEngine {
                 if (p.skillLevels.r >= 2) {
                     for (const e of this.enemies) {
                         if (!e.isDestroyed && p.position.distanceToXZ(e.position) < 2.5) {
-                            e.takeDamage(p.getDamage(true) * 0.1 * dt, p);
+                            e.takeDamage(p.getDamage(true) * 0.1 * dt, p, false, 0, false, this.essenceDamageMeta(p, 'purple_toxic_aura', 'Torre Roxa Aura Toxica', 4, { isDoT: true }));
                         }
                     }
                 }
@@ -877,6 +1400,378 @@ export class GameEngine {
 
     private handleAbility(ab: any, source: ServerEnemy, players: ServerPlayer[]): void {
         switch (ab.type) {
+            case 'tower_inferno_tick': {
+                const target = this.players.get(ab.targetId);
+                if (target && !target.isDead) {
+                    this.damagePlayer(target, ab.damage || 0, source, 'Foco Infernal', false, false, undefined, true);
+                }
+                if (ab.targetX !== undefined && ab.targetZ !== undefined) {
+                    const sx = ab.x ?? source.position.x;
+                    const sz = ab.z ?? source.position.z;
+                    const tx = ab.targetX;
+                    const tz = ab.targetZ;
+                    const mid = new Vec3((sx + tx) * 0.5, 0, (sz + tz) * 0.5);
+                    const dx = tx - sx;
+                    const dz = tz - sz;
+                    this.zones.push({
+                        id: `zone_${this.zoneIdCounter++}`,
+                        type: 'tower_inferno_beam',
+                        position: mid,
+                        radius: Math.max(0.8, Math.sqrt(dx * dx + dz * dz) * 0.5),
+                        duration: 300,
+                        timer: 300,
+                        damagePerSec: 0,
+                        lastTick: 0,
+                        extras: { sourceId: source.id, sourceX: sx, sourceZ: sz, targetX: tx, targetZ: tz, heat: ab.lockTime || 0 },
+                    });
+                }
+                break;
+            }
+            case 'tower_inferno_overheat': {
+                const target = this.players.get(ab.targetId);
+                if (target && !target.isDead) {
+                    this.damagePlayer(target, this.capTowerDamage(target, ab.damage || 0), source, 'Superaquecimento Infernal');
+                    target.applySlow(ab.slowDuration || 2000, ab.slowAmount || 0.40);
+                }
+                this.zones.push({
+                    id: `zone_${this.zoneIdCounter++}`,
+                    type: 'tower_inferno_overheat',
+                    position: new Vec3(ab.x, 0, ab.z),
+                    radius: 4.5,
+                    duration: 650,
+                    timer: 650,
+                    damagePerSec: 0,
+                    lastTick: 0,
+                    extras: { sourceId: source.id },
+                });
+                break;
+            }
+            case 'tower_shock_pulse': {
+                const target = this.players.get(ab.targetId);
+                if (target && !target.isDead) {
+                    this.damagePlayer(target, ab.damage || 0, source, 'Pulso da Bobina de Choque');
+                    target.applySlow(ab.slowDuration || 800, ab.slowAmount || 0.20);
+                    const stunMap: Map<string, number> | undefined = (source as any).lastShockStun;
+                    const lastStun = stunMap?.get(target.id) || 0;
+                    if (Date.now() - lastStun >= 1600 && Math.random() < (ab.stunChance || 0)) {
+                        target.applyStun(ab.stunDuration || 180);
+                        stunMap?.set(target.id, Date.now());
+                    }
+                }
+                this.zones.push({
+                    id: `zone_${this.zoneIdCounter++}`,
+                    type: 'tower_shock_pulse',
+                    position: new Vec3(ab.x, 0, ab.z),
+                    radius: 4.5,
+                    duration: 420,
+                    timer: 420,
+                    damagePerSec: 0,
+                    lastTick: 0,
+                    extras: { sourceId: source.id },
+                });
+                break;
+            }
+            case 'tower_shock_overload': {
+                const target = this.players.get(ab.targetId);
+                if (target && !target.isDead) {
+                    this.damagePlayer(target, this.capTowerDamage(target, ab.damage || 0), source, 'Sobrecarga Eletrica');
+                    target.applyStun(ab.stunDuration || 550);
+                    target.applySlow(ab.slowDuration || 2000, ab.slowAmount || 0.40);
+                }
+                this.zones.push({
+                    id: `zone_${this.zoneIdCounter++}`,
+                    type: 'tower_shock_overload',
+                    position: new Vec3(ab.x, 0, ab.z),
+                    radius: 5.5,
+                    duration: 700,
+                    timer: 700,
+                    damagePerSec: 0,
+                    lastTick: 0,
+                    extras: { sourceId: source.id },
+                });
+                break;
+            }
+            case 'tower_gravity_pulse': {
+                const target = this.players.get(ab.targetId);
+                const center = new Vec3(ab.x, 0, ab.z);
+                if (target && !target.isDead) {
+                    this.damagePlayer(target, ab.damage || 0, source, 'Pulso de Vortice');
+                    target.applySlow(ab.slowDuration || 1200, ab.slowAmount || 0.25);
+                    this.applyLimboForce(target, center, ab.pullForce || 8, true);
+                }
+                this.zones.push({
+                    id: `zone_${this.zoneIdCounter++}`,
+                    type: 'tower_gravity_pulse',
+                    position: center,
+                    radius: ab.radius || 5,
+                    duration: 700,
+                    timer: 700,
+                    damagePerSec: 0,
+                    lastTick: 0,
+                    extras: { sourceId: source.id },
+                });
+                break;
+            }
+            case 'tower_gravity_rupture': {
+                const target = this.players.get(ab.targetId);
+                const center = new Vec3(ab.x, 0, ab.z);
+                if (target && !target.isDead) {
+                    this.damagePlayer(target, this.capTowerDamage(target, ab.damage || 0), source, 'Ruptura Gravitacional');
+                    target.applySlow(ab.slowDuration || 1800, ab.slowAmount || 0.45);
+                    this.applyLimboForce(target, center, ab.knockbackForce || 14, false);
+                }
+                this.zones.push({
+                    id: `zone_${this.zoneIdCounter++}`,
+                    type: 'tower_gravity_rupture',
+                    position: center,
+                    radius: ab.radius || 5,
+                    duration: 800,
+                    timer: 800,
+                    damagePerSec: 0,
+                    lastTick: 0,
+                    extras: { sourceId: source.id },
+                });
+                if (ab.residue) {
+                    this.zones.push({
+                        id: `zone_${this.zoneIdCounter++}`,
+                        type: 'tower_gravity_residue',
+                        position: center.clone(),
+                        radius: ab.radius || 5,
+                        duration: 3000,
+                        timer: 3000,
+                        damagePerSec: ab.residueDamagePerSec || source.damage * 0.35,
+                        lastTick: 0,
+                        extras: { sourceId: source.id },
+                    });
+                }
+                break;
+            }
+            case 'limbo_line': {
+                const origin = new Vec3(ab.x, 0, ab.z);
+                const aim = new Vec3(ab.targetX, 0, ab.targetZ);
+                const dir = aim.clone().sub(origin);
+                dir.y = 0;
+                if (dir.lengthSq() <= 0.01) break;
+                dir.normalize();
+                const range = ab.range || 18;
+                const width = ab.width || 1.2;
+                const end = origin.clone().add(dir.clone().multiplyScalar(range));
+                const mid = origin.clone().add(dir.clone().multiplyScalar(range * 0.5));
+                this.pushLimboWarning(`limbo_warning_${ab.ability || 'line'}`, mid, Math.max(width, range * 0.5), ab.delay || 900, { ...ab, line: true, sourceId: source.id });
+                setTimeout(() => {
+                    const zoneSource = this.resolveAbilitySource(ab, source);
+                    for (const p of this.players.values()) {
+                        if (p.isDead) continue;
+                        if (this.distancePointToSegmentXZ(p.position, origin, end) <= width) {
+                            this.damagePlayer(p, ab.damage || 0, zoneSource, ab.ability || ab.type);
+                            this.applyLimboStatus(p, ab.status, ab.statusDuration, ab.statusIntensity);
+                            this.applyLimboForce(p, origin, ab.knockbackForce, false);
+                        }
+                    }
+                }, ab.delay || 900);
+                break;
+            }
+            case 'limbo_radial': {
+                const center = new Vec3(ab.x, 0, ab.z);
+                const radius = ab.radius || 4;
+                this.pushLimboWarning(`limbo_warning_${ab.ability || 'radial'}`, center.clone(), radius, ab.delay || 750, { ...ab, sourceId: source.id });
+                setTimeout(() => {
+                    const zoneSource = this.resolveAbilitySource(ab, source);
+                    for (const p of this.players.values()) {
+                        if (p.isDead || p.position.distanceToXZ(center) > radius) continue;
+                        this.damagePlayer(p, ab.damage || 0, zoneSource, ab.ability || ab.type);
+                        this.applyLimboStatus(p, ab.status, ab.statusDuration, ab.statusIntensity);
+                        this.applyLimboForce(p, center, ab.knockbackForce, false);
+                        this.applyLimboForce(p, center, ab.pullForce, true);
+                    }
+                }, ab.delay || 750);
+                break;
+            }
+            case 'limbo_zone':
+                this.zones.push({
+                    id: `zone_${this.zoneIdCounter++}`,
+                    type: `limbo_zone_${ab.ability || 'area'}`,
+                    position: new Vec3(ab.x, 0, ab.z),
+                    radius: ab.radius || 3,
+                    duration: ab.duration || 4000,
+                    timer: ab.duration || 4000,
+                    damagePerSec: ab.damagePerSec || 0,
+                    lastTick: 0,
+                    extras: { ...ab, sourceId: source.id }
+                });
+                break;
+            case 'limbo_spawn_souls': {
+                const count = ab.count || 3;
+                for (let i = 0; i < count; i++) {
+                    const angle = (i / count) * Math.PI * 2;
+                    const sx = ab.x + Math.cos(angle) * 2.2;
+                    const sz = ab.z + Math.sin(angle) * 2.2;
+                    const soul = new CaveiraExplosivaEnemy(new Vec3(sx, 0.5, sz), ab.damage || source.damage * 0.5, 1);
+                    soul.name = 'Alma Errante';
+                    soul.type = 'AlmaErrante';
+                    (soul as any).ownerId = ab.ownerId || source.id;
+                    this.addEnemy(soul, 'limbo:spawnSouls', players);
+                }
+                break;
+            }
+            case 'limbo_enemy_aura': {
+                const center = new Vec3(ab.x, 0, ab.z);
+                for (const e of this.enemies) {
+                    if (e.isDestroyed || e.id === source.id || e.position.distanceToXZ(center) > (ab.radius || 7)) continue;
+                    const anyEnemy = e as any;
+                    if (anyEnemy.__limboAuraBaseSpeed === undefined) anyEnemy.__limboAuraBaseSpeed = e.originalSpeed || e.speed;
+                    if (anyEnemy.__limboAuraBaseDamage === undefined) anyEnemy.__limboAuraBaseDamage = e.damage;
+                    e.speed = anyEnemy.__limboAuraBaseSpeed * (1 + (ab.speedBonus || 0.10));
+                    e.damage = anyEnemy.__limboAuraBaseDamage * (1 + (ab.damageBonus || 0.08));
+                    anyEnemy.__limboAuraUntil = Date.now() + 1200;
+                }
+                this.pushLimboWarning('limbo_enemy_aura', center, ab.radius || 7, 1000, { ...ab, sourceId: source.id });
+                break;
+            }
+            case 'limbo_consume_ally': {
+                const radius = ab.radius || 7;
+                let victim: ServerEnemy | null = null;
+                let bestDist = Number.MAX_VALUE;
+                for (const e of this.enemies) {
+                    if (e.isDestroyed || e.id === source.id) continue;
+                    if (e.maxHp > source.maxHp * 0.5) continue;
+                    const dist = e.position.distanceToXZ(source.position);
+                    if (dist < radius && dist < bestDist) {
+                        victim = e;
+                        bestDist = dist;
+                    }
+                }
+                if (victim) {
+                    victim.isDestroyed = true;
+                    source.hp = Math.min(source.maxHp, source.hp + source.maxHp * (ab.healPct || 0.05));
+                    (source as any).__limboDamageBuffUntil = Date.now() + (ab.buffDuration || 8000);
+                    (source as any).__limboDamageBuff = ab.damageBonus || 0.10;
+                    this.pushLimboWarning('limbo_consume_ally', victim.position.clone(), 2.5, 700, { sourceId: source.id });
+                }
+                break;
+            }
+            case 'limbo_delayed_mark': {
+                const target = this.players.get(ab.targetId);
+                if (!target || target.isDead) break;
+                this.pushLimboWarning('limbo_delayed_mark', target.position.clone(), ab.radius || 6, ab.delay || 3000, { ...ab, sourceId: source.id });
+                setTimeout(() => {
+                    const liveTarget = this.players.get(ab.targetId);
+                    if (!liveTarget || liveTarget.isDead || source.isDestroyed) return;
+                    if (liveTarget.position.distanceToXZ(source.position) <= (ab.radius || 6)) {
+                        this.damagePlayer(liveTarget, ab.damage || source.damage * 2, this.resolveAbilitySource(ab, source), ab.type);
+                    }
+                }, ab.delay || 3000);
+                break;
+            }
+            case 'limbo_coin_rain': {
+                const count = ab.count || 5;
+                const center = new Vec3(ab.x, 0, ab.z);
+                for (let i = 0; i < count; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = Math.random() * (ab.spread || 7);
+                    const pos = new Vec3(center.x + Math.cos(angle) * dist, 0, center.z + Math.sin(angle) * dist);
+                    this.pushLimboWarning('limbo_coin_warning', pos, ab.radius || 1.8, ab.delay || 900, { ...ab, sourceId: source.id });
+                    setTimeout(() => {
+                        const zoneSource = this.resolveAbilitySource(ab, source);
+                        for (const p of this.players.values()) {
+                            if (!p.isDead && p.position.distanceToXZ(pos) <= (ab.radius || 1.8)) {
+                                this.damagePlayer(p, ab.damage || 0, zoneSource, 'chuva_de_moedas');
+                            }
+                        }
+                    }, ab.delay || 900);
+                }
+                break;
+            }
+            case 'limbo_cone': {
+                const origin = new Vec3(ab.x, 0, ab.z);
+                const dir = new Vec3(ab.dirX || 0, 0, ab.dirZ || 1);
+                if (dir.lengthSq() <= 0.01) break;
+                dir.normalize();
+                const range = ab.range || 7;
+                const cosLimit = Math.cos((ab.angle || Math.PI / 3) * 0.5);
+                this.pushLimboWarning(`limbo_warning_${ab.ability || 'cone'}`, origin.clone().add(dir.clone().multiplyScalar(range * 0.45)), range * 0.5, 650, { ...ab, sourceId: source.id });
+                for (const p of players) {
+                    if (p.isDead) continue;
+                    const toPlayer = p.position.clone().sub(origin);
+                    toPlayer.y = 0;
+                    const dist = toPlayer.length();
+                    if (dist <= 0.01 || dist > range) continue;
+                    if (toPlayer.normalize().dot(dir) >= cosLimit) {
+                        this.damagePlayer(p, ab.damage || 0, this.resolveAbilitySource(ab, source), ab.ability || ab.type);
+                        this.applyLimboStatus(p, ab.status, ab.statusDuration, ab.statusIntensity);
+                    }
+                }
+                break;
+            }
+            case 'limbo_clone': {
+                const maxClones = ab.maxClones || 1;
+                const ownerId = ab.ownerId || source.id;
+                const activeClones = this.enemies.filter(e => e.type === 'CloneIlusorio' && (e as any).ownerId === ownerId && !e.isDestroyed).length;
+                if (activeClones >= maxClones) break;
+                const angle = Math.random() * Math.PI * 2;
+                const clone = new CloneIlusorioEnemy(new Vec3(ab.x + Math.cos(angle) * 2, 0, ab.z + Math.sin(angle) * 2), 1);
+                (clone as any).ownerId = ownerId;
+                clone.maxHp = source.maxHp * (ab.hpPct || 0.2);
+                clone.hp = clone.maxHp;
+                clone.damage = source.damage * (ab.damageScale || 0.5);
+                clone.xp = 0;
+                clone.score = 0;
+                this.addEnemy(clone, 'limbo:clone', players);
+                break;
+            }
+            case 'limbo_swap_clone': {
+                const ownerId = ab.ownerId || source.id;
+                const clone = this.enemies.find(e => e.type === 'CloneIlusorio' && (e as any).ownerId === ownerId && !e.isDestroyed);
+                if (!clone) break;
+                const oldSourcePos = source.position.clone();
+                source.position.copy(clone.position);
+                clone.position.copy(oldSourcePos);
+                this.pushLimboWarning('limbo_swap_clone', oldSourcePos, 2.8, 650, { sourceId: source.id });
+                for (const p of players) {
+                    if (!p.isDead && p.position.distanceToXZ(oldSourcePos) <= 2.8) {
+                        this.damagePlayer(p, ab.damage || source.damage, source, 'troca_de_mascara');
+                        this.applyLimboStatus(p, 'blind', 1200);
+                    }
+                }
+                break;
+            }
+            case 'limbo_fake_stage': {
+                const center = new Vec3(ab.x, 0, ab.z);
+                const count = ab.count || 6;
+                const realCount = ab.realCount || 3;
+                const realIndexes = new Set<number>();
+                while (realIndexes.size < realCount) realIndexes.add(Math.floor(Math.random() * count));
+                for (let i = 0; i < count; i++) {
+                    const angle = (i / count) * Math.PI * 2;
+                    const pos = new Vec3(center.x + Math.cos(angle) * (ab.spread || 6), 0, center.z + Math.sin(angle) * (ab.spread || 6));
+                    const real = realIndexes.has(i);
+                    this.pushLimboWarning(real ? 'limbo_stage_real' : 'limbo_stage_fake', pos, ab.radius || 2.2, ab.delay || 2000, { ...ab, sourceId: source.id, real });
+                    if (real) {
+                        setTimeout(() => {
+                            const zoneSource = this.resolveAbilitySource(ab, source);
+                            for (const p of this.players.values()) {
+                                if (!p.isDead && p.position.distanceToXZ(pos) <= (ab.radius || 2.2)) {
+                                    this.damagePlayer(p, ab.damage || 0, zoneSource, 'palco_da_mentira');
+                                }
+                            }
+                        }, ab.delay || 2000);
+                    }
+                }
+                break;
+            }
+            case 'limbo_prison': {
+                const target = this.players.get(ab.targetId);
+                if (!target || target.isDead) break;
+                const center = new Vec3(ab.x, 0, ab.z);
+                this.pushLimboWarning('limbo_prison', center.clone(), ab.radius || 3.5, ab.delay || 2000, { ...ab, sourceId: source.id });
+                setTimeout(() => {
+                    const liveTarget = this.players.get(ab.targetId);
+                    if (!liveTarget || liveTarget.isDead || liveTarget.position.distanceToXZ(center) > (ab.radius || 3.5)) return;
+                    this.damagePlayer(liveTarget, ab.damage || 0, this.resolveAbilitySource(ab, source), 'prisao_da_traicao');
+                    liveTarget.applyRoot(ab.rootDuration || 1000);
+                }, ab.delay || 2000);
+                break;
+            }
             // --- Bruxa do Gelo Rework ---
             case 'ice_w_root':
                 for (const p of players) {
@@ -1276,27 +2171,45 @@ export class GameEngine {
                 break;
             case 'surto_epidemico':
                 // Duplicate 1 stack of a random pathogen for all players in range, or apply a random one if they have none.
-                for (const p of players) {
-                    if (!p.isDead && p.position.distanceToXZ(new Vec3(ab.x, 0, ab.z)) < ab.radius) {
-                        const pathogenKeys = Object.keys(p.pathogens);
-                        if (pathogenKeys.length > 0) {
-                            const randKey = pathogenKeys[Math.floor(Math.random() * pathogenKeys.length)];
-                            p.applyPathogen(randKey);
-                        } else {
-                            const PATHOGENS = [
-                                'febre_critica',
-                                'paralisia_parcial',
-                                'mao_tremula',
-                                'imunidade_baixa',
-                                'visao_turva',
-                                'cansaco_viral',
-                                'incapacidade',
-                                'hemorragia_quadrada'
-                            ];
-                            const randomPathogen = PATHOGENS[Math.floor(Math.random() * PATHOGENS.length)];
-                            p.applyPathogen(randomPathogen);
+                {
+                    const center = new Vec3(ab.x, 0, ab.z);
+                    const pulses = Math.max(1, Math.min(3, ab.pulses || 1));
+                    const pathogenLimits = { maxStacks: ab.maxDiseaseStacks, maxTypes: ab.maxDiseaseTypes };
+                    for (let pulse = 0; pulse < pulses; pulse++) {
+                        for (const p of players) {
+                            if (!p.isDead && p.position.distanceToXZ(center) < ab.radius) {
+                                const pathogenKeys = Object.keys(p.pathogens);
+                                if (pathogenKeys.length > 0) {
+                                    const randKey = pathogenKeys[Math.floor(Math.random() * pathogenKeys.length)];
+                                    p.applyPathogen(randKey, 10000, pathogenLimits);
+                                } else {
+                                    const PATHOGENS = [
+                                        'febre_critica',
+                                        'paralisia_parcial',
+                                        'mao_tremula',
+                                        'imunidade_baixa',
+                                        'visao_turva',
+                                        'cansaco_viral',
+                                        'incapacidade',
+                                        'hemorragia_quadrada'
+                                    ];
+                                    const randomPathogen = PATHOGENS[Math.floor(Math.random() * PATHOGENS.length)];
+                                    p.applyPathogen(randomPathogen, 10000, pathogenLimits);
+                                }
+                            }
                         }
                     }
+                    this.zones.push({
+                        id: `zone_${this.zoneIdCounter++}`,
+                        type: 'surto_epidemico',
+                        position: center,
+                        radius: ab.radius,
+                        duration: 700 + pulses * 250,
+                        timer: 700 + pulses * 250,
+                        damagePerSec: 0,
+                        lastTick: 0,
+                        extras: { ...ab, sourceId: source.id, burst: true }
+                    });
                 }
                 break;
             case 'nuvem_esporos':
@@ -1312,6 +2225,81 @@ export class GameEngine {
                     extras: { ...ab, sourceId: source.id }
                 });
                 break;
+            case 'incubadora_viral':
+                this.zones.push({
+                    id: `zone_${this.zoneIdCounter++}`,
+                    type: 'incubadora_viral',
+                    position: new Vec3(ab.x, 0, ab.z),
+                    radius: ab.radius,
+                    duration: ab.duration,
+                    timer: ab.duration,
+                    damagePerSec: ab.damagePerSec,
+                    lastTick: 0,
+                    extras: { ...ab, sourceId: source.id }
+                });
+                break;
+            case 'diagnostico_fatal': {
+                const target = this.players.get(ab.targetId);
+                if (target && !target.isDead) {
+                    this.damagePlayer(target, ab.damage || 0, this.resolveAbilitySource(ab, source), ab.type);
+                    const PATHOGENS = [
+                        'febre_critica',
+                        'paralisia_parcial',
+                        'mao_tremula',
+                        'imunidade_baixa',
+                        'visao_turva',
+                        'cansaco_viral',
+                        'incapacidade',
+                        'hemorragia_quadrada'
+                    ];
+                    const randKey = PATHOGENS[Math.floor(Math.random() * PATHOGENS.length)];
+                    target.applyPathogen(randKey, 10000, { maxStacks: ab.maxDiseaseStacks, maxTypes: ab.maxDiseaseTypes });
+                    this.zones.push({
+                        id: `zone_${this.zoneIdCounter++}`,
+                        type: 'diagnostico_fatal',
+                        position: target.position.clone(),
+                        radius: 2.8,
+                        duration: 700,
+                        timer: 700,
+                        damagePerSec: 0,
+                        lastTick: 0,
+                        extras: { ...ab, sourceId: source.id, burst: true }
+                    });
+                }
+                break;
+            }
+            case 'sobrecarga_patogenica': {
+                const center = new Vec3(ab.x, 0, ab.z);
+                const PATHOGENS = [
+                    'febre_critica',
+                    'paralisia_parcial',
+                    'mao_tremula',
+                    'imunidade_baixa',
+                    'visao_turva',
+                    'cansaco_viral',
+                    'incapacidade',
+                    'hemorragia_quadrada'
+                ];
+                for (const p of players) {
+                    if (p.isDead || p.position.distanceToXZ(center) > ab.radius) continue;
+                    const stacks = Object.values(p.pathogens).reduce((sum, data) => sum + data.stacks, 0);
+                    this.damagePlayer(p, (ab.damage || 0) * (1 + Math.min(0.75, stacks * 0.08)), this.resolveAbilitySource(ab, source), ab.type);
+                    const randKey = PATHOGENS[Math.floor(Math.random() * PATHOGENS.length)];
+                    p.applyPathogen(randKey, 10000, { maxStacks: ab.maxDiseaseStacks, maxTypes: ab.maxDiseaseTypes });
+                }
+                this.zones.push({
+                    id: `zone_${this.zoneIdCounter++}`,
+                    type: 'sobrecarga_patogenica',
+                    position: center,
+                    radius: ab.radius,
+                    duration: 800,
+                    timer: 800,
+                    damagePerSec: 0,
+                    lastTick: 0,
+                    extras: { ...ab, sourceId: source.id, burst: true }
+                });
+                break;
+            }
 
             // ======= O FARAÓ — Abilities =======
             case 'raioDeRaWarning':
@@ -1661,6 +2649,13 @@ export class GameEngine {
             if (hit.specialEffect === 'esporo_basico') {
                 finalDamage = 0;
             }
+            if (hit.specialEffect === 'tower_ballistic_heavy') {
+                finalDamage = this.capTowerDamage(p, finalDamage, (proj as any)?.params?.damageCapPercent || 0.18);
+            }
+            if (proj) {
+                const wall = this.zones.find(z => (z.type === 'predator_front_wall' || z.type === 'predator_living_wall') && z.position.distanceToXZ(proj.position) <= z.radius);
+                if (wall) finalDamage *= 0.60;
+            }
             this.damagePlayer(p, finalDamage, projectileOwner, hit.specialEffect || proj?.type || 'Projetil inimigo', true);
             // HIT_NUMBER feedback for the local player
             const hitNow = Date.now();
@@ -1686,6 +2681,16 @@ export class GameEngine {
             if (hit.specialEffect === 'prisao') p.applyRoot(2000);
             if (hit.specialEffect === 'tiroIncendiario') p.applyBurn(3000, 10);
             if (hit.specialEffect === 'lançaGelo') p.applyFreeze(1500);
+            if (hit.specialEffect === 'limbo_poison') p.statusManager.applyStatus('poison', 5000, 0, null);
+            if (hit.specialEffect === 'limbo_poison_chance' && Math.random() < 0.20) p.statusManager.applyStatus('poison', 3000, 0, null);
+            if (hit.specialEffect === 'limbo_burn') p.applyBurn(4000, 8);
+            if (hit.specialEffect === 'limbo_ice_slow') p.applySlow(3000, 0.30);
+            if (hit.specialEffect === 'tower_ballistic' || hit.specialEffect === 'tower_ballistic_heavy') {
+                const params = (proj as any)?.params || {};
+                if ((params.slowChance || 0) > 0 && Math.random() < params.slowChance) {
+                    p.applySlow(params.slowDuration || 1000, params.slowAmount || 0.20);
+                }
+            }
             if (hit.specialEffect === 'prismaSombrio') {
                 const c = CONFIG.CAO_DOS_INFERNOS;
                 if (p.statusEffects.bleeding && p.statusEffects.bleeding.isActive) {
@@ -1701,6 +2706,8 @@ export class GameEngine {
                 p.applyBleed(c.SKILL_Q_BLEED_DURATION, c.SKILL_Q_BLEED_DPS);
             }
             if (hit.specialEffect === 'injecao_geometrica') {
+                const params = (proj as any)?.params || {};
+                const ownerLimits = (projectileOwner as any)?.getPathogenLimits?.();
                 const PATHOGENS = [
                     'febre_critica',
                     'paralisia_parcial',
@@ -1712,7 +2719,10 @@ export class GameEngine {
                     'hemorragia_quadrada'
                 ];
                 const randKey = PATHOGENS[Math.floor(Math.random() * PATHOGENS.length)];
-                p.applyPathogen(randKey);
+                p.applyPathogen(randKey, 10000, {
+                    maxStacks: params.maxStacks ?? ownerLimits?.maxStacks,
+                    maxTypes: params.maxTypes ?? ownerLimits?.maxTypes
+                });
             }
         }
         // Player projectiles vs enemies
@@ -1735,7 +2745,54 @@ export class GameEngine {
                 totalDamage += Math.round(totalDamage * 0.30);
             }
 
-            enemy.takeDamage(totalDamage, instigator);
+            enemy.takeDamage(totalDamage, instigator, true, 0, false, this.projectileDamageMeta(instigator, proj));
+
+            if (proj?.specialEffect === 'erg_base_slime') {
+                const slime = (proj as any).ergBaseSlime || {};
+                if (Math.random() < (slime.woundChance || 0)) {
+                    enemy.applyHiveWound(instigator, 5000, 1);
+                }
+                if (slime.heavy && !this.isBossLike(enemy)) enemy.applySlow(1000, 0.20);
+                if ((slime.splashRadius || 0) > 0) {
+                    const splashDamage = enemy.lastDamageTaken * (slime.splashDamagePct || 0.35);
+                    for (const otherEnemy of this.enemies) {
+                        if (otherEnemy.isDestroyed || otherEnemy.id === enemy.id) continue;
+                        if (otherEnemy.position.distanceToXZ(enemy.position) <= slime.splashRadius) {
+                            otherEnemy.takeDamage(splashDamage, instigator, false, 0, false, this.essenceDamageMeta(instigator, 'erg_base_slime_splash', 'Gosma da Colmeia', 0, { isEssenceTower: true }));
+                        }
+                    }
+                }
+                this.zones.push({
+                    id: `zone_${this.zoneIdCounter++}`,
+                    type: 'erg_base_slime_hit',
+                    position: enemy.position.clone(),
+                    radius: slime.splashRadius || 1,
+                    duration: 450,
+                    timer: 450,
+                    damagePerSec: 0,
+                    lastTick: 0,
+                    extras: { sourceId: instigator.id }
+                });
+                proj.isDestroyed = true;
+                continue;
+            }
+
+            if (proj?.isCritical && instigator.build?.buildingColor === 'coin') {
+                const critHeal = instigator.consumeCoinCritHeal();
+                if (critHeal > 0) {
+                    this.pendingEvents.push({
+                        event: 'HIT_NUMBER',
+                        data: {
+                            targetId: instigator.id,
+                            x: instigator.position.x,
+                            y: 2.0,
+                            z: instigator.position.z,
+                            value: critHeal,
+                            type: 'HEAL'
+                        }
+                    });
+                }
+            }
 
             if (instigator.timedBuffs.some(b => b.type === 'alma_de_arthas')) {
                 const lifestealHeal = Math.round(enemy.lastDamageTaken * 0.05);
@@ -1785,7 +2842,7 @@ export class GameEngine {
                     for (const otherEnemy of this.enemies) {
                         if (!otherEnemy.isDestroyed && otherEnemy.position.distanceToXZ(proj.position) < explosionRadius) {
                             otherEnemy.addPoison(2, instigator);
-                            otherEnemy.takeDamage(explosionDmg, instigator);
+                            otherEnemy.takeDamage(explosionDmg, instigator, false, 0, false, this.essenceDamageMeta(instigator, 'poison_frasco_peconha', 'Frasco de Peconha', 5));
                         }
                     }
                     this.zones.push({
@@ -1804,6 +2861,51 @@ export class GameEngine {
 
                 // If it's a basic attack
                 if (!proj.specialEffect) {
+                    if (instigator.build?.buildingColor === 'predator_hive') {
+                        const alwaysApply = instigator.predatorHiveUltAscensionActive;
+                        const ultApply = instigator.skills.r.isActive && instigator.predatorHiveUltMode === 'basic' && Math.random() < 0.30;
+                        const clawApply = instigator.predatorHiveClaws && Math.random() < 0.18;
+                        if (alwaysApply || ultApply || clawApply) {
+                            enemy.applyHiveWound(instigator, 5000, 1);
+                            const stacks = enemy.getHiveWoundStacks(instigator.id);
+                            const isBossLike = enemy.maxHp >= 5000 || String(enemy.type || '').toLowerCase().includes('boss');
+                            if (instigator.predatorHiveEvolution && stacks >= 3 && !isBossLike && !(enemy as any).__ergAuraSpawned) {
+                                (enemy as any).__ergAuraSpawned = true;
+                                this.zones.push({
+                                    id: `zone_${this.zoneIdCounter++}`,
+                                    type: 'erg_contamination_aura',
+                                    position: enemy.position.clone(),
+                                    radius: 4,
+                                    duration: 4000,
+                                    timer: 4000,
+                                    damagePerSec: 0,
+                                    lastTick: 0,
+                                    extras: { sourceId: instigator.id, spreadHiveWound: true }
+                                });
+                            }
+                        }
+                        if (instigator.predatorErgCall) {
+                            if (instigator.predatorErgAttackWindow <= 0) {
+                                instigator.predatorErgAttackCounter = 0;
+                                instigator.predatorErgAttackWindow = 6000;
+                            }
+                            instigator.predatorErgAttackCounter++;
+                            if (instigator.predatorErgAttackCounter >= 5 && instigator.predatorErgPulseCooldown <= 0) {
+                                instigator.predatorErgAttackCounter = 0;
+                                instigator.predatorErgAttackWindow = 0;
+                                instigator.predatorErgPulseCooldown = 10000;
+                                instigator.pendingZones.push({
+                                    type: 'erg_call_pulse',
+                                    x: instigator.position.x,
+                                    z: instigator.position.z,
+                                    radius: 6,
+                                    damage: instigator.getDamage(true, true) * 0.75,
+                                    extras: { sourceId: instigator.id, applyHiveWoundChance: true }
+                                });
+                            }
+                        }
+                        this.tryFireErgBaseSlime(instigator, enemy);
+                    }
                     // Lifesteal
                     if (instigator.lifestealPct > 0) {
                         const healAmt = Math.round(enemy.lastDamageTaken * instigator.lifestealPct);
@@ -1826,12 +2928,32 @@ export class GameEngine {
                             }
                         }
                     }
+                    if (instigator.getCoinLifestealPct() > 0) {
+                        const healAmt = instigator.consumeCoinLifesteal(enemy.lastDamageTaken);
+                        if (healAmt > 0) {
+                            const hThrottle = this.hitNumberThrottle.get(`coin_heal_${instigator.id}`) || 0;
+                            if (now - hThrottle > 150) {
+                                this.hitNumberThrottle.set(`coin_heal_${instigator.id}`, now);
+                                this.pendingEvents.push({
+                                    event: 'HIT_NUMBER',
+                                    data: {
+                                        targetId: instigator.id,
+                                        x: instigator.position.x,
+                                        y: 2.0,
+                                        z: instigator.position.z,
+                                        value: healAmt,
+                                        type: 'LIFESTEAL'
+                                    }
+                                });
+                            }
+                        }
+                    }
                     // Cleave
                     if (instigator.attackCleave) {
                         for (const otherEnemy of this.enemies) {
                             if (!otherEnemy.isDestroyed && otherEnemy.id !== enemy.id) {
                                 if (enemy.position.distanceToXZ(otherEnemy.position) < 4.0) {
-                                    otherEnemy.takeDamage(totalDamage * 0.5, instigator);
+                                    otherEnemy.takeDamage(totalDamage * 0.5, instigator, false, 0, false, this.essenceDamageMeta(instigator, 'red_attack_cleave', 'Torre Vermelha Cleave', 3));
                                     // Hit number feedback for cleave damage
                                     const eHitNow = Date.now();
                                     const eThrottle = this.hitNumberThrottle.get(otherEnemy.id) || 0;
@@ -1988,6 +3110,61 @@ export class GameEngine {
             killerPlayer.score += enemy.score;
             killerPlayer.kills++;
             killerPlayer.onEnemyKilled(); // R upgrade: Fúria Infinita
+
+            const coinKillHeal = killerPlayer.consumeCoinAllOrNothingKillHeal();
+            if (coinKillHeal > 0) {
+                this.pendingEvents.push({
+                    event: 'HIT_NUMBER',
+                    data: {
+                        targetId: killerPlayer.id,
+                        x: killerPlayer.position.x,
+                        y: 2.0,
+                        z: killerPlayer.position.z,
+                        value: coinKillHeal,
+                        type: 'HEAL'
+                    }
+                });
+            }
+
+            if (killerPlayer.build?.buildingColor === 'predator_hive' && enemy.hasHiveWound?.(killerPlayer.id)) {
+                const isBossLike = enemy.maxHp >= 5000 || String(enemy.type || '').toLowerCase().includes('boss');
+                const isEliteLike = !isBossLike && enemy.maxHp > 1000;
+                if (killerPlayer.predatorMutantRegen && killerPlayer.predatorRegenCooldown <= 0) {
+                    killerPlayer.predatorRegenCooldown = 1000;
+                    const healPct = isBossLike ? 0.07 : (isEliteLike ? 0.04 : 0.02);
+                    const healAmount = Math.round(killerPlayer.maxHp * healPct);
+                    if (killerPlayer.skills.e.isActive && killerPlayer.skills.e.shieldHp > 0) {
+                        killerPlayer.heal(healAmount * 0.5);
+                        killerPlayer.skills.e.shieldHp = Math.min(killerPlayer.skills.e.maxShieldHp, killerPlayer.skills.e.shieldHp + healAmount * 0.5);
+                    } else {
+                        killerPlayer.heal(healAmount);
+                    }
+                    this.pendingEvents.push({ event: 'HIT_NUMBER', data: { targetId: killerPlayer.id, x: killerPlayer.position.x, y: 2.0, z: killerPlayer.position.z, value: healAmount, type: 'HEAL' } });
+                }
+                if (killerPlayer.predatorFragmentSwarm && Math.random() < 0.14) {
+                    const targets = this.enemies
+                        .filter(e => !e.isDestroyed && e.id !== enemy.id && e.position.distanceToXZ(enemy.position) <= 8)
+                        .slice(0, 3);
+                    for (const target of targets) {
+                        const dmg = killerPlayer.getDamage(true, true) * 0.30 * (target.maxHp >= 5000 ? 0.50 : 1.0);
+                        target.takeDamage(dmg, killerPlayer, false, 0, false, this.essenceDamageMeta(killerPlayer, 'erg_fragment_swarm', 'Enxame de Fragmentos', 3));
+                        this.zones.push({ id: `zone_${this.zoneIdCounter++}`, type: 'erg_fragment', position: target.position.clone(), radius: 1.2, duration: 350, timer: 350, damagePerSec: 0, lastTick: 0, extras: { sourceId: killerPlayer.id, burst: false } });
+                    }
+                }
+                if (killerPlayer.predatorHiveUltAscensionActive && enemy.getHiveWoundStacks?.(killerPlayer.id) >= 5) {
+                    this.zones.push({
+                        id: `zone_${this.zoneIdCounter++}`,
+                        type: 'erg_ascension_deathburst',
+                        position: enemy.position.clone(),
+                        radius: 5,
+                        duration: 500,
+                        timer: 500,
+                        damagePerSec: killerPlayer.getDamage(true, true) * 2.10,
+                        lastTick: 0,
+                        extras: { sourceId: killerPlayer.id, burst: true, applyHiveWoundChance: true }
+                    });
+                }
+            }
 
             // Purple F4-1: Kill reseta cooldowns
             if (killerPlayer.killResetsCooldowns) {
@@ -2240,7 +3417,7 @@ export class GameEngine {
                             for (const otherEnemy of this.enemies) {
                                 if (!otherEnemy.isDestroyed && otherEnemy.position.distanceToXZ(z.position) < explosionRadius) {
                                     otherEnemy.addPoison(2, p);
-                                    otherEnemy.takeDamage(p.getDamage(true) * 0.5, p);
+                                    otherEnemy.takeDamage(p.getDamage(true) * 0.5, p, false, 0, false, this.essenceDamageMeta(p, 'poison_cubic_trap', 'Armadilha Cubica', 4));
                                 }
                             }
                             this.zones.push({
@@ -2274,7 +3451,7 @@ export class GameEngine {
                                 if (!otherEnemy.isDestroyed && otherEnemy.position.distanceToXZ(z.position) < explosionRadius) {
                                     otherEnemy.addPoison(5, p);
                                     otherEnemy.applySlow(4000, 0.2); // 80% slow
-                                    otherEnemy.takeDamage(explosionDmg, p);
+                                    otherEnemy.takeDamage(explosionDmg, p, false, 0, false, this.essenceDamageMeta(p, 'poison_teemo_shroom', 'Campo de Fungos', 5));
                                 }
                             }
                             this.zones.push({
@@ -2374,7 +3551,7 @@ export class GameEngine {
                                 e.position.add(pullDir.multiplyScalar(6 * dt));
                             }
                             const p = this.players.get(z.extras?.sourceId);
-                            e.takeDamage(z.damagePerSec * dt, p || null);
+                            e.takeDamage(z.damagePerSec * dt, p || null, false, 0, false, p ? this.essenceDamageMeta(p, 'purple_singularidade', 'Singularidade', 5, { isDoT: true }) : undefined);
                         }
                     }
                 }
@@ -2403,6 +3580,35 @@ export class GameEngine {
                     if (!e.isDestroyed && z.position.distanceToXZ(e.position) < z.radius) {
                         e.applySlow(500, 0.2); // 80% slow
                     }
+                }
+            }
+
+            if (z.type.startsWith('limbo_zone_')) {
+                const zoneSource = this.getZoneSource(z);
+                if (!z.extras) z.extras = {};
+                z.lastTick = Date.now();
+                const now = Date.now();
+                const canApplyStatus = now > (z.extras.statusTick || 0) + 500;
+                if (canApplyStatus) z.extras.statusTick = now;
+                for (const p of players) {
+                    if (p.isDead || p.position.distanceToXZ(z.position) > z.radius) continue;
+                    if (z.damagePerSec > 0) {
+                        this.damagePlayer(p, z.damagePerSec * dt, zoneSource, z.type, false, false, undefined, true);
+                    }
+                    if (canApplyStatus) {
+                        this.applyLimboStatus(p, z.extras.status, z.extras.statusDuration, z.extras.statusIntensity);
+                    }
+                    this.applyLimboForce(p, z.position, z.extras.pullForce, true);
+                    this.applyLimboForce(p, z.position, z.extras.knockbackForce, false);
+                }
+            }
+
+            if (z.type === 'tower_gravity_residue') {
+                const zoneSource = this.getZoneSource(z);
+                for (const p of players) {
+                    if (p.isDead || p.position.distanceToXZ(z.position) > z.radius) continue;
+                    this.damagePlayer(p, z.damagePerSec * dt, zoneSource, z.type, false, false, undefined, true);
+                    p.applySlow(500, 0.20);
                 }
             }
 
@@ -2441,7 +3647,7 @@ export class GameEngine {
                     if (!e.isDestroyed && z.position.distanceToXZ(e.position) < z.radius) {
                         const p = this.players.get(z.extras?.sourceId);
                         if (p) {
-                            e.takeDamage(z.damagePerSec, p);
+                            e.takeDamage(z.damagePerSec, p, false, 0, false, this.skillDamageMeta(p, 'q', 'Mina Dimensional'));
                             e.applyBleed(3000, p.getDamage(true) * 0.1);
                         }
                         z.timer = 0; // explode
@@ -2476,8 +3682,8 @@ export class GameEngine {
                 }
                 for (const p of players) {
                     if (!p.isDead && p.position.distanceToXZ(z.position) < z.radius) {
-                        this.damagePlayer(p, 10 * dt, zoneSource, z.type, false, false, undefined, true);
-                        if (attemptPathogen && Math.random() < 0.35) {
+                        this.damagePlayer(p, z.damagePerSec * dt, zoneSource, z.type, false, false, undefined, true);
+                        if (attemptPathogen && Math.random() < (z.extras.pathogenChance ?? 0.35)) {
                             const PATHOGENS = [
                                 'febre_critica',
                                 'paralisia_parcial',
@@ -2489,7 +3695,84 @@ export class GameEngine {
                                 'hemorragia_quadrada'
                             ];
                             const randKey = PATHOGENS[Math.floor(Math.random() * PATHOGENS.length)];
-                            p.applyPathogen(randKey);
+                            p.applyPathogen(randKey, 10000, {
+                                maxStacks: z.extras.maxDiseaseStacks,
+                                maxTypes: z.extras.maxDiseaseTypes
+                            });
+                        }
+                    }
+                }
+            }
+
+            if (z.type === 'incubadora_viral') {
+                const zoneSource = this.getZoneSource(z);
+                if (!z.extras) z.extras = {};
+                if (z.extras.pathogenTimer === undefined) z.extras.pathogenTimer = 0;
+                z.extras.pathogenTimer -= dt * 1000;
+                const attemptPathogen = z.extras.pathogenTimer <= 0;
+                if (attemptPathogen) z.extras.pathogenTimer = 1000;
+                for (const p of players) {
+                    if (!p.isDead && p.position.distanceToXZ(z.position) < z.radius) {
+                        this.damagePlayer(p, z.damagePerSec * dt, zoneSource, z.type, false, false, undefined, true);
+                        if (attemptPathogen && Math.random() < 0.50) {
+                            const PATHOGENS = [
+                                'febre_critica',
+                                'paralisia_parcial',
+                                'mao_tremula',
+                                'imunidade_baixa',
+                                'visao_turva',
+                                'cansaco_viral',
+                                'incapacidade',
+                                'hemorragia_quadrada'
+                            ];
+                            const randKey = PATHOGENS[Math.floor(Math.random() * PATHOGENS.length)];
+                            p.applyPathogen(randKey, 10000, {
+                                maxStacks: z.extras.maxDiseaseStacks,
+                                maxTypes: z.extras.maxDiseaseTypes
+                            });
+                        }
+                    }
+                }
+            }
+
+            if (z.extras?.applyHiveWound && !z.extras.appliedHiveWound) {
+                z.extras.appliedHiveWound = true;
+                const p = this.players.get(z.extras.sourceId);
+                if (p) {
+                    for (const e of this.enemies) {
+                        if (!e.isDestroyed && z.position.distanceToXZ(e.position) <= z.radius) {
+                            e.applyHiveWound(p, 5000, 1);
+                        }
+                    }
+                }
+            }
+
+            if ((z.type === 'predator_bastion_guard' || z.type === 'predator_living_wall' || z.type === 'predator_front_wall') && Date.now() > z.lastTick + 1000) {
+                z.lastTick = Date.now();
+                const p = this.players.get(z.extras?.sourceId);
+                for (const e of this.enemies) {
+                    if (e.isDestroyed || z.position.distanceToXZ(e.position) > z.radius) continue;
+                    const isBossLike = e.maxHp >= 5000 || String(e.type || '').toLowerCase().includes('boss');
+                    if (z.type === 'predator_bastion_guard') {
+                        if (Math.random() < 0.20) e.applySlow(isBossLike ? 1000 : 2000, isBossLike ? 0.15 : 0.30);
+                    } else if (z.type === 'predator_living_wall') {
+                        if (isBossLike) e.applySlow(1000, 0.20);
+                        else e.statusManager.applyStatus('root', e.maxHp > 1000 ? 600 : 1200);
+                    } else {
+                        if (isBossLike) e.applySlow(1000, 0.20);
+                        else e.statusManager.applyStatus('root', e.maxHp > 1000 ? 600 : 1200);
+                    }
+                }
+                if (p && z.type === 'predator_living_wall') z.position = p.position.clone();
+            }
+
+            if (z.extras?.spreadHiveWound && Date.now() > z.lastTick + 1000) {
+                z.lastTick = Date.now();
+                const p = this.players.get(z.extras.sourceId);
+                if (p) {
+                    for (const e of this.enemies) {
+                        if (!e.isDestroyed && z.position.distanceToXZ(e.position) <= z.radius && Math.random() < 0.12) {
+                            e.applyHiveWound(p, 5000, 1);
                         }
                     }
                 }
@@ -2498,13 +3781,55 @@ export class GameEngine {
             if (z.extras?.burst && z.lastTick === 0) {
                 z.lastTick = 1;
                 // Burst damage from player zones (Shield explosion, dash explosion, R singularity)
+                let coinBurstHits = 0;
                 for (const e of this.enemies) {
                     if (!e.isDestroyed && z.position.distanceToXZ(e.position) < z.radius) {
                         const p = this.players.get(z.extras.sourceId);
                         if (p) {
-                            const damage = (z.type === 'explosion' || z.type === 'pulso_arcano' || z.type === 'terremoto_geometrico_zone') ? z.damagePerSec : z.damagePerSec / 2;
-                            e.takeDamage(damage, p);
+                            let damage = (z.type === 'explosion' || z.type === 'pulso_arcano' || z.type === 'terremoto_geometrico_zone') ? z.damagePerSec : z.damagePerSec / 2;
+                            if (p.build?.buildingColor === 'predator_hive') {
+                                const isBossLike = e.maxHp >= 5000 || String(e.type || '').toLowerCase().includes('boss');
+                                if (z.extras?.scaleByHiveWounds) {
+                                    let wounded = 0;
+                                    for (const other of this.enemies) {
+                                        if (!other.isDestroyed && other.hasHiveWound?.(p.id) && z.position.distanceToXZ(other.position) < z.radius) wounded++;
+                                    }
+                                    damage *= (1 + Math.min(0.70, wounded * 0.07));
+                                    if (isBossLike) damage *= 0.60;
+                                }
+                                if (z.extras?.hiveBonus && e.hasHiveWound?.(p.id)) damage *= isBossLike ? 1.15 : 1.35;
+                                if (z.extras?.applyHiveWoundChance) {
+                                    const chance = isBossLike ? 0.25 : (e.maxHp > 1000 ? 0.60 : 1.0);
+                                    if (Math.random() < chance) e.applyHiveWound(p, 5000, 1);
+                                }
+                                if (z.extras?.detonateHiveWounds) {
+                                    const stacks = e.getHiveWoundStacks?.(p.id) || 0;
+                                    if (stacks <= 0) continue;
+                                    damage *= stacks;
+                                }
+                            }
+                            e.takeDamage(damage, p, false, 0, false, this.skillDamageMeta(p, 'r', z.type));
+                            if (z.type === 'coin_burst') coinBurstHits++;
                         }
+                    }
+                }
+                if (z.type === 'coin_burst' && coinBurstHits >= 5) {
+                    const p = this.players.get(z.extras.sourceId);
+                    if (p && p.coinBurstHealCooldown <= 0) {
+                        p.coinBurstHealCooldown = 2000;
+                        const healAmount = Math.round(p.maxHp * 0.05);
+                        p.heal(healAmount);
+                        this.pendingEvents.push({
+                            event: 'HIT_NUMBER',
+                            data: {
+                                targetId: p.id,
+                                x: p.position.x,
+                                y: 2.0,
+                                z: p.position.z,
+                                value: healAmount,
+                                type: 'HEAL'
+                            }
+                        });
                     }
                 }
             } else if (!z.extras?.burst && z.damagePerSec > 0 && Date.now() > z.lastTick + 1000) {
@@ -2630,7 +3955,7 @@ export class GameEngine {
                         }
                         
                         e.applyKnockback(dir, force);
-                        if (p.skillLevels.w >= 3) e.takeDamage(p.getDamage(true) * 0.5, p);
+                        if (p.skillLevels.w >= 3) e.takeDamage(p.getDamage(true) * 0.5, p, false, 0, false, this.skillDamageMeta(p, 'w', 'Repulsao'));
                         
                         if (p.upgradeFlags.w_bleedOnRepel) {
                             e.applyBleed(5000, p.getDamage(true) * 0.1);
@@ -2642,6 +3967,22 @@ export class GameEngine {
                     p.pendingZones.push({ type: 'w_campo_hemorragia', x: p.position.x, z: p.position.z, radius: CONFIG.PLAYER.SKILL_W.RANGE, damage: 0 });
                 } else if (p.upgradeFlags.w_pullInstead) {
                     p.pendingZones.push({ type: 'w_vacuo_magnetico', x: p.position.x, z: p.position.z, radius: CONFIG.PLAYER.SKILL_W.RANGE, damage: 0 });
+                }
+                if (p.build.buildingColor === 'predator_hive' && p.predatorWall && p.predatorWallCooldown <= 0) {
+                    const dir = p.getFacingDirection();
+                    const wallPos = p.position.clone().add(dir.multiplyScalar(3.5));
+                    p.predatorWallCooldown = 12000;
+                    this.zones.push({
+                        id: `zone_${this.zoneIdCounter++}`,
+                        type: 'predator_front_wall',
+                        position: wallPos,
+                        radius: 4.0,
+                        duration: 3000,
+                        timer: 3000,
+                        damagePerSec: 0,
+                        lastTick: 0,
+                        extras: { sourceId: p.id, rotY: p.rotationY }
+                    });
                 }
                 break;
             case 'e': p.activateShield(); break;
@@ -2806,7 +4147,7 @@ export class GameEngine {
                                         const enemyFacing = new Vec3(Math.sin(enemy.rotationY), 0, Math.cos(enemy.rotationY)).normalize();
                                         const faceDot = enemyFacing.dot(toPlayer);
                                         
-                                        enemy.takeDamage(dmg, p);
+                                        enemy.takeDamage(dmg, p, false, 0, false, this.essenceDamageMeta(p, 'poison_olhar_gorgona', 'Olhar da Gorgona', 5));
                                         if (faceDot > 0) { // facing player
                                             enemy.applyStun(4000);
                                         } else { // facing away
@@ -2842,6 +4183,18 @@ export class GameEngine {
                         proj.lifetime = 1.5;
                         this.playerProjectiles.push(proj);
                     }
+                } else if (color === 'coin') {
+                    this.zones.push({
+                        id: `zone_${this.zoneIdCounter++}`,
+                        type: 'coin_spin',
+                        position: p.position.clone(),
+                        radius: 1.6,
+                        duration: p.skills.r.timer,
+                        timer: p.skills.r.timer,
+                        damagePerSec: 0,
+                        lastTick: 0,
+                        extras: { sourceId: p.id }
+                    });
                 }
                 break;
         }
@@ -2849,14 +4202,29 @@ export class GameEngine {
 
     getSnapshot(): WorldSnapshot {
         const now = Date.now();
+        for (const p of this.players.values()) {
+            if (p.build?.buildingColor !== 'predator_hive') continue;
+            const workers = this.ergWorkers.filter(w => w.ownerId === p.id);
+            p.ergActiveWorkers = workers.filter(w => w.respawnTimer <= 0).length;
+            p.ergWorkerIntegrities = workers
+                .sort((a, b) => a.index - b.index)
+                .map(w => w.respawnTimer > 0 ? 0 : w.integrity);
+        }
         return {
             tick: this.tick,
             time: this.gameTime,
             players: [...this.players.values()].map(p => p.toSnapshot(now)),
             enemies: this.enemies.filter(e => !e.isDestroyed).map(e => e.toSnapshot()),
             projectiles: [...this.playerProjectiles, ...this.enemyProjectiles].map(p => p.toSnapshot()),
-            orbs: this.orbs.map(o => ({ id: o.id, type: o.type, x: o.position.x, z: o.position.z, buffType: o.buffType })),
-            dynamicEntities: this.zones.map(z => ({ id: z.id, type: z.type, x: z.position.x, y: 0, z: z.position.z, radius: z.radius, duration: z.duration, timer: z.timer, opacity: z.timer / z.duration, rotY: z.extras?.rotY })),
+            orbs: this.orbs.map(o => ({ id: o.id, type: o.type, x: o.position.x, z: o.position.z, hitboxRadius: o.hitboxRadius, buffType: o.buffType })),
+            dynamicEntities: [
+                ...this.zones.map(z => ({ id: z.id, type: z.type, x: z.position.x, y: 0, z: z.position.z, radius: z.radius, duration: z.duration, timer: z.timer, opacity: z.timer / z.duration, rotY: z.extras?.rotY, extras: z.extras })),
+                ...[...this.players.values()].filter(p => p.ergCentralBaseActive && !p.isDead).map(p => ({ id: `erg_base_${p.id}`, type: p.ergBaseLevel >= 10 ? 'erg_central_base_max' : 'erg_central_base', x: this.healingTowerPos.x, y: 0.12, z: this.healingTowerPos.z, radius: 3.2 + Math.min(1.3, p.ergBaseLevel * 0.08), duration: 1000, timer: 1000, opacity: 0.75, color: 0x7c3aed })),
+                ...this.ergWorkers.map(w => {
+                    const type = w.respawnTimer > 0 ? 'erg_worker_dead' : (w.integrity <= 1 ? 'erg_worker_critical' : (w.integrity < w.maxIntegrity ? 'erg_worker_damaged' : (w.carrying > 0 ? 'erg_worker_carrying' : 'erg_worker')));
+                    return { id: w.id, type, x: w.position.x, y: 0.25, z: w.position.z, radius: 0.45, duration: 1000, timer: 1000, opacity: w.respawnTimer > 0 ? 0.28 : 0.88, color: w.respawnTimer > 0 ? 0x4c1d95 : (w.integrity <= 1 ? 0xef4444 : 0xa855f7), integrity: w.integrity, maxIntegrity: w.maxIntegrity, respawnTimer: Math.max(0, w.respawnTimer) };
+                })
+            ],
             boss: this.spawnManager.activeBoss ? (() => { const b = this.enemies.find(e => e.id === this.spawnManager.activeBoss); return b ? { id: b.id, name: b.name, hp: b.hp, maxHp: b.maxHp } : null; })() : null,
             mightyOne: this.spawnManager.mightyOneAlive ? (() => { const m = this.enemies.find(e => e.type === 'TheMightyOne'); return m ? { hp: m.hp, maxHp: m.maxHp, damageBonus: (m as TheMightyOneEnemy).damageBonus } : null; })() : null,
             collapseLevel: this.spawnManager.collapseLevel,

@@ -6,6 +6,7 @@ import { UPGRADE_LEVELS, getUpgradePromptForLevel } from './UpgradeSystem';
 import { getGameData } from '../data/GameDataLoader';
 import { StatusManager } from './status/StatusManager';
 import { DamageTracker, inferDamageSource, DamageSourceInfo } from './DamageTracker';
+import { PlayerDamageTracker } from './PlayerDamageTracker';
 
 /**
  * Server-side Player state — full authority
@@ -75,7 +76,7 @@ export class ServerPlayer {
     public tempBuff = { type: null as string | null, timer: 0, magnitude: 0 };
     public timedBuffs: { type: string; timer: number; effects: any }[] = [];
 
-    public pendingProjectiles: { dir: Vec3, damage: number, fromOrbitalSoul?: boolean, fromPlayerId?: string, skillUpgrades?: any, trackHits?: boolean, specialEffect?: string, explosionRadius?: number, isCritical?: boolean }[] = [];
+    public pendingProjectiles: { dir: Vec3, damage: number, fromOrbitalSoul?: boolean, fromPlayerId?: string, skillUpgrades?: any, trackHits?: boolean, specialEffect?: string, visualEffect?: string, explosionRadius?: number, isCritical?: boolean }[] = [];
     public pendingRewindSeconds: number = 0;
     public familiarAttackTimer?: number;
     public pendingZones: { type: string, x: number, z: number, radius: number, damage: number, extras?: any }[] = [];
@@ -108,6 +109,7 @@ export class ServerPlayer {
     /** Centralised status manager (new system — runs in parallel with statusEffects above) */
     public statusManager: StatusManager;
     public damageTracker: DamageTracker = new DamageTracker();
+    public playerDamageTracker: PlayerDamageTracker = new PlayerDamageTracker();
 
     public jumpTimer: number = 0;
     public isOnSlipperyGround: boolean = false;
@@ -182,6 +184,78 @@ export class ServerPlayer {
     public hitboxMagiasSizePct = 0;
     public toxicAuraDps = false;
     private toxicAuraTimer = 0;
+
+    // Tower Coin/Joker modifiers
+    public coinDamageBonusPct = 0;
+    public coinDamagePenaltyPct = 0;
+    public coinCritDamageBonusPct = 0;
+    public coinCritDamagePenaltyPct = 0;
+    public coinXpMultiplier = 1.0;
+    public coinLifestealPct = 0;
+    public coinLifestealWindowStart = 0;
+    public coinLifestealWindowAmount = 0;
+    public coinLowHpPower = false;
+    public coinHighHpSafety = false;
+    public coinAllOrNothing = false;
+    public coinBasicAttackCounter = 0;
+    public coinFastAttackCounter = 0;
+    public coinEmpoweredBasicReady = false;
+    public coinCritHealPct = 0;
+    public coinCritHealCooldown = 0;
+    public coinAttackDefenseBuffTimer = 0;
+    public coinArmorSpeedBuffTimer = 0;
+    public coinSafetySpeedBuffTimer = 0;
+    public coinSafetySpeedCooldown = 0;
+    public coinSafetyShieldHp = 0;
+    public coinSafetyShieldMaxHp = 0;
+    public coinSafetyShieldTimer = 0;
+    public coinSafetyShieldCooldown = 0;
+    public coinAfterShieldPenaltyTimer = 0;
+    public coinAllOrNothingHealCooldown = 0;
+    public coinBurstHealCooldown = 0;
+    public coinState: string | null = null;
+    public coinStateTimer = 0;
+    public coinStateElapsed = 0;
+    public coinStateInterval = 2000;
+    public coinUltHpMultiplier = 1.0;
+
+    // Tower Predator Hive / Bastiao Predador da Colmeia modifiers
+    public predatorHiveBase = false;
+    public predatorMoveBurstTimer = 0;
+    public predatorMoveBurstCooldown = 0;
+    public predatorKineticSkin = false;
+    public predatorKineticEnergy = 0;
+    public predatorKineticEnergyLimitPct = 0.35;
+    public predatorHiveClaws = false;
+    public predatorBastionArmTimer = 0;
+    public predatorParryReadyTimer = 0;
+    public predatorParryCooldown = 0;
+    public predatorErgCall = false;
+    public predatorErgAttackCounter = 0;
+    public predatorErgAttackWindow = 0;
+    public predatorErgPulseCooldown = 0;
+    public predatorFragmentSwarm = false;
+    public predatorMutantRegen = false;
+    public predatorRegenCooldown = 0;
+    public predatorLivingCarapace = false;
+    public predatorKineticCounter = false;
+    public predatorKineticCounterReady = false;
+    public predatorWall = false;
+    public predatorWallCooldown = 0;
+    public predatorHiveEvolution = false;
+    public ergCentralBaseActive = false;
+    public ergXpDelivered = 0;
+    public ergBaseLevel = 1;
+    public ergBaseStacks = 0;
+    public ergActiveWorkers = 0;
+    public ergWorkerIntegrities: number[] = [];
+    public ergBaseSlimeCooldown = 0;
+    public ergBaseSlimeShotCounter = 0;
+    public ergBasePulseTimer = 12000;
+    public ergWorkerBoostTimer = 0;
+    public predatorHiveUltMode: 'basic' | 'panther' | 'wall' | 'ascension' | null = null;
+    public predatorHiveUltAscensionActive = false;
+    public predatorHiveUltTick = 0;
 
     // Mutated Ultimates active states
     public r_chuva_timer = 0;
@@ -319,10 +393,332 @@ export class ServerPlayer {
             // Option 3: Tiro Tóxico (handled in GameEngine projectile hits)
         }
 
+        else if (color === 'coin') {
+            const baseDefense = this.defense || 0;
+            const baseSpeed = this.speed || 0;
+            const baseHp = this.maxHp || 1;
+
+            if (this.build.floor1 === 0) {
+                this.coinDamageBonusPct += 0.18;
+                this.maxHp = Math.round(this.maxHp * 0.90);
+                if (this.hp > this.maxHp) this.hp = this.maxHp;
+            }
+            if (this.build.floor1 === 1) {
+                this.maxHp = Math.round(this.maxHp * 1.22);
+                this.hp = this.maxHp;
+                this.coinDamagePenaltyPct += 0.10;
+            }
+            if (this.build.floor1 === 2) {
+                this.speed *= 1.15;
+                this.originalSpeed = this.speed;
+                this.defense = Math.max(baseDefense * 0.20, this.defense * 0.88);
+            }
+
+            if (this.build.floor2 === 0) {
+                this.bonusCritChance += 0.18;
+                this.coinCritDamagePenaltyPct += 0.15;
+            }
+            if (this.build.floor2 === 1) {
+                this.coinCritDamageBonusPct += 0.25;
+            }
+            if (this.build.floor2 === 2) this.coinDamagePenaltyPct += 0.12;
+
+            if (this.build.floor3 === 0) {
+                this.coinLifestealPct += 0.06;
+            }
+            if (this.build.floor3 === 1) {
+                this.defense *= 1.18;
+                this.speed = Math.max(baseSpeed * 0.50, this.speed * 0.85);
+                this.originalSpeed = this.speed;
+            }
+            if (this.build.floor3 === 2) {
+                this.coinXpMultiplier *= 1.12;
+                this.maxHp = Math.round(this.maxHp * 0.92);
+                if (this.hp > this.maxHp) this.hp = this.maxHp;
+            }
+
+            if (this.build.floor4 === 0) this.coinLowHpPower = true;
+            if (this.build.floor4 === 1) this.coinHighHpSafety = true;
+            if (this.build.floor4 === 2) this.coinAllOrNothing = true;
+
+            this.maxHp = Math.max(1, this.maxHp);
+            this.defense = Math.max(baseDefense * 0.20, this.defense);
+            this.speed = Math.max(baseSpeed * 0.50, this.speed);
+            this.originalSpeed = this.speed;
+        }
+        else if (color === 'predator_hive') {
+            this.predatorHiveBase = true;
+
+            if (this.build.floor1 === 0) {
+                this.speed *= 1.12;
+                this.originalSpeed = this.speed;
+            }
+            if (this.build.floor1 === 1) {
+                this.maxHp = Math.round(this.maxHp * 1.18);
+                this.hp = this.maxHp;
+                this.predatorKineticSkin = true;
+            }
+            if (this.build.floor1 === 2) {
+                this.predatorHiveClaws = true;
+                this.bonusDamagePct += 0.10;
+            }
+
+            if (this.build.floor2 === 0) {
+                // Braço de Bastião is triggered when Shield is used.
+            }
+            if (this.build.floor2 === 1) {
+                this.predatorParryCooldown = 0;
+            }
+            if (this.build.floor2 === 2) this.predatorErgCall = true;
+
+            if (this.build.floor3 === 0) this.predatorFragmentSwarm = true;
+            if (this.build.floor3 === 1) this.predatorMutantRegen = true;
+            if (this.build.floor3 === 2) this.predatorLivingCarapace = true;
+
+            if (this.build.floor4 === 0) this.predatorKineticCounter = true;
+            if (this.build.floor4 === 1) this.predatorWall = true;
+            if (this.build.floor4 === 2) this.predatorHiveEvolution = true;
+
+            this.ergCentralBaseActive = this.countErgFloors() >= 2;
+        }
+
         if (this.bonusSpeedPct > 0) {
             this.speed *= (1 + this.bonusSpeedPct);
             this.originalSpeed = this.speed;
         }
+    }
+
+    getCoinDamageMultiplier(): number {
+        if (this.build.buildingColor !== 'coin') return 1.0;
+        let mult = 1 + this.coinDamageBonusPct - this.coinDamagePenaltyPct;
+        const hpPct = this.maxHp > 0 ? this.hp / this.maxHp : 1;
+        if (this.coinLowHpPower && hpPct < 0.35) mult *= 1.30;
+        if (this.coinHighHpSafety && hpPct > 0.70) mult *= 0.88;
+        if (this.skills.r.isActive) {
+            if (this.upgradeFlags.r_cara_viciada) mult *= 1.45;
+            else if (this.upgradeFlags.r_coroa_quebrada) mult *= 0.75;
+            else if (this.coinState === 'cara') mult *= 1.25;
+            else if (this.coinState === 'coroa') mult *= 0.90;
+        }
+        return Math.max(0.10, mult);
+    }
+
+    getCoinCritDamageDelta(): number {
+        if (this.build.buildingColor !== 'coin') return 0;
+        let delta = this.coinCritDamageBonusPct - this.coinCritDamagePenaltyPct;
+        if (this.skills.r.isActive && this.upgradeFlags.r_cara_viciada) delta += 0.30;
+        return delta;
+    }
+
+    getCoinDefenseMultiplier(): number {
+        if (this.build.buildingColor !== 'coin' || !this.skills.r.isActive) return 1.0;
+        if (this.upgradeFlags.r_cara_viciada) return 0.75;
+        if (this.upgradeFlags.r_coroa_quebrada) return 1.35;
+        if (this.coinState === 'cara') return 0.90;
+        if (this.coinState === 'coroa') return 1.20;
+        return 1.0;
+    }
+
+    getCoinCritChanceBonus(): number {
+        if (this.build.buildingColor !== 'coin' || !this.skills.r.isActive) return 0;
+        if (this.upgradeFlags.r_cara_viciada) return 0.20;
+        if (this.coinState === 'cara') return 0.10;
+        return 0;
+    }
+
+    getCoinLifestealPct(): number {
+        if (this.build.buildingColor !== 'coin') return 0;
+        return this.coinLifestealPct;
+    }
+
+    prepareBasicAttack(): void {
+        if (this.build.buildingColor !== 'coin') return;
+        if (!this.coinAllOrNothing) return;
+        this.coinBasicAttackCounter++;
+        if (this.coinBasicAttackCounter >= 5) {
+            this.coinBasicAttackCounter = 0;
+            this.coinEmpoweredBasicReady = true;
+        }
+    }
+
+    consumeCoinLifesteal(realDamage: number): number {
+        const lifestealPct = this.getCoinLifestealPct();
+        if (lifestealPct <= 0 || realDamage <= 0 || this.isDead) return 0;
+        const now = Date.now();
+        if (now - this.coinLifestealWindowStart >= 1000) {
+            this.coinLifestealWindowStart = now;
+            this.coinLifestealWindowAmount = 0;
+        }
+        const cap = this.maxHp * 0.08;
+        const remaining = Math.max(0, cap - this.coinLifestealWindowAmount);
+        const healAmount = Math.min(remaining, realDamage * lifestealPct);
+        if (healAmount <= 0) return 0;
+        this.coinLifestealWindowAmount += healAmount;
+        this.heal(healAmount);
+        return Math.round(healAmount);
+    }
+
+    consumeCoinCritHeal(): number {
+        if (this.coinCritHealPct <= 0 || this.coinCritHealCooldown > 0 || this.isDead) return 0;
+        this.coinCritHealCooldown = 1000;
+        const healAmount = Math.max(1, this.maxHp * this.coinCritHealPct);
+        this.heal(healAmount);
+        return Math.round(healAmount);
+    }
+
+    consumeCoinAllOrNothingKillHeal(): number {
+        return 0;
+    }
+
+    countErgFloors(): number {
+        if (this.build.buildingColor !== 'predator_hive') return 0;
+        let count = 0;
+        if (this.build.floor1 === 2) count++;
+        if (this.build.floor2 === 2) count++;
+        if ([0, 1, 2].includes(this.build.floor3)) count++;
+        if (this.build.floor4 === 2) count++;
+        return count;
+    }
+
+    getErgBiomassPct(): number {
+        if (this.build.buildingColor !== 'predator_hive' || !this.ergCentralBaseActive) return 0;
+        return Math.min(0.08, this.ergXpDelivered * 0.0001);
+    }
+
+    getErgRegenPctPerSecond(): number {
+        if (this.build.buildingColor !== 'predator_hive' || !this.ergCentralBaseActive) return 0;
+        return Math.min(0.015, this.getErgBiomassPct() * 0.1875);
+    }
+
+    getErgWorkerMaxIntegrity(): number {
+        return this.ergBaseLevel >= 7 ? 6 : 5;
+    }
+
+    getErgWorkerRespawnSeconds(): number {
+        return this.ergBaseLevel >= 5 ? 17 : 20;
+    }
+
+    getPredatorDamageMultiplier(isAbility = false): number {
+        if (this.build.buildingColor !== 'predator_hive') return 1;
+        let mult = 1;
+        if (!isAbility) mult *= (1 + this.getErgBiomassPct());
+        if (this.skills.r.isActive && this.predatorHiveUltMode === 'panther') mult *= 1.08;
+        return mult;
+    }
+
+    getPredatorCritChanceBonus(): number {
+        if (this.build.buildingColor !== 'predator_hive') return 0;
+        return this.getErgBiomassPct();
+    }
+
+    getPredatorDamageReduction(): number {
+        if (this.build.buildingColor !== 'predator_hive') return 0;
+        let reduction = 0;
+        if (this.predatorBastionArmTimer > 0) reduction += 0.25;
+        if (this.predatorHiveUltMode === 'wall' && this.skills.r.isActive) reduction += 0.50;
+        if (this.predatorLivingCarapace) {
+            const marked = this.countNearbyHiveWoundedEnemies();
+            if (marked >= 10) reduction += 0.16;
+            else if (marked >= 6) reduction += 0.16;
+            else if (marked >= 3) reduction += 0.10;
+        }
+        return Math.min(0.75, reduction);
+    }
+
+    countNearbyHiveWoundedEnemies(radius = 18): number {
+        const engine = (global as any).__gameEngine;
+        if (!engine) return 0;
+        let count = 0;
+        for (const enemy of engine.enemies || []) {
+            if (enemy.isDestroyed || !enemy.hasHiveWound?.(this.id)) continue;
+            if (this.position.distanceToXZ(enemy.position) <= radius) {
+                const isBossLike = enemy.maxHp >= 5000 || String(enemy.type || '').toLowerCase().includes('boss');
+                count += isBossLike ? 3 : 1;
+            }
+        }
+        return count;
+    }
+
+    addPredatorKineticEnergy(amount: number, fromBoss = false): void {
+        if (!this.predatorKineticSkin && !this.skills.r.isActive) return;
+        const rate = fromBoss ? 0.10 : (this.skills.r.isActive ? (this.predatorHiveUltMode === 'panther' ? 0.30 : 0.20) : 0.15);
+        const limit = this.maxHp * this.predatorKineticEnergyLimitPct;
+        this.predatorKineticEnergy = Math.min(limit, this.predatorKineticEnergy + Math.max(0, amount * rate));
+        if (this.predatorKineticCounter && this.predatorKineticEnergy >= limit) {
+            this.predatorKineticCounterReady = true;
+        }
+    }
+
+    onErgXpDelivered(multiplier = 1): void {
+        const delivered = Math.max(1, Math.floor(multiplier));
+        this.ergXpDelivered += delivered;
+        this.ergBaseStacks += delivered;
+        const engine = (global as any).__gameEngine;
+        while (this.ergBaseLevel < 10 && this.ergBaseStacks >= 50) {
+            this.ergBaseStacks -= 50;
+            this.ergBaseLevel++;
+            if (engine?.pendingEvents) {
+                engine.pendingEvents.push({
+                    event: 'MESSAGE',
+                    data: { message: `A Colmeia evoluiu para o nivel ${this.ergBaseLevel}!` }
+                });
+            }
+        }
+        if (this.ergBaseLevel >= 10) this.ergBaseStacks = Math.min(this.ergBaseStacks, 50);
+        for (let i = 0; i < delivered; i++) this.collectOrb();
+    }
+
+    private setCoinUltHpMultiplier(multiplier: number): void {
+        if (this.coinUltHpMultiplier !== 1.0) {
+            this.maxHp = this.maxHp / this.coinUltHpMultiplier;
+            if (this.hp > this.maxHp) this.hp = this.maxHp;
+            this.coinUltHpMultiplier = 1.0;
+        }
+        if (multiplier !== 1.0) {
+            this.maxHp = this.maxHp * multiplier;
+            if (multiplier > 1.0) this.hp += this.maxHp - (this.maxHp / multiplier);
+            if (this.hp > this.maxHp) this.hp = this.maxHp;
+            this.coinUltHpMultiplier = multiplier;
+        }
+    }
+
+    private setCoinState(state: 'cara' | 'coroa'): void {
+        this.coinState = state;
+        this.coinStateTimer = this.coinStateInterval;
+        this.coinStateElapsed = 0;
+    }
+
+    private rollCoinState(): void {
+        this.setCoinState(Math.random() < 0.5 ? 'cara' : 'coroa');
+    }
+
+    private updateCoinUltimate(ms: number): void {
+        if (this.build.buildingColor !== 'coin' || !this.skills.r.isActive || !this.coinState) return;
+        this.coinStateTimer = Math.max(0, this.coinStateTimer - ms);
+        this.coinStateElapsed += ms;
+        if (this.coinStateElapsed < this.coinStateInterval) return;
+        this.coinStateElapsed = 0;
+
+        if (this.upgradeFlags.r_coringa_absoluto) {
+            this.rollCoinState();
+            this.pendingZones.push({
+                type: 'coin_burst',
+                x: this.position.x,
+                z: this.position.z,
+                radius: 5,
+                damage: this.getDamage(true, true) * 0.8,
+                extras: { sourceId: this.id, burst: true }
+            });
+        } else if (!this.upgradeFlags.r_cara_viciada && !this.upgradeFlags.r_coroa_quebrada) {
+            this.setCoinState(this.coinState === 'cara' ? 'coroa' : 'cara');
+        }
+    }
+
+    private clearCoinUltimate(): void {
+        this.setCoinUltHpMultiplier(1.0);
+        this.coinState = null;
+        this.coinStateTimer = 0;
+        this.coinStateElapsed = 0;
     }
 
     getDamage(isAbility = false, ignoreCrit = false): number {
@@ -332,7 +728,7 @@ export class ServerPlayer {
         const dmgMult = pConf.levelDamageMultiplier !== undefined ? pConf.levelDamageMultiplier : (CONFIG.PLAYER as any).LEVEL_DAMAGE_MULTIPLIER || 2.0;
         let base = dmgBase * (this.level * dmgMult);
         if (this.activeBuff.type === 'guerreiro') base *= 1.70;
-        if (this.skills.r.isActive) base *= sr.damageMultiplier || 4.0;
+        if (this.skills.r.isActive && this.build.buildingColor !== 'coin') base *= sr.damageMultiplier || 4.0;
         if (this.tempBuff.type === 'damage') base *= this.tempBuff.magnitude;
         const rainhaBuff = this.timedBuffs.find(b => b.type === 'rainha_buff');
         if (rainhaBuff && isAbility) base *= rainhaBuff.effects.ability_damage;
@@ -355,12 +751,36 @@ export class ServerPlayer {
         if (this.bonusDamagePct > 0) base *= (1 + this.bonusDamagePct);
         if (this.superDamageSlowAttack) base *= 1.70;
         if (this.doubleDamageSuperLowHp && (this.hp / this.maxHp) < 0.20) base *= 2.0;
+        if (this.build.buildingColor === 'coin') {
+            base *= this.getCoinDamageMultiplier();
+            if (!isAbility && !ignoreCrit && this.coinEmpoweredBasicReady) {
+                base *= 1.80;
+                this.coinEmpoweredBasicReady = false;
+                this.hp = Math.max(1, this.hp - Math.max(1, this.hp * 0.03));
+            }
+        }
+        if (this.build.buildingColor === 'predator_hive') {
+            base *= this.getPredatorDamageMultiplier(isAbility);
+            if (!isAbility && !ignoreCrit && this.predatorKineticCounterReady) {
+                base *= 2.60;
+                this.predatorKineticCounterReady = false;
+                this.predatorKineticEnergy = 0;
+                this.pendingZones.push({
+                    type: 'predator_kinetic_counter',
+                    x: this.position.x,
+                    z: this.position.z,
+                    radius: 5,
+                    damage: base,
+                    extras: { sourceId: this.id, hiveBonus: true }
+                });
+            }
+        }
         
         // Critical hits
         if (!ignoreCrit) {
             const baseCritChance = pConf.critChance !== undefined ? pConf.critChance : (CONFIG.PLAYER as any).CRIT_CHANCE || 0.05;
-            const critDmgMult = pConf.critDamageMultiplier !== undefined ? pConf.critDamageMultiplier : (CONFIG.PLAYER as any).CRIT_DAMAGE_MULTIPLIER || 2.0;
-            const totalCritChance = baseCritChance + this.bonusCritChance;
+            const critDmgMult = Math.max(1.0, (pConf.critDamageMultiplier !== undefined ? pConf.critDamageMultiplier : (CONFIG.PLAYER as any).CRIT_DAMAGE_MULTIPLIER || 2.0) + this.getCoinCritDamageDelta());
+            const totalCritChance = baseCritChance + this.bonusCritChance + this.getCoinCritChanceBonus() + this.getPredatorCritChanceBonus();
             if (Math.random() < totalCritChance) {
                 base *= critDmgMult;
                 this.lastHitWasCrit = true;
@@ -406,6 +826,16 @@ export class ServerPlayer {
         // --- Essence Towers Modifiers ---
         if (this.build.buildingColor === 'red' && this.build.floor1 === 1) cd /= 1.10; // +10% attack speed
         if (this.build.buildingColor === 'poison' && this.build.floor1 === 0) cd /= 1.20; // +20% attack speed
+        if (this.build.buildingColor === 'coin') {
+            if (this.build.floor2 === 1) cd *= 1.10;
+            if (this.build.floor2 === 2) cd /= 1.20;
+            if (this.skills.r.isActive && this.upgradeFlags.r_coroa_quebrada) cd *= 1.15;
+        }
+        if (this.build.buildingColor === 'predator_hive') {
+            if (this.build.floor1 === 0) cd /= 1.08;
+            cd /= (1 + this.getErgBiomassPct());
+            if (this.skills.r.isActive && this.predatorHiveUltMode === 'panther') cd /= 1.25;
+        }
         if (this.superDamageSlowAttack) cd *= 1.43; // -30% attack speed (cd increase)
         if (this.loadoutItems.includes('vento_cubico')) cd /= (1 + 0.05 * this.itemMultiplier);
         if (this.statusManager.hasStatus('haste')) cd /= 1.20;
@@ -460,6 +890,15 @@ export class ServerPlayer {
         if (passesLevesActive) {
             spd *= 1.20; // +20% move speed
         }
+        if (this.build.buildingColor === 'coin' && this.skills.r.isActive) {
+            if (this.upgradeFlags.r_coroa_quebrada) spd *= 1.15;
+            else if (this.coinState === 'coroa') spd *= 1.12;
+        }
+        if (this.build.buildingColor === 'predator_hive') {
+            if (this.predatorMoveBurstTimer > 0) spd *= 1.20;
+            if (this.predatorLivingCarapace && this.countNearbyHiveWoundedEnemies() >= 10) spd *= 1.08;
+            if (this.skills.r.isActive && this.predatorHiveUltMode === 'panther') spd *= 1.35;
+        }
         if (this.statusEffects.slowed.isActive) spd *= (1 - this.statusEffects.slowed.amount);
         if (this.statusManager.hasStatus('haste')) spd *= 1.20;
         if (this.statusManager.hasStatus('exhaust')) spd *= 0.75;
@@ -469,6 +908,7 @@ export class ServerPlayer {
         if (pb) spd *= pb.effects.move_speed;
         const cb = this.timedBuffs.find(b => b.type === 'cao_dos_infernos_buff');
         if (cb) spd *= cb.effects.move_speed;
+        if (this.build.buildingColor === 'coin') spd = Math.max(this.originalSpeed * 0.50, spd);
         return spd;
     }
 
@@ -517,10 +957,57 @@ export class ServerPlayer {
         if (this.cheatDeathCooldown > 0) {
             this.cheatDeathCooldown -= ms;
         }
+        if (this.coinCritHealCooldown > 0) this.coinCritHealCooldown = Math.max(0, this.coinCritHealCooldown - ms);
+        if (this.coinAllOrNothingHealCooldown > 0) this.coinAllOrNothingHealCooldown = Math.max(0, this.coinAllOrNothingHealCooldown - ms);
+        if (this.coinBurstHealCooldown > 0) this.coinBurstHealCooldown = Math.max(0, this.coinBurstHealCooldown - ms);
+        if (this.coinAttackDefenseBuffTimer > 0) this.coinAttackDefenseBuffTimer = Math.max(0, this.coinAttackDefenseBuffTimer - ms);
+        if (this.coinArmorSpeedBuffTimer > 0) this.coinArmorSpeedBuffTimer = Math.max(0, this.coinArmorSpeedBuffTimer - ms);
+        if (this.coinSafetySpeedBuffTimer > 0) this.coinSafetySpeedBuffTimer = Math.max(0, this.coinSafetySpeedBuffTimer - ms);
+        if (this.coinSafetySpeedCooldown > 0) this.coinSafetySpeedCooldown = Math.max(0, this.coinSafetySpeedCooldown - ms);
+        if (this.coinSafetyShieldCooldown > 0) this.coinSafetyShieldCooldown = Math.max(0, this.coinSafetyShieldCooldown - ms);
+        if (this.coinAfterShieldPenaltyTimer > 0) this.coinAfterShieldPenaltyTimer = Math.max(0, this.coinAfterShieldPenaltyTimer - ms);
+        if (this.coinSafetyShieldTimer > 0) {
+            this.coinSafetyShieldTimer = Math.max(0, this.coinSafetyShieldTimer - ms);
+            if (this.coinSafetyShieldTimer <= 0 && this.coinSafetyShieldHp > 0) {
+                this.coinSafetyShieldHp = 0;
+                this.coinSafetyShieldMaxHp = 0;
+                this.coinAfterShieldPenaltyTimer = 4000;
+            }
+        }
+        if (this.predatorMoveBurstTimer > 0) this.predatorMoveBurstTimer = Math.max(0, this.predatorMoveBurstTimer - ms);
+        if (this.predatorMoveBurstCooldown > 0) this.predatorMoveBurstCooldown = Math.max(0, this.predatorMoveBurstCooldown - ms);
+        if (this.predatorBastionArmTimer > 0) this.predatorBastionArmTimer = Math.max(0, this.predatorBastionArmTimer - ms);
+        if (this.predatorParryReadyTimer > 0) this.predatorParryReadyTimer = Math.max(0, this.predatorParryReadyTimer - ms);
+        if (this.predatorParryCooldown > 0) this.predatorParryCooldown = Math.max(0, this.predatorParryCooldown - ms);
+        if (this.predatorErgAttackWindow > 0) this.predatorErgAttackWindow = Math.max(0, this.predatorErgAttackWindow - ms);
+        if (this.predatorErgPulseCooldown > 0) this.predatorErgPulseCooldown = Math.max(0, this.predatorErgPulseCooldown - ms);
+        if (this.predatorRegenCooldown > 0) this.predatorRegenCooldown = Math.max(0, this.predatorRegenCooldown - ms);
+        if (this.predatorWallCooldown > 0) this.predatorWallCooldown = Math.max(0, this.predatorWallCooldown - ms);
+        if (this.ergWorkerBoostTimer > 0) this.ergWorkerBoostTimer = Math.max(0, this.ergWorkerBoostTimer - ms);
+        if (this.ergBaseSlimeCooldown > 0) this.ergBaseSlimeCooldown = Math.max(0, this.ergBaseSlimeCooldown - dt);
+        if (this.ergBasePulseTimer > 0) this.ergBasePulseTimer = Math.max(0, this.ergBasePulseTimer - ms);
+        if (this.predatorHiveUltTick > 0) this.predatorHiveUltTick = Math.max(0, this.predatorHiveUltTick - ms);
+        if (this.predatorHiveUltMode && this.skills.r.isActive && this.predatorHiveUltTick <= 0) {
+            this.predatorHiveUltTick = 1000;
+            if (this.predatorHiveUltMode === 'wall') {
+                this.pendingZones.push({ type: 'predator_wall_pulse', x: this.position.x, z: this.position.z, radius: 6, damage: this.getDamage(true, true) * 0.6, extras: { sourceId: this.id } });
+                if (this.predatorKineticEnergy > 0) {
+                    const spent = this.predatorKineticEnergy * 0.10;
+                    this.predatorKineticEnergy -= spent;
+                    this.pendingZones.push({ type: 'predator_wall_kinetic_pulse', x: this.position.x, z: this.position.z, radius: 6, damage: this.getDamage(true, true) * 0.4 + spent, extras: { sourceId: this.id } });
+                }
+            }
+        }
 
         // Green F2-1: Regen 1% HP/s
         if (this.regenHpSecondPct > 0) {
             this.heal(this.maxHp * this.regenHpSecondPct * dt);
+        }
+        if (this.build.buildingColor === 'coin' && this.skills.r.isActive && this.upgradeFlags.r_coroa_quebrada) {
+            this.heal(this.maxHp * 0.02 * dt);
+        }
+        if (this.build.buildingColor === 'predator_hive' && this.ergCentralBaseActive && this.ergBaseLevel > 0) {
+            this.heal(this.maxHp * this.getErgRegenPctPerSecond() * dt);
         }
 
         // Green F4-1: Escudo fora de combate
@@ -548,7 +1035,16 @@ export class ServerPlayer {
                 if (engine) {
                     for (const e of engine.enemies) {
                         if (!e.isDestroyed && this.position.distanceToXZ(e.position) < 5.0) {
-                            e.takeDamage(30, this);
+                            e.takeDamage(30, this, false, 0, false, {
+                                sourceType: 'essence_tower',
+                                sourceId: 'purple_toxic_aura',
+                                sourceName: 'Torre Roxa Aura Toxica',
+                                abilityName: 'Aura Toxica',
+                                essenceColor: 'purple',
+                                essenceFloor: 4,
+                                isEssenceTower: true,
+                                isDoT: true,
+                            });
                             // Hit number for toxic damage
                             const isBoss = ['LichKing','TheMightyOne','Gangplank','RainhaDasTrevas',
                                 'PlantaCarnivora','FeiticeiroImortal','SuperBoss','CaoDosInfernos','Farao',
@@ -688,13 +1184,15 @@ export class ServerPlayer {
         }
     }
 
-    applyPathogen(type: string, durationMs = 10000): void {
+    applyPathogen(type: string, durationMs = 10000, options?: { maxStacks?: number; maxTypes?: number }): void {
+        const maxStacks = Math.max(1, options?.maxStacks ?? 2);
+        const maxTypes = Math.max(1, options?.maxTypes ?? 3);
         if (this.pathogens[type]) {
-            this.pathogens[type].stacks = Math.min(2, this.pathogens[type].stacks + 1);
+            this.pathogens[type].stacks = Math.min(maxStacks, this.pathogens[type].stacks + 1);
             this.pathogens[type].timer = durationMs;
         } else {
             const activeCount = Object.keys(this.pathogens).length;
-            if (activeCount >= 3) return; // Discard
+            if (activeCount >= maxTypes) return; // Discard
             this.pathogens[type] = { stacks: 1, timer: durationMs };
         }
     }
@@ -764,9 +1262,55 @@ export class ServerPlayer {
         }
         if (this.skills.r.isActive) {
             this.skills.r.timer -= ms;
+            this.updateCoinUltimate(ms);
             if (this.skills.r.timer <= 0) {
                 this.skills.r.isActive = false;
                 this.r_raio_peste_timer = 0;
+                this.clearCoinUltimate();
+                if (this.build.buildingColor === 'predator_hive' && this.predatorHiveUltMode) {
+                    if (this.predatorHiveUltMode === 'panther') {
+                        this.pendingZones.push({
+                            type: 'predator_panther_final',
+                            x: this.position.x,
+                            z: this.position.z,
+                            radius: 8,
+                            damage: this.getDamage(true, true) * 2.0 + this.predatorKineticEnergy,
+                            extras: { sourceId: this.id, consumeKinetic: true }
+                        });
+                        this.predatorKineticEnergy = 0;
+                    } else if (this.predatorHiveUltMode === 'wall') {
+                        this.heal(this.maxHp * 0.12);
+                        const engine = (global as any).__gameEngine;
+                        if (engine) {
+                            for (const ally of engine.players.values()) {
+                                if (!ally.isDead && ally.id !== this.id && this.position.distanceToXZ(ally.position) <= 8) {
+                                    ally.heal(ally.maxHp * 0.06);
+                                }
+                            }
+                        }
+                    } else if (this.predatorHiveUltMode === 'ascension') {
+                        this.pendingZones.push({
+                            type: 'erg_final_detonation',
+                            x: this.position.x,
+                            z: this.position.z,
+                            radius: 18,
+                            damage: this.getDamage(true, true) * 0.40,
+                            extras: { sourceId: this.id, detonateHiveWounds: true }
+                        });
+                    } else {
+                        this.pendingZones.push({
+                            type: 'predator_domain_burst',
+                            x: this.position.x,
+                            z: this.position.z,
+                            radius: 7,
+                            damage: this.getDamage(true, true) * 1.70,
+                            extras: { sourceId: this.id, scaleByHiveWounds: true }
+                        });
+                    }
+                    this.predatorHiveUltMode = null;
+                    this.predatorHiveUltAscensionActive = false;
+                    this.ergWorkerBoostTimer = 0;
+                }
                 // R upgrade: Singularidade do Colapso — explosão final
                 if (this.upgradeFlags.r_storedExplosion && this.ultDamageStored > 0) {
                     this.pendingZones.push({
@@ -797,7 +1341,7 @@ export class ServerPlayer {
             return;
         }
 
-        if (this.skills.r.isActive && !fromProjectile) {
+        if (this.skills.r.isActive && !fromProjectile && this.build.buildingColor !== 'coin') {
             // R upgrade: Singularidade — armazenar dano evitado
             if (this.upgradeFlags.r_storedExplosion) this.ultDamageStored += amount;
             return;
@@ -824,6 +1368,8 @@ export class ServerPlayer {
             if (this.defenseBuffHighHp && (this.hp / this.maxHp) > 0.80) {
                 defenseTotal *= 1.30;
             }
+            if (this.coinAttackDefenseBuffTimer > 0) defenseTotal *= 1.10;
+            defenseTotal *= this.getCoinDefenseMultiplier();
             defenseTotal = Math.max(0, Math.min(500, defenseTotal)); // Hard Cap is 500
             const fatorReducao = defenseTotal / (defenseTotal + 750);
             fd = fd * (1 - fatorReducao);
@@ -848,6 +1394,37 @@ export class ServerPlayer {
             const f = this.statusEffects.armorFracture; 
             if (f.isActive) fd *= (1 + f.amount); 
         }
+        if (!isTrueDamage && this.build.buildingColor === 'coin') {
+            const hpPct = this.maxHp > 0 ? this.hp / this.maxHp : 1;
+            if (this.coinLowHpPower && hpPct < 0.35) fd *= 1.12;
+            if (this.coinHighHpSafety && hpPct > 0.70) fd *= 0.82;
+        }
+        if (!isTrueDamage && this.build.buildingColor === 'predator_hive') {
+            const reduction = this.getPredatorDamageReduction();
+            if (reduction > 0) fd *= (1 - reduction);
+            if (this.build.floor2 === 1 && this.predatorParryCooldown <= 0) {
+                const blocked = fd * 0.45;
+                fd *= 0.55;
+                this.predatorParryCooldown = 8000;
+                if (instigator && instigator.position && this.position.distanceToXZ(instigator.position) <= 7) {
+                    const isBossLike = instigator.maxHp >= 5000 || String(instigator.type || '').toLowerCase().includes('boss');
+                    let reflected = blocked * (isBossLike ? 0.35 : 0.80);
+                    if (this.predatorKineticEnergy > 0) {
+                        const spent = this.predatorKineticEnergy * 0.25;
+                        this.predatorKineticEnergy -= spent;
+                        reflected *= 1.30;
+                    }
+                    if (typeof instigator.takeDamage === 'function') {
+                        instigator.takeDamage(reflected, this, false, 0, false, {
+                            sourceName: 'Aparar Geometrico',
+                            sourceType: 'essence_tower',
+                            essenceColor: 'predator_hive',
+                            isEssenceTower: true
+                        });
+                    }
+                }
+            }
+        }
 
         // Placa do Provocador: Reduz dano de inimigos com Taunt
         if (instigator && instigator.statusManager && instigator.statusManager.hasStatus('taunt')) {
@@ -858,6 +1435,10 @@ export class ServerPlayer {
 
         const hpBeforeDamage = this.hp;
         const finalDamage = Math.round(fd);
+        if (this.build.buildingColor === 'predator_hive' && finalDamage > 0) {
+            const isBossLike = instigator && (instigator.maxHp >= 5000 || String(instigator.type || '').toLowerCase().includes('boss'));
+            this.addPredatorKineticEnergy(finalDamage, Boolean(isBossLike));
+        }
         this.lastDamageTaken = finalDamage;
 
         // O Olho Aterrorizante: Se hit > 15% Max HP, Fear & Mark atacante
@@ -912,7 +1493,17 @@ export class ServerPlayer {
                 if (closest && closestDist < 8.0) {
                     const thornsDmg = Math.round(finalDamage * totalThornsPct);
                     if (thornsDmg > 0) {
-                        closest.takeDamage(thornsDmg, this);
+                        closest.takeDamage(thornsDmg, this, false, 0, false, {
+                            sourceType: this.loadoutItems.includes('casco_toxico') ? 'item' : 'essence_tower',
+                            sourceId: this.loadoutItems.includes('casco_toxico') ? 'casco_toxico' : 'green_thorns',
+                            sourceName: this.loadoutItems.includes('casco_toxico') ? 'Casco Toxico' : 'Torre Verde Espinhos',
+                            abilityName: 'Espinhos',
+                            itemId: this.loadoutItems.includes('casco_toxico') ? 'casco_toxico' : undefined,
+                            essenceColor: 'green',
+                            essenceFloor: 2,
+                            isItem: this.loadoutItems.includes('casco_toxico'),
+                            isEssenceTower: !this.loadoutItems.includes('casco_toxico'),
+                        });
                         const isBoss = ['LichKing','TheMightyOne','Gangplank','RainhaDasTrevas',
                             'PlantaCarnivora','FeiticeiroImortal','SuperBoss','CaoDosInfernos','Farao',
                             'GuardiãoDoLimbo','Minos','Cerbero','Plutão','Fúria','Megera','Minotauro',
@@ -940,9 +1531,22 @@ export class ServerPlayer {
         }
 
         const e = this.skills.e;
-        if (e.isActive && e.shieldHp > 0) {
+        let remainingDamage = finalDamage;
+        if (this.coinSafetyShieldHp > 0) {
+            const dsCoin = Math.min(remainingDamage, this.coinSafetyShieldHp);
+            this.coinSafetyShieldHp -= dsCoin;
+            remainingDamage -= dsCoin;
+            if (this.coinSafetyShieldHp <= 0) {
+                this.coinSafetyShieldHp = 0;
+                this.coinSafetyShieldMaxHp = 0;
+                this.coinSafetyShieldTimer = 0;
+                this.coinAfterShieldPenaltyTimer = 4000;
+            }
+        }
+
+        if (e.isActive && e.shieldHp > 0 && remainingDamage > 0) {
             const wasShieldActive = e.shieldHp > 0;
-            const ds = Math.min(finalDamage, e.shieldHp); 
+            const ds = Math.min(remainingDamage, e.shieldHp); 
             e.shieldHp -= ds; 
             e.damageAbsorbed += ds;
 
@@ -985,10 +1589,10 @@ export class ServerPlayer {
                 }
             }
 
-            const rem = finalDamage - ds; 
+            const rem = remainingDamage - ds; 
             if (rem > 0) this.hp -= rem;
         } else {
-            this.hp -= finalDamage;
+            if (remainingDamage > 0) this.hp -= remainingDamage;
         }
 
         const engine = (global as any).__gameEngine;
@@ -1127,7 +1731,7 @@ export class ServerPlayer {
         this.hp = Math.min(this.maxHp, this.hp + healAmount);
     }
     die(): void { this.isDead = true; }
-    addXp(amount: number): void { this.xp += amount; while (this.xp >= this.xpToNextLevel) this.levelUp(); }
+    addXp(amount: number): void { this.xp += Math.max(0, amount * this.coinXpMultiplier); while (this.xp >= this.xpToNextLevel) this.levelUp(); }
 
     levelUp(): void {
         const pConf = getGameData().player || CONFIG.PLAYER as any;
@@ -1186,6 +1790,28 @@ export class ServerPlayer {
                 });
             }
         }
+        if (this.build.buildingColor === 'predator_hive') {
+            if (this.build.floor1 === 0 && this.predatorMoveBurstCooldown <= 0) {
+                this.predatorMoveBurstTimer = 2000;
+                this.predatorMoveBurstCooldown = 6000;
+            }
+            if (this.skills.r.isActive && this.predatorHiveUltMode === 'panther') {
+                const dir = this.getFacingDirection();
+                for (let i = 0; i < 5; i++) {
+                    const offset = (i - 2) * 0.6;
+                    const px = this.position.x - dir.x * (1.0 + i * 0.35) + Math.cos(this.rotationY + Math.PI / 2) * offset;
+                    const pz = this.position.z - dir.z * (1.0 + i * 0.35) + Math.sin(this.rotationY + Math.PI / 2) * offset;
+                    this.pendingZones.push({
+                        type: 'predator_panther_prism',
+                        x: px,
+                        z: pz,
+                        radius: 3,
+                        damage: this.getDamage(true, true) * 0.7,
+                        extras: { sourceId: this.id, delay: 700 }
+                    });
+                }
+            }
+        }
     }
     activateShield(): void {
         const pConf = getGameData().player || CONFIG.PLAYER as any;
@@ -1195,10 +1821,61 @@ export class ServerPlayer {
         const mult = this.upgradeFlags.e_fortress ? 3.0 : (se.shieldMultiplier || 1.5);
         e.maxShieldHp = this.maxHp * mult;
         e.shieldHp = e.maxShieldHp; e.timer = e.duration; e.damageAbsorbed = 0;
+        if (this.build.buildingColor === 'predator_hive' && this.build.floor2 === 0) {
+            this.predatorBastionArmTimer = 4000;
+            this.pendingZones.push({ type: 'predator_bastion_guard', x: this.position.x, z: this.position.z, radius: 5, damage: 0, extras: { sourceId: this.id, duration: 4000 } });
+        }
     }
     activateUltimate(): void {
         const r = this.skills.r; r.isActive = true;
         r.timer = r.duration;
+        if (this.build.buildingColor === 'coin') {
+            this.clearCoinUltimate();
+            this.coinStateInterval = 2000;
+            if (this.upgradeFlags.r_cara_viciada) {
+                r.timer = 10000;
+                this.coinState = 'Cara Viciada';
+                this.coinStateTimer = r.timer;
+                this.setCoinUltHpMultiplier(0.85);
+            } else if (this.upgradeFlags.r_coroa_quebrada) {
+                r.timer = 10000;
+                this.coinState = 'Coroa Quebrada';
+                this.coinStateTimer = r.timer;
+                this.setCoinUltHpMultiplier(1.25);
+            } else if (this.upgradeFlags.r_coringa_absoluto) {
+                r.timer = 12000;
+                this.rollCoinState();
+            } else {
+                r.timer = 8000;
+                this.setCoinState('cara');
+            }
+        }
+        if (this.build.buildingColor === 'predator_hive') {
+            this.predatorHiveUltMode = this.upgradeFlags.r_pantera_cinetica ? 'panther'
+                : this.upgradeFlags.r_guardiao_muralha_viva ? 'wall'
+                : this.upgradeFlags.r_ascensao_colmeia_erg ? 'ascension'
+                : 'basic';
+            this.predatorHiveUltAscensionActive = this.predatorHiveUltMode === 'ascension';
+            this.predatorHiveUltTick = 1000;
+            if (this.predatorHiveUltMode === 'panther') {
+                r.timer = 12000;
+            } else if (this.predatorHiveUltMode === 'wall') {
+                r.timer = 9000;
+                this.pendingZones.push({ type: 'predator_living_wall', x: this.position.x, z: this.position.z, radius: 6, damage: 0, extras: { sourceId: this.id, duration: 9000 } });
+            } else if (this.predatorHiveUltMode === 'ascension') {
+                r.timer = 11000;
+                this.ergWorkerBoostTimer = 11000;
+                this.pendingZones.push({ type: 'erg_hive_ascension', x: this.position.x, z: this.position.z, radius: 10, damage: 0, extras: { sourceId: this.id, applyHiveWound: true } });
+            } else {
+                r.timer = 10000;
+                const e = this.skills.e;
+                e.isActive = true;
+                e.maxShieldHp = Math.max(e.maxShieldHp, this.maxHp * 0.45);
+                e.shieldHp = Math.max(e.shieldHp, this.maxHp * 0.45);
+                e.timer = Math.max(e.timer, r.timer);
+                this.pendingZones.push({ type: 'predator_domain', x: this.position.x, z: this.position.z, radius: 7, damage: 0, extras: { sourceId: this.id, duration: 10000 } });
+            }
+        }
         if (this.upgradeFlags.r_storedExplosion) this.ultDamageStored = 0;
         if (this.upgradeFlags.r_raio_peste) {
             this.r_raio_peste_timer = 8000;
@@ -1310,8 +1987,9 @@ export class ServerPlayer {
             id: this.id, name: this.name, x: this.position.x,
             y: this.jumpTimer > 0 ? (0.5 + Math.sin(((800 - this.jumpTimer) / 800) * Math.PI) * 2.0) : 0.5,
             z: this.position.z, rotY: this.rotationY,
-            hp: this.hp, maxHp: this.maxHp, xp: this.xp, xpNext: this.xpToNextLevel, level: this.level, score: this.score,
-            shieldHp: this.skills.e.shieldHp, shieldMaxHp: this.skills.e.maxShieldHp,
+            hp: this.hp, maxHp: this.maxHp, hitboxRadius: this.hitboxRadius, xp: this.xp, xpNext: this.xpToNextLevel, level: this.level, score: this.score,
+            shieldHp: this.skills.e.shieldHp + this.coinSafetyShieldHp,
+            shieldMaxHp: this.skills.e.maxShieldHp + this.coinSafetyShieldMaxHp,
             skillCooldowns: {
                 q: Math.max(0, this.skills.q.lastUsed + this.getEffectiveSkillCooldown('q') - now),
                 w: Math.max(0, this.skills.w.lastUsed + this.getEffectiveSkillCooldown('w') - now),
@@ -1345,22 +2023,33 @@ export class ServerPlayer {
                 return pMap;
             })(),
             isDead: this.isDead,
+            isAttacking: this.isAttacking || undefined,
             isDashing: this.skills.q.isDashing,
             isUltActive: this.skills.r.isActive,
-            isShieldActive: this.skills.e.isActive,
+            isShieldActive: this.skills.e.isActive || this.coinSafetyShieldHp > 0,
             passiveLevel: this.skillLevels.passive, color: this.color,
             skillUpgrades: this.selectedUpgrades as any,
             isSelectingUpgrade: this.isSelectingUpgrade || undefined,
             build: this.build,
             damage: Math.round(this.getDamage(false, true)),
-            defense: Math.round((() => { let def = this.defense || 0; if (this.defenseBuffHighHp && (this.hp / this.maxHp) > 0.80) { def *= 1.30; } return def; })()),
-            critChance: (() => { const pConf = getGameData().player || CONFIG.PLAYER as any; const baseCritChance = pConf.critChance !== undefined ? pConf.critChance : (CONFIG.PLAYER as any).CRIT_CHANCE || 0.05; return baseCritChance + this.bonusCritChance; })(),
-            critDamageMultiplier: (() => { const pConf = getGameData().player || CONFIG.PLAYER as any; return pConf.critDamageMultiplier !== undefined ? pConf.critDamageMultiplier : (CONFIG.PLAYER as any).CRIT_DAMAGE_MULTIPLIER || 2.0; })(),
+            defense: Math.round((() => { let def = this.defense || 0; if (this.defenseBuffHighHp && (this.hp / this.maxHp) > 0.80) { def *= 1.30; } def *= this.getCoinDefenseMultiplier(); return def; })()),
+            critChance: (() => { const pConf = getGameData().player || CONFIG.PLAYER as any; const baseCritChance = pConf.critChance !== undefined ? pConf.critChance : (CONFIG.PLAYER as any).CRIT_CHANCE || 0.05; return baseCritChance + this.bonusCritChance + this.getCoinCritChanceBonus(); })(),
+            critDamageMultiplier: (() => { const pConf = getGameData().player || CONFIG.PLAYER as any; return Math.max(1.0, (pConf.critDamageMultiplier !== undefined ? pConf.critDamageMultiplier : (CONFIG.PLAYER as any).CRIT_DAMAGE_MULTIPLIER || 2.0) + this.getCoinCritDamageDelta()); })(),
             speed: this.getEffectiveSpeed(),
             attackSpeed: Number((1000 / this.getEffectiveAttackCooldown()).toFixed(2)),
             loadoutItems: this.loadoutItems,
             loadoutLevel: this.loadoutLevel,
-            itemMultiplier: this.itemMultiplier
+            itemMultiplier: this.itemMultiplier,
+            coinState: this.coinState || undefined,
+            coinStateTimer: this.coinState ? Math.max(0, this.coinStateTimer || this.skills.r.timer) : undefined,
+            ergCentralBaseActive: this.ergCentralBaseActive || undefined,
+            ergBiomassPct: this.build.buildingColor === 'predator_hive' ? this.getErgBiomassPct() : undefined,
+            ergXpDelivered: this.build.buildingColor === 'predator_hive' ? this.ergXpDelivered : undefined,
+            ergBaseLevel: this.build.buildingColor === 'predator_hive' ? this.ergBaseLevel : undefined,
+            ergBaseStacks: this.build.buildingColor === 'predator_hive' ? this.ergBaseStacks : undefined,
+            ergActiveWorkers: this.build.buildingColor === 'predator_hive' ? this.ergActiveWorkers : undefined,
+            ergWorkerIntegrities: this.build.buildingColor === 'predator_hive' ? this.ergWorkerIntegrities : undefined,
+            ergBaseSlimeEnabled: this.build.buildingColor === 'predator_hive' ? this.ergCentralBaseActive && this.ergBaseLevel >= 2 : undefined
         };
     }
 
@@ -1520,6 +2209,18 @@ export class ServerPlayer {
         const igniteDmg = Math.round(playerDmg * 0.10);
         const acidDmg = Math.round(playerDmg * 0.12);
         const plagueDmg = Math.round(playerDmg * 0.15);
+        const itemMeta = (item: any, statusId?: string) => ({
+            sourceType: 'item' as const,
+            sourceId: item.id,
+            sourceName: item.name || item.id,
+            abilityName: statusId || item.name || item.id,
+            itemId: item.id,
+            itemName: item.name || item.id,
+            statusId,
+            isItem: true,
+            isStatus: Boolean(statusId),
+            isDoT: Boolean(statusId),
+        });
         
         for (const itemId of this.loadoutItems) {
             const item = ItemDatabase[itemId];
@@ -1527,11 +2228,11 @@ export class ServerPlayer {
 
             const roll = Math.random();
 
-            if (item.id === 'prisma_faiscas' && roll < 0.05 * multiplier) enemy.statusManager.applyStatus('ignite', 3000, igniteDmg, this);
-            if (item.id === 'cubo_toxico' && roll < 0.05 * multiplier) enemy.statusManager.applyStatus('poison', 5000, 0, this);
-            if (item.id === 'lamina_triangular' && roll < 0.05 * multiplier) enemy.statusManager.applyStatus('bleed', 5000, bleedDmg, this);
-            if (item.id === 'cilindro_corrosivo' && roll < 0.03 * multiplier) enemy.statusManager.applyStatus('acid', 4000, acidDmg, this);
-            if (item.id === 'orbe_enfermo' && roll < 0.02 * multiplier) enemy.statusManager.applyStatus('plague', 6000, plagueDmg, this);
+            if (item.id === 'prisma_faiscas' && roll < 0.05 * multiplier) enemy.statusManager.applyStatus('ignite', 3000, igniteDmg, this, itemMeta(item, 'ignite'));
+            if (item.id === 'cubo_toxico' && roll < 0.05 * multiplier) enemy.statusManager.applyStatus('poison', 5000, 0, this, itemMeta(item, 'poison'));
+            if (item.id === 'lamina_triangular' && roll < 0.05 * multiplier) enemy.statusManager.applyStatus('bleed', 5000, bleedDmg, this, itemMeta(item, 'bleed'));
+            if (item.id === 'cilindro_corrosivo' && roll < 0.03 * multiplier) enemy.statusManager.applyStatus('acid', 4000, acidDmg, this, itemMeta(item, 'acid'));
+            if (item.id === 'orbe_enfermo' && roll < 0.02 * multiplier) enemy.statusManager.applyStatus('plague', 6000, plagueDmg, this, itemMeta(item, 'plague'));
             if (item.id === 'icosaedro_gelido' && roll < 0.01 * multiplier) enemy.statusManager.applyStatus('freeze', 1000, 0, this);
             if (item.id === 'bloco_pesado' && roll < 0.02 * multiplier) enemy.statusManager.applyStatus('stun', 1500, 0, this);
             if (item.id === 'raizes_poligonais' && roll < 0.05 * multiplier) enemy.statusManager.applyStatus('root', 2000, 0, this);
@@ -1549,10 +2250,10 @@ export class ServerPlayer {
             // Legendaries & Epics
             if (item.id === 'prisma_calamidade') {
                 const calDmg = Math.round(playerDmg * 0.10);
-                enemy.statusManager.applyStatus('poison', 5000, 0, this);
-                enemy.statusManager.applyStatus('acid', 4000, calDmg, this);
-                enemy.statusManager.applyStatus('ignite', 3000, calDmg, this);
-                enemy.statusManager.applyStatus('plague', 6000, calDmg, this);
+                enemy.statusManager.applyStatus('poison', 5000, 0, this, itemMeta(item, 'poison'));
+                enemy.statusManager.applyStatus('acid', 4000, calDmg, this, itemMeta(item, 'acid'));
+                enemy.statusManager.applyStatus('ignite', 3000, calDmg, this, itemMeta(item, 'ignite'));
+                enemy.statusManager.applyStatus('plague', 6000, calDmg, this, itemMeta(item, 'plague'));
             }
             if (item.id === 'coroa_gelida') {
                 // AoE freeze will be handled in GameEngine, but the Lifesteal effect is here:

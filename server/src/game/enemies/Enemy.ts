@@ -4,6 +4,8 @@ import { EnemySnapshot } from '../../network/Protocol';
 import { ServerPlayer } from '../Player';
 import { EnemyRegistry } from '../../data/EnemyRegistry';
 import { StatusManager } from '../status/StatusManager';
+import { ItemDatabase } from '../../data/ItemDatabase';
+import { PlayerDamageMeta, buildSignature, getDamageTargetCategory } from '../PlayerDamageTracker';
 
 /**
  * Base Enemy class - mirrors client Enemy with all status/knockback mechanics
@@ -38,6 +40,7 @@ export class ServerEnemy {
     public baseXp: number = 0;
     public baseScore: number = 0;
     public lastThreatSignature: string = '';
+    public hiveWounds: Map<string, { instigator: ServerPlayer; stacks: number; timer: number; lastTick: number }> = new Map();
     protected _defense: number = 0;
     protected _hasDefenseOverride: boolean = false;
 
@@ -151,9 +154,10 @@ export class ServerEnemy {
         this.statusManager.applyStatus('stunned', duration);
     }
 
-    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true, hpPercent = 0, isTrueDamage = false): void {
+    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true, hpPercent = 0, isTrueDamage = false, damageMeta?: PlayerDamageMeta): void {
 
         if (this.isDestroyed || this.isInvulnerable) return;
+        const hpBefore = this.hp;
 
         if (instigator) {
             // Incapacidade pathogen check: 10% * stacks chance to fail attack
@@ -170,6 +174,12 @@ export class ServerEnemy {
             if (lamina && amount > 0) { amount += lamina.effects.bonus_damage; this.applySlow(500, 0.5); }
 
             this.lastDamagedBy = instigator;
+        }
+
+        if (instigator?.build?.buildingColor === 'predator_hive' && this.hiveWounds.has(instigator.id)) {
+            const wound = this.hiveWounds.get(instigator.id)!;
+            const damageAmp = instigator.predatorHiveEvolution ? Math.min(0.09, wound.stacks * 0.03) : 0;
+            amount *= (1 + damageAmp);
         }
 
         // Step 1 - Dano Base
@@ -213,7 +223,9 @@ export class ServerEnemy {
         }
 
         const finalDamage = Math.round(fd);
-        this.lastDamageTaken = finalDamage;
+        const appliedDamage = Math.max(0, Math.min(hpBefore, finalDamage));
+        const overkillDamage = Math.max(0, finalDamage - hpBefore);
+        this.lastDamageTaken = appliedDamage;
 
         this.hp -= finalDamage;
         if (this.hp <= 0) {
@@ -224,12 +236,127 @@ export class ServerEnemy {
             }
         }
 
+        if (instigator && appliedDamage > 0) {
+            const engine = (global as any).__gameEngine;
+            const gameTime = Number(engine?.gameTime || 0);
+            const build = instigator.build;
+            const sourceType = damageMeta?.sourceType
+                || (damageMeta?.isStatus ? 'status'
+                    : damageMeta?.isItem ? 'item'
+                    : damageMeta?.isEssenceTower ? 'essence_tower'
+                    : damageMeta?.isSkill ? 'skill'
+                    : damageMeta?.isBasicAttack ? 'basic_attack'
+                    : 'unknown');
+            const sourceName = damageMeta?.sourceName
+                || damageMeta?.itemName
+                || damageMeta?.abilityName
+                || damageMeta?.statusId
+                || (sourceType === 'basic_attack' ? 'Ataque basico' : 'Dano nao classificado');
+            const itemName = damageMeta?.itemName
+                || (damageMeta?.itemId ? ItemDatabase[damageMeta.itemId]?.name : undefined);
+            const skillKey = damageMeta?.skillKey;
+            instigator.playerDamageTracker.record({
+                gameTime,
+                playerId: instigator.id,
+                playerName: instigator.name,
+                playerLevel: instigator.level,
+                targetId: this.id,
+                targetName: this.name || this.type || 'Inimigo',
+                targetType: this.type || 'unknown',
+                targetCategory: getDamageTargetCategory(this.type || ''),
+                targetHpBefore: hpBefore,
+                targetHpAfter: this.hp,
+                rawDamage: amount + (this.maxHp * hpPercent),
+                finalDamage: appliedDamage,
+                overkillDamage,
+                isKill: this.isDestroyed,
+                isCritical: Boolean(damageMeta?.isCritical || instigator.lastHitWasCrit),
+                isDoT: Boolean(damageMeta?.isDoT),
+                isStatus: Boolean(damageMeta?.isStatus || sourceType === 'status'),
+                isItem: Boolean(damageMeta?.isItem || sourceType === 'item'),
+                isEssenceTower: Boolean(damageMeta?.isEssenceTower || sourceType === 'essence_tower'),
+                isSkill: Boolean(damageMeta?.isSkill || sourceType === 'skill'),
+                isBasicAttack: Boolean(damageMeta?.isBasicAttack || sourceType === 'basic_attack'),
+                sourceType,
+                sourceId: damageMeta?.sourceId || damageMeta?.itemId || damageMeta?.statusId || skillKey || sourceName,
+                sourceName,
+                abilityName: damageMeta?.abilityName || sourceName,
+                skillKey,
+                upgradeId: damageMeta?.upgradeId || (skillKey ? instigator.selectedUpgrades?.[skillKey] : undefined),
+                itemId: damageMeta?.itemId,
+                itemName,
+                statusId: damageMeta?.statusId,
+                essenceColor: damageMeta?.essenceColor || build?.buildingColor,
+                essenceFloor1: build?.floor1 ?? 0,
+                essenceFloor2: build?.floor2 ?? 0,
+                essenceFloor3: build?.floor3 ?? 0,
+                essenceFloor4: build?.floor4 ?? 0,
+                essenceFloor5: build?.floor5 ?? 0,
+                buildSignature: buildSignature(build),
+                equippedItems: [...(instigator.loadoutItems || [])],
+            });
+        }
+
         if (instigator && countsForPassive) {
             instigator.processLoadoutOnHit(this);
             instigator.attackHitCounter++;
             if (instigator.attackHitCounter >= 3) {
                 instigator.attackHitCounter = 0;
                 // Passive explosion — handled by GameEngine
+            }
+        }
+    }
+
+    applyHiveWound(instigator: ServerPlayer, duration = 5000, stacks = 1): void {
+        if (!instigator || instigator.build?.buildingColor !== 'predator_hive') return;
+        const existing = this.hiveWounds.get(instigator.id);
+        const maxStacks = instigator.predatorHiveUltAscensionActive ? 5 : 3;
+        const currentStacks = existing?.stacks || 0;
+        this.hiveWounds.set(instigator.id, {
+            instigator,
+            stacks: Math.min(maxStacks, currentStacks + Math.max(1, stacks)),
+            timer: Math.max(duration, existing?.timer || 0),
+            lastTick: existing?.lastTick || 0
+        });
+        this.statusManager.applyStatus('hive_wound', duration, 0, instigator, {
+            sourceName: 'Ferida de Colmeia',
+            sourceType: 'essence_tower',
+            essenceColor: 'predator_hive'
+        } as any);
+    }
+
+    getHiveWoundStacks(playerId?: string): number {
+        if (playerId) return this.hiveWounds.get(playerId)?.stacks || 0;
+        let total = 0;
+        for (const wound of this.hiveWounds.values()) total += wound.stacks;
+        return total;
+    }
+
+    hasHiveWound(playerId?: string): boolean {
+        return this.getHiveWoundStacks(playerId) > 0;
+    }
+
+    updateHiveWounds(dt: number): void {
+        const now = Date.now();
+        for (const [playerId, wound] of [...this.hiveWounds.entries()]) {
+            wound.timer -= dt * 1000;
+            if (wound.timer <= 0 || this.isDestroyed) {
+                this.hiveWounds.delete(playerId);
+                continue;
+            }
+            if (now - wound.lastTick >= 1000) {
+                wound.lastTick = now;
+                const player = wound.instigator;
+                const basePct = player.predatorHiveUltAscensionActive ? 0.13 : 0.14;
+                const bossMult = this.maxHp >= 5000 || this.type.toLowerCase().includes('boss') ? (player.predatorHiveUltAscensionActive ? 0.40 : 0.50) : 1.0;
+                const totalDamage = player.getDamage(true, true) * basePct * wound.stacks * bossMult;
+                this.takeDamage(totalDamage / 5, player, false, 0, false, {
+                    sourceName: 'Ferida de Colmeia',
+                    sourceType: 'essence_tower',
+                    essenceColor: 'predator_hive',
+                    isEssenceTower: true,
+                    isDoT: true
+                } as any);
             }
         }
     }
@@ -332,7 +459,18 @@ export class ServerEnemy {
             // DETONATE!
             const level = instigator ? instigator.level : 1;
             const detonateDmg = (15 + level * 5) * 8;
-            this.takeDamage(detonateDmg, instigator, false);
+            this.takeDamage(detonateDmg, instigator, false, 0, false, {
+                sourceType: 'essence_tower',
+                sourceId: 'poison_contaminacao',
+                sourceName: 'Contaminacao',
+                abilityName: 'Detonacao de Veneno',
+                statusId: 'poison',
+                essenceColor: 'poison',
+                essenceFloor: 4,
+                isEssenceTower: true,
+                isStatus: true,
+                isDoT: false,
+            });
             this.statusManager.removeStatus('poison');
 
             const engine = (global as any).__gameEngine;
@@ -362,7 +500,25 @@ export class ServerEnemy {
             }
         } else {
             // Apply/stack poison (timer resets to 3000ms, adds 1 stack)
-            this.statusManager.applyStatus('poison', 3000, 0, instigator);
+            this.statusManager.applyStatus('poison', 3000, 0, instigator, instigator?.build?.buildingColor === 'poison' ? {
+                sourceType: 'essence_tower',
+                sourceId: 'poison_stack',
+                sourceName: 'Torre de Veneno',
+                abilityName: 'Veneno',
+                statusId: 'poison',
+                essenceColor: 'poison',
+                isEssenceTower: true,
+                isStatus: true,
+                isDoT: true,
+            } : {
+                sourceType: 'status',
+                sourceId: 'poison',
+                sourceName: 'poison',
+                abilityName: 'poison',
+                statusId: 'poison',
+                isStatus: true,
+                isDoT: true,
+            });
         }
     }
 
@@ -426,6 +582,7 @@ export class ServerEnemy {
             rotY: this.rotationY,
             hp: this.hp,
             maxHp: this.maxHp,
+            hitboxRadius: this.hitboxRadius,
             name: this.name,
             isInvulnerable: this.isInvulnerable || undefined,
             sizeMultiplier: (this as any).sizeMultiplier || undefined,

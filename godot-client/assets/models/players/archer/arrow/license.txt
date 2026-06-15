@@ -1,0 +1,11 @@
+Model Information:
+* title:	Arrow
+* source:	https://sketchfab.com/3d-models/arrow-065de37cfc94481f8307a73c8867db86
+* author:	Paradox_studio (https://sketchfab.com/Paradox_studio)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Arrow" (https://sketchfab.com/3d-models/arrow-065de37cfc94481f8307a73c8867db86) by Paradox_studio (https://sketchfab.com/Paradox_studio) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

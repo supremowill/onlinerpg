@@ -1,0 +1,5 @@
+[gd_scene format=3 uid="uid://bc7f8v13yp2bq"]
+
+[ext_resource type="PackedScene" path="res://scenes/entities/BossAvatar.tscn" id="1"]
+
+[node name="guardiao_do_limbo" unique_id=266237146 instance=ExtResource("1")]

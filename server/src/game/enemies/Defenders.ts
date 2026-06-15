@@ -304,9 +304,9 @@ export class FarsanteCarmesimEnemy extends ServerEnemy {
         };
     }
 
-    takeDamage(amount: number, instigator?: ServerPlayer | null, countsForPassive = true, hpPercent = 0, isTrueDamage = false): void {
+    takeDamage(amount: number, instigator?: ServerPlayer | null, countsForPassive = true, hpPercent = 0, isTrueDamage = false, damageMeta?: any): void {
         if (this.stealthTimer > 0 || this.isInvulnerable) return;
-        super.takeDamage(amount, instigator ?? null, countsForPassive, hpPercent, isTrueDamage);
+        super.takeDamage(amount, instigator ?? null, countsForPassive, hpPercent, isTrueDamage, damageMeta);
     }
 
     public applyArcaneMark(playerId: string, durationMs: number): void {
@@ -625,7 +625,7 @@ export class MestraDaIlusaoEnemy extends ServerEnemy {
         this.position.y = 1.0;
     }
 
-    takeDamage(amount: number, instigator?: ServerPlayer | null): void {
+    takeDamage(amount: number, instigator?: ServerPlayer | null, countsForPassive = true, hpPercent = 0, isTrueDamage = false, damageMeta?: any): void {
         const now = Date.now();
         if (now > this.habilidades.h3.lastUsed + this.habilidades.h3.cooldown) {
             this.habilidades.h3.lastUsed = now;
@@ -635,7 +635,7 @@ export class MestraDaIlusaoEnemy extends ServerEnemy {
             return; // completely dodge the damage!
         }
         const finalDamage = amount * (1 - this.damageReduction);
-        super.takeDamage(finalDamage, instigator ?? null);
+        super.takeDamage(finalDamage, instigator ?? null, countsForPassive, hpPercent, isTrueDamage, damageMeta);
     }
 
     update(dt: number, players: ServerPlayer[], gameTime: number): void {
@@ -855,7 +855,7 @@ export class CloneIlusorioEnemy extends ServerEnemy {
         }
     }
 
-    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true): void {
+    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive = true, hpPercent = 0, isTrueDamage = false, damageMeta?: any): void {
         // Only players can damage clones (and trigger disorientation)
         if (instigator) {
             instigator.applyDisorientation(1000);

@@ -7,7 +7,7 @@
 // ============================================================
 
 export interface PlayerBuild {
-    buildingColor: 'red' | 'green' | 'purple' | 'poison';
+    buildingColor: 'red' | 'green' | 'purple' | 'poison' | 'coin' | 'predator_hive';
     floor1: number; // Selected index (0, 1, or 2)
     floor2: number;
     floor3: number;
@@ -119,6 +119,7 @@ export interface PlayerSnapshot {
     rotY: number;
     hp: number;
     maxHp: number;
+    hitboxRadius?: number;
     xp: number;
     xpNext: number;
     level: number;
@@ -134,6 +135,7 @@ export interface PlayerSnapshot {
     buffTimers?: { [key: string]: number };
     pathogens?: { [key: string]: number };
     isDead: boolean;
+    isAttacking?: boolean;
     isDashing: boolean;
     isUltActive: boolean;
     isShieldActive: boolean;
@@ -151,6 +153,16 @@ export interface PlayerSnapshot {
     loadoutLevel?: number;
     itemMultiplier?: number;
     loadoutItems?: string[];
+    coinState?: string;
+    coinStateTimer?: number;
+    ergCentralBaseActive?: boolean;
+    ergBiomassPct?: number;
+    ergXpDelivered?: number;
+    ergBaseLevel?: number;
+    ergBaseStacks?: number;
+    ergActiveWorkers?: number;
+    ergWorkerIntegrities?: number[];
+    ergBaseSlimeEnabled?: boolean;
 }
 
 export interface EnemySnapshot {
@@ -162,15 +174,21 @@ export interface EnemySnapshot {
     rotY: number;
     hp: number;
     maxHp: number;
+    hitboxRadius?: number;
     name?: string;
     // Visual state flags
     isInvulnerable?: boolean;
     isChanneling?: boolean;
+    attackSequence?: number;
     shieldActive?: boolean;
     isSurtoActive?: boolean;
     scaleX?: number;
     scaleY?: number;
     scaleZ?: number;
+    towerKind?: 'ballistic' | 'inferno' | 'shock' | 'gravity';
+    towerStage?: number;
+    towerCharge?: number;
+    towerHeat?: number;
     // Espectro de Raziel fields
     soulsAbsorbed?: number;
     damageMultiplier?: number;
@@ -200,9 +218,12 @@ export interface ProjectileSnapshot {
     x: number;
     y: number;
     z: number;
+    rotY?: number;
+    hitboxRadius?: number;
     isPlayerOwned: boolean;
     color: number;
     specialEffect?: string;
+    visualEffect?: string;
     skillUpgrades?: { q?: string; w?: string; e?: string; r?: string };
 }
 
@@ -211,6 +232,7 @@ export interface OrbSnapshot {
     type: 'xp' | 'healing' | 'buff';
     x: number;
     z: number;
+    hitboxRadius?: number;
     buffType?: string;
 }
 
@@ -226,6 +248,10 @@ export interface DynamicEntitySnapshot {
     opacity?: number;
     color?: number;
     rotY?: number;
+    integrity?: number;
+    maxIntegrity?: number;
+    respawnTimer?: number;
+    extras?: any;
 }
 
 export interface BossSnapshot {
@@ -252,7 +278,7 @@ export interface GameEvent {
 
 
 export interface GameOverData {
-    scores: { playerId: string; playerName: string; score: number; rank: number; deathReport?: any; damageAnalysis?: any }[];
+    scores: { playerId: string; playerName: string; score: number; rank: number; deathReport?: any; damageAnalysis?: any; damageDealtAnalysis?: any }[];
     time: number;
     collapseLevel: number;
     winner: { playerId: string; playerName: string; score: number };

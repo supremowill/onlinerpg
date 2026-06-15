@@ -1,5 +1,29 @@
 [
   {
+    "hash": "local-predator-hive-refine",
+    "date": "2026-06-13T00:00:00-03:00",
+    "message": "balance: refina Bastião Predador da Colmeia com Ergs vulneráveis, nível da base, gosma defensiva e HUD detalhado",
+    "author": "codex"
+  },
+  {
+    "hash": "local-predator-hive",
+    "date": "2026-06-11T00:00:00-03:00",
+    "message": "feat: adiciona Bastiao Predador da Colmeia com Ergs, Biomassa e base central coletora de XP",
+    "author": "codex"
+  },
+  {
+    "hash": "local-coin",
+    "date": "2026-06-06T21:45:00-03:00",
+    "message": "feat: adiciona Torre Coringa com passivas, mutacoes e visual dourado",
+    "author": "codex"
+  },
+  {
+    "hash": "451a4fc",
+    "date": "2026-06-03T22:41:57-03:00",
+    "message": "Add aggregated damage telemetry",
+    "author": "williamdouglasmsouza"
+  },
+  {
     "hash": "4aea858",
     "date": "2026-06-03T20:20:35-03:00",
     "message": "feat: implement item system, loot engine, weekly award service, advanced stats and balance adjustments",
@@ -291,12 +315,6 @@
     "hash": "06889bd",
     "date": "2026-05-04T22:43:42-03:00",
     "message": "feat: implementar sistema de upgrade de habilidades (níveis 5,10,15,20)",
-    "author": "williamdouglasmsouza"
-  },
-  {
-    "hash": "b1e635e",
-    "date": "2026-05-04T22:15:20-03:00",
-    "message": "fix: adicionar CORS middleware para permitir requisições do browser",
     "author": "williamdouglasmsouza"
   }
 ]

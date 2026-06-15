@@ -1,4 +1,5 @@
 import { ServerPlayer } from '../Player';
+import { PlayerDamageMeta } from '../PlayerDamageTracker';
 
 /**
  * Defines the shape of an entity that can receive status effects.
@@ -11,7 +12,7 @@ export interface StatusTarget {
     originalSpeed: number;
     isDead?: boolean;
     isDestroyed?: boolean;
-    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive?: boolean): void;
+    takeDamage(amount: number, instigator: ServerPlayer | null, countsForPassive?: boolean, hpPercent?: number, isTrueDamage?: boolean, damageMeta?: PlayerDamageMeta): void;
 }
 
 /** Data stored per active status on an entity */
@@ -22,6 +23,7 @@ export interface ActiveStatus {
     intensity: number;   // damage, slow amount, etc.
     instigator: ServerPlayer | null;
     immune: boolean;     // true = currently immune (CC only)
+    damageMeta?: PlayerDamageMeta;
 }
 
 /** Full definition of a status from the dictionary */
@@ -64,6 +66,19 @@ function calcDoTDmg(state: ActiveStatus, isBleed = false): number {
 
 function applyStatusDamage(target: StatusTarget, state: ActiveStatus, amount: number, statusId: string): void {
     const anyTarget = target as any;
+    if (anyTarget.isDestroyed !== undefined) {
+        target.takeDamage(amount, state.instigator, false, 0, false, {
+            sourceType: 'status',
+            sourceId: statusId,
+            sourceName: statusId,
+            abilityName: statusId,
+            statusId,
+            isDoT: true,
+            isStatus: true,
+            ...state.damageMeta,
+        });
+        return;
+    }
     if (anyTarget.damageTracker) {
         anyTarget.takeDamage(amount, state.instigator, false, false, {
             directSourceName: statusId,
@@ -447,6 +462,14 @@ export const StatusDictionary: Record<string, StatusDef> = {
             (target as any).unmark?.();
         },
         visual: { color: '#ef4444', shape: 'pyramid', behavior: 'static' },
+    },
+
+    hive_wound: {
+        type: 'Debuff',
+        maxStacks: 5,
+        defaultDuration: 5000,
+        tickRateMs: 0,
+        visual: { color: '#a855f7', shape: 'ring', behavior: 'pulse' },
     },
 
     mortalWounds: {

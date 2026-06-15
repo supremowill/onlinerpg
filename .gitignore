@@ -57,6 +57,9 @@ scratch/reset_db.sh
 myaac-main/test.php
 myaac-main/test_login.php
 myaac-main/test_verify.php
+persistent-data/*
+!persistent-data/.gitkeep
+!persistent-data/README.md
 
 # Credentials and secrets
 aws/
